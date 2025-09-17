@@ -20,7 +20,7 @@ export const createAuth = (
     baseURL: siteUrl,
     database: authComponent.adapter(ctx),
     emailAndPassword: {
-      enabled: true,
+      enabled: false,
       requireEmailVerification: false,
     },
     socialProviders: {
