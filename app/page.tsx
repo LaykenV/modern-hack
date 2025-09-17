@@ -1,9 +1,7 @@
 "use client";
 
-import { useMutation, useQuery, Authenticated, Unauthenticated } from "convex/react";
-import { api } from "../convex/_generated/api";
-import Link from "next/link";
-import { useState } from "react";
+import { Authenticated, Unauthenticated } from "convex/react";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +17,7 @@ export default function Home() {
           <AuthForms />
         </Unauthenticated>
         <Authenticated>
-          <Content />
+          <RedirectToDashboard />
         </Authenticated>
       </main>
     </>
@@ -34,6 +32,25 @@ function AuthForms() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const onGoogleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+      });
+      // In most cases the call above will redirect.
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err && "message" in err
+          ? String((err as { message?: unknown }).message)
+          : null;
+      setError(message ?? "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,119 +130,33 @@ function AuthForms() {
           {loading ? "Please wait..." : mode === "signup" ? "Create account" : "Sign in"}
         </button>
       </form>
-    </div>
-  );
-}
-
-function Content() {
-  const { viewer, numbers } =
-    useQuery(api.myFunctions.listNumbers, {
-      count: 10,
-    }) ?? {};
-  const addNumber = useMutation(api.myFunctions.addNumber);
-
-  if (viewer === undefined || numbers === undefined) {
-    return (
-      <div className="mx-auto">
-        <p>loading... (consider a loading skeleton)</p>
+      <div className="my-4 flex items-center gap-3">
+        <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1" />
+        <span className="text-xs text-slate-500">or</span>
+        <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1" />
       </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-8 max-w-lg mx-auto">
-      <p>Welcome {viewer ?? "Anonymous"}!</p>
-      <p>
-        Click the button below and open this page in another window - this data
-        is persisted in the Convex cloud database!
-      </p>
-      <p>
-        <button
-          className="bg-foreground text-background text-sm px-4 py-2 rounded-md"
-          onClick={() => {
-            void addNumber({ value: Math.floor(Math.random() * 10) });
-          }}
-        >
-          Add a random number
-        </button>
-      </p>
-      <p>
-        Numbers:{" "}
-        {numbers?.length === 0
-          ? "Click the button!"
-          : numbers?.join(", ") ?? "..."}
-      </p>
-      <p>
-        Edit{" "}
-        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
-          convex/myFunctions.ts
-        </code>{" "}
-        to change your backend
-      </p>
-      <p>
-        Edit{" "}
-        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
-          app/page.tsx
-        </code>{" "}
-        to change your frontend
-      </p>
-      <p>
-        See the{" "}
-        <Link href="/server" className="underline hover:no-underline">
-          /server route
-        </Link>{" "}
-        for an example of loading data in a server component
-      </p>
-      <div className="flex flex-col">
-        <p className="text-lg font-bold">Useful resources:</p>
-        <div className="flex gap-2">
-          <div className="flex flex-col gap-2 w-1/2">
-            <ResourceCard
-              title="Convex docs"
-              description="Read comprehensive documentation for all Convex features."
-              href="https://docs.convex.dev/home"
-            />
-            <ResourceCard
-              title="Stack articles"
-              description="Learn about best practices, use cases, and more from a growing
-            collection of articles, videos, and walkthroughs."
-              href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html"
-            />
-          </div>
-          <div className="flex flex-col gap-2 w-1/2">
-            <ResourceCard
-              title="Templates"
-              description="Browse our collection of templates to get started quickly."
-              href="https://www.convex.dev/templates"
-            />
-            <ResourceCard
-              title="Discord"
-              description="Join our developer community to ask questions, trade tips & tricks,
-            and show off your projects."
-              href="https://www.convex.dev/community"
-            />
-          </div>
-        </div>
-      </div>
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onGoogleSignIn}
+        className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-sm px-4 py-2 rounded-md w-full disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+          <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.26-1.67 3.7-5.5 3.7-3.31 0-6-2.74-6-6.1S8.69 5.6 12 5.6c1.89 0 3.17.8 3.9 1.49l2.66-2.57C17.17 2.8 14.8 1.8 12 1.8 6.7 1.8 2.5 6.05 2.5 11.4S6.7 21 12 21c6.94 0 9.5-4.86 9.5-7.4 0-.5-.05-.86-.12-1.22H12z"/>
+        </svg>
+        Continue with Google
+      </button>
     </div>
   );
 }
 
-function ResourceCard({
-  title,
-  description,
-  href,
-}: {
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2 bg-slate-200 dark:bg-slate-800 p-4 rounded-md h-28 overflow-auto">
-      <a href={href} className="text-sm underline hover:no-underline">
-        {title}
-      </a>
-      <p className="text-xs">{description}</p>
-    </div>
-  );
+
+function RedirectToDashboard() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard");
+  }, [router]);
+  return null;
 }
+
+// Removed unused Content/ResourceCard components
