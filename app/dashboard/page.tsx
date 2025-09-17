@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
+import Image from "next/image";
 
 export default function DashboardPage() {
   return (
@@ -49,7 +50,14 @@ function DashboardContent() {
       <p className="mb-2">ID: {user?._id}</p>
       <p className="mb-2">Created At: {user?.createdAt}</p>
       <p className="mb-2">Updated At: {user?.updatedAt}</p>
-      {user?.image && <img src={user.image} alt="User Image" className="mb-2" />}
+      {user?.image && <Image
+                      src={user.image}
+                      alt="User Image"
+                      width={96}
+                      height={96}
+                      className="mb-2 rounded-full"
+                      priority
+                    />}
     </div>
   );
 }
