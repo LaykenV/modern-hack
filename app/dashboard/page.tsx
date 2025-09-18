@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
@@ -34,6 +34,7 @@ function DashboardContent() {
   const user = useQuery(api.auth.getCurrentUser);
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
   const router = useRouter();
+  const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
 
   useEffect(() => {
     if (user && (!sellerBrain || sellerBrain.crawlStatus !== "approved")) {
@@ -51,6 +52,20 @@ function DashboardContent() {
           }}
         >
           Sign out
+        </button>
+        <button
+          className="border border-slate-300 dark:border-slate-700 text-sm px-4 py-2 rounded-md ml-2"
+          onClick={async () => {
+            try {
+              const res = await testMeter({});
+              alert(res.message);
+            } catch (err) {
+              console.error("Test meter failed", err);
+              alert("Test metering failed. Check console for details.");
+            }
+          }}
+        >
+          Test Autumn Meter
         </button>
         <Link href="/dashboard/subscription">Subscription</Link>
       </div>
