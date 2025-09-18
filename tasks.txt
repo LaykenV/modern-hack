@@ -5,4 +5,12 @@ pricing table refresh fix
 how to get plan name? check log
 test credit spend
 
-set up firecrawl
+set up firecrawl in onboarding
+
+set up lead gen firecrawl + csv upload
+research + dossier firecrawl
+vapi integration
+resend emails
+
+
+ui
