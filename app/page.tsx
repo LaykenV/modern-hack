@@ -28,7 +28,7 @@ function AuthForms() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/dashboard",
+        callbackURL: "/dashboard/onboarding",
       });
       // In most cases the call above will redirect.
     } catch (err: unknown) {
@@ -70,5 +70,3 @@ function RedirectToDashboard() {
   }, [router]);
   return null;
 }
-
-// Removed unused Content/ResourceCard components

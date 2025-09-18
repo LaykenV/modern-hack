@@ -1,0 +1,8 @@
+//set up autumn
+//onboarding wizard
+
+pricing table refresh fix
+how to get plan name? check log
+test credit spend
+
+set up firecrawl
