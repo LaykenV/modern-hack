@@ -6,14 +6,17 @@
 //test credit spend
 
 //groq and workflow install init
-set up firecrawl in onboarding
-full onboarding flow
+//set up firecrawl in onboarding
+//full onboarding flow
 
-implement upgrades
+continue refining onboarding workflow
+prompt with firecrawl docs to check and ai agent + workflow docs
+test it 
 
-set up lead gen firecrawl + csv upload
-research + dossier firecrawl
-vapi integration
+
+set up lead gen firecrawl / google api
+research + dossier firecrawl + talking points
+vapi integration to call with dossier
 resend emails
 
 

@@ -4,6 +4,8 @@ import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { authComponent } from "./auth";
 import { workflow } from "./workflows";
+import { vWorkflowId } from "@convex-dev/workflow";
+import { vResultValidator } from "@convex-dev/workpool";
 
 const ClaimsValidator = v.array(
   v.object({
@@ -40,14 +42,7 @@ export const getForCurrentUser = query({
       icpIndustry: v.optional(v.array(v.string())),
       icpCompanySize: v.optional(v.array(v.string())),
       icpBuyerRole: v.optional(v.array(v.string())),
-      crawlStatus: v.union(
-        v.literal("idle"),
-        v.literal("crawling"),
-        v.literal("seeded"),
-        v.literal("error"),
-        v.literal("approved"),
-      ),
-      crawlError: v.optional(v.string()),
+      // Legacy status fields removed - check onboarding_flow.status instead
     }),
   ),
   handler: async (ctx) => {
@@ -76,8 +71,6 @@ export const getForCurrentUser = query({
       icpIndustry: existing.icpIndustry ?? undefined,
       icpCompanySize: existing.icpCompanySize ?? undefined,
       icpBuyerRole: existing.icpBuyerRole ?? undefined,
-      crawlStatus: existing.crawlStatus,
-      crawlError: existing.crawlError ?? undefined,
     };
   },
 });
@@ -105,16 +98,6 @@ export const saveSellerBrain = internalMutation({
     icpIndustry: v.optional(v.array(v.string())),
     icpCompanySize: v.optional(v.array(v.string())),
     icpBuyerRole: v.optional(v.array(v.string())),
-    crawlStatus: v.optional(
-      v.union(
-        v.literal("idle"),
-        v.literal("crawling"),
-        v.literal("seeded"),
-        v.literal("error"),
-        v.literal("approved"),
-      ),
-    ),
-    crawlError: v.optional(v.string()),
   },
   returns: v.object({ sellerBrainId: v.id("seller_brain") }),
   handler: async (ctx, args) => {
@@ -142,8 +125,6 @@ export const saveSellerBrain = internalMutation({
         icpIndustry: args.icpIndustry,
         icpCompanySize: args.icpCompanySize,
         icpBuyerRole: args.icpBuyerRole,
-        crawlStatus: args.crawlStatus ?? "idle",
-        crawlError: args.crawlError,
       });
       return { sellerBrainId: id };
     }
@@ -163,8 +144,6 @@ export const saveSellerBrain = internalMutation({
     if (typeof args.icpIndustry !== "undefined") update.icpIndustry = args.icpIndustry;
     if (typeof args.icpCompanySize !== "undefined") update.icpCompanySize = args.icpCompanySize;
     if (typeof args.icpBuyerRole !== "undefined") update.icpBuyerRole = args.icpBuyerRole;
-    if (typeof args.crawlStatus !== "undefined") update.crawlStatus = args.crawlStatus;
-    if (typeof args.crawlError !== "undefined") update.crawlError = args.crawlError;
 
     await ctx.db.patch(existing._id, update);
     return { sellerBrainId: existing._id };
@@ -181,26 +160,34 @@ export const seedFromWebsite = action({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new Error("Unauthorized");
 
-    // Mark as crawling first
+    // Create seller brain record (status tracking moved to onboarding_flow)
     const first: { sellerBrainId: Id<"seller_brain"> } = await ctx.runMutation(
       internal.sellerBrain.saveSellerBrain,
       {
-      companyName: args.companyName,
-      sourceUrl: args.sourceUrl,
-      crawlStatus: "crawling",
-      crawlError: undefined,
+        companyName: args.companyName,
+        sourceUrl: args.sourceUrl,
       },
     );
-    // Kick off onboarding workflow (durable)
-    await workflow.start(
+    // Kick off onboarding workflow (durable) with completion handler
+    const workflowId = await workflow.start(
       ctx,
-      internal.workflows.onboardingWorkflow,
+      internal.onboarding.workflow.onboardingWorkflow,
       {
         sellerBrainId: first.sellerBrainId,
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
       },
+      {
+        onComplete: internal.sellerBrain.handleWorkflowComplete,
+        context: { sellerBrainId: first.sellerBrainId },
+      },
     );
+    
+    // Store workflow ID for tracking
+    await ctx.runMutation(internal.onboarding.init.setWorkflowId, {
+      sellerBrainId: first.sellerBrainId,
+      workflowId: String(workflowId),
+    });
     return { sellerBrainId: first.sellerBrainId };
   },
 });
@@ -235,8 +222,7 @@ export const finalizeOnboarding = internalMutation({
       icpBuyerRole: args.icpBuyerRole,
       timeZone: args.timeZone,
       availability: args.availability,
-      crawlStatus: "approved",
-      crawlError: undefined,
+      // Status tracking moved to onboarding_flow
     });
     return null;
   },
@@ -256,6 +242,82 @@ export const finalizeOnboardingPublic = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.runMutation(internal.sellerBrain.finalizeOnboarding, args);
+    return null;
+  },
+});
+
+export const handleWorkflowComplete = internalMutation({
+  args: {
+    workflowId: vWorkflowId,
+    result: vResultValidator,
+    context: v.object({ sellerBrainId: v.id("seller_brain") }),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { workflowId, result, context } = args;
+    
+    // Find the onboarding flow by sellerBrainId since workflowId index was removed
+    // (optional workflowId causes index issues in Convex)
+    const flow = await ctx.db
+      .query("onboarding_flow")
+      .withIndex("by_sellerBrainId", (q) => q.eq("sellerBrainId", context.sellerBrainId))
+      .order("desc")
+      .first();
+    
+    // Verify this is the correct flow by checking workflowId if available
+    if (flow && flow.workflowId && flow.workflowId !== String(workflowId)) {
+      console.warn(`WorkflowId mismatch: expected ${workflowId}, got ${flow.workflowId}`);
+    }
+    
+    // Update workflowId if missing
+    if (flow && !flow.workflowId) {
+      await ctx.db.patch(flow._id, { workflowId: String(workflowId) });
+      console.log(`Set workflowId ${workflowId} for flow ${flow._id}`);
+    }
+    
+    if (!flow) {
+      console.error(`No onboarding flow found for workflow ${workflowId} or sellerBrainId ${context.sellerBrainId}`);
+      return null;
+    }
+    
+    // Update flow status based on result type
+    const updates: Record<string, unknown> = {};
+    
+    if (result.kind === "success") {
+      updates.status = "completed";
+      updates.workflowStatus = "completed";
+      updates.lastEvent = {
+        type: "workflow.completed",
+        message: "Onboarding workflow completed successfully",
+        timestamp: Date.now(),
+      };
+    } else if (result.kind === "failed") {
+      updates.status = "error";
+      updates.workflowStatus = "failed";
+      updates.lastEvent = {
+        type: "workflow.failed",
+        message: `Workflow failed: ${result.error}`,
+        timestamp: Date.now(),
+      };
+    } else if (result.kind === "canceled") {
+      updates.status = "error";
+      updates.workflowStatus = "cancelled";
+      updates.lastEvent = {
+        type: "workflow.cancelled",
+        message: "Workflow was cancelled",
+        timestamp: Date.now(),
+      };
+    }
+    
+    await ctx.db.patch(flow._id, updates);
+    
+    // Log completion for monitoring
+    console.log(`Workflow ${workflowId} completed with status: ${result.kind}`, {
+      sellerBrainId: context.sellerBrainId,
+      flowId: flow._id,
+      error: result.kind === "failed" ? result.error : null,
+    });
+    
     return null;
   },
 });

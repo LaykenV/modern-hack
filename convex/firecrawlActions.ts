@@ -2,6 +2,7 @@
 import { firecrawl } from "./firecrawl";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Start a Firecrawl crawl job and return the job id
 export const startCrawl = internalAction({
@@ -14,10 +15,13 @@ export const startCrawl = internalAction({
       allowSubdomains: false,
       crawlEntireDomain: false,
       includePaths: [
-        "^/(product|platform|features)(/|$)",
+        "^/(product|platform|features|solutions|use-cases)(/|$)",
         "^/(pricing)(/|$)",
         "^/(about|company)(/|$)",
-        "^/(docs|documentation)(/|$)",
+        "^/(docs|documentation|developers)(/|$)",
+        "^/(customers|case-studies)(/|$)",
+        "^/(security|trust|compliance)(/|$)",
+        "^/(resources)(/|$)",
       ],
       excludePaths: [
         "^/(privacy|legal|terms|tos|cookies|gdpr|dpa)(/|$)",
@@ -100,4 +104,41 @@ export const getCrawlStatus = internalAction({
   },
 });
 
+// Scrape multiple relevant pages in batches
+export const scrapeRelevantPages = internalAction({
+  args: { onboardingFlowId: v.id("onboarding_flow"), sellerBrainId: v.id("seller_brain"), urls: v.array(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { onboardingFlowId, sellerBrainId, urls } = args;
+    const batchSize = 2;
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const slice = urls.slice(i, i + batchSize);
+      await Promise.all(
+        slice.map(async (u) => {
+          const res = await firecrawl.scrape(u, {
+            formats: ["markdown"],
+            onlyMainContent: false,
+            maxAge: 0,
+          });
+          const doc = (res as unknown as { data?: { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } } }).data;
+          const result = {
+            url: doc?.metadata?.sourceURL ?? doc?.metadata?.url ?? u,
+            title: doc?.metadata?.title ?? undefined,
+            markdown: doc?.markdown ?? undefined,
+            statusCode: doc?.metadata?.statusCode ?? undefined,
+          };
+          await ctx.runMutation(internal.onboarding.scrape.saveScrapedPageContent, {
+            onboardingFlowId,
+            sellerBrainId,
+            url: result.url,
+            title: result.title,
+            markdown: result.markdown,
+            statusCode: result.statusCode,
+          });
+        }),
+      );
+    }
+    return null;
+  },
+});
 

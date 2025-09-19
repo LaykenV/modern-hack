@@ -37,14 +37,7 @@ export default defineSchema({
     icpIndustry: v.optional(v.array(v.string())),
     icpCompanySize: v.optional(v.array(v.string())),
     icpBuyerRole: v.optional(v.array(v.string())),
-    crawlStatus: v.union(
-      v.literal("idle"),
-      v.literal("crawling"),
-      v.literal("seeded"),
-      v.literal("error"),
-      v.literal("approved"),
-    ),
-    crawlError: v.optional(v.string()),
+    // Legacy status fields removed - use onboarding_flow.status and phases instead
   }).index("by_userId", ["userId"]),
 
   onboarding_flow: defineTable({
@@ -60,62 +53,49 @@ export default defineSchema({
       v.literal("error"),
       v.literal("completed"),
     ),
-    crawlPhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    filterPhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    scrapePhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    summaryPhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    claimsPhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    verifyPhase: v.union(
-      v.literal("starting"),
-      v.literal("in_progress"),
-      v.literal("done"),
-      v.literal("error"),
-    ),
-    crawlProgress: v.number(),
-    discoveredCount: v.number(),
-    scrapedCount: v.number(),
-    failedCount: v.number(),
+    workflowStatus: v.optional(v.union(
+      v.literal("running"),
+      v.literal("completed"), 
+      v.literal("failed"),
+      v.literal("cancelled")
+    )),
+    // Simplified phase tracking - single source of truth
+    phases: v.array(v.object({
+      name: v.union(
+        v.literal("crawl"),
+        v.literal("filter"),
+        v.literal("scrape"),
+        v.literal("summary"),
+        v.literal("claims"),
+        v.literal("verify"),
+      ),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("running"),
+        v.literal("complete"),
+        v.literal("error"),
+      ),
+      progress: v.number(), // 0-1
+      errorMessage: v.optional(v.string()),
+      startedAt: v.optional(v.number()),
+      completedAt: v.optional(v.number()),
+      duration: v.optional(v.number()), // completedAt - startedAt in milliseconds
+    })),
+    // Count fields removed - computed dynamically from crawl_pages
+    // AI threads
     fastThreadId: v.optional(v.string()),
     smartThreadId: v.optional(v.string()),
-    summaryMessageId: v.optional(v.string()),
-    claimsCandidateIds: v.optional(v.array(v.string())),
     relevantPages: v.optional(v.array(v.string())),
+    // Key events embedded (replacing events table)
+    lastEvent: v.optional(v.object({
+      type: v.string(),
+      message: v.string(),
+      timestamp: v.number(),
+    })),
   }).index("by_userId", ["userId"]).index("by_sellerBrainId", ["sellerBrainId"]),
+  // Note: Removed by_workflowId index since workflowId is optional and causes index issues
+  // Using programmatic lookup with fallback to sellerBrainId instead
 
-  onboarding_events: defineTable({
-    onboardingFlowId: v.id("onboarding_flow"),
-    userId: v.string(),
-    sellerBrainId: v.id("seller_brain"),
-    type: v.string(),
-    message: v.string(),
-    detail: v.optional(v.string()),
-    ts: v.number(),
-  }).index("by_flow", ["onboardingFlowId"]).index("by_userId", ["userId"]),
 
   crawl_pages: defineTable({
     onboardingFlowId: v.id("onboarding_flow"),
@@ -129,7 +109,9 @@ export default defineSchema({
     ),
     httpStatus: v.optional(v.number()),
     contentRef: v.optional(v.id("_storage")),
-    error: v.optional(v.string()),
     title: v.optional(v.string()),
-  }).index("by_flow", ["onboardingFlowId"]).index("by_flow_and_url", ["onboardingFlowId", "url"]),
+  })
+    .index("by_flow", ["onboardingFlowId"])
+    .index("by_flow_and_url", ["onboardingFlowId", "url"])
+    .index("by_flow_and_status", ["onboardingFlowId", "status"]),
 });
