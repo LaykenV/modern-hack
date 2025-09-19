@@ -3,6 +3,7 @@ import { query, internalMutation, action, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { authComponent } from "./auth";
+import { workflow } from "./workflows";
 
 const ClaimsValidator = v.array(
   v.object({
@@ -20,6 +21,16 @@ export const getForCurrentUser = query({
       userId: v.string(),
       companyName: v.string(),
       sourceUrl: v.string(),
+      onboardingFlowId: v.optional(v.id("onboarding_flow")),
+      pagesList: v.optional(
+        v.array(
+          v.object({
+            url: v.string(),
+            title: v.optional(v.string()),
+            category: v.optional(v.string()),
+          }),
+        ),
+      ),
       summary: v.optional(v.string()),
       approvedClaims: v.optional(ClaimsValidator),
       guardrails: v.optional(v.array(v.string())),
@@ -54,6 +65,8 @@ export const getForCurrentUser = query({
       userId: existing.userId,
       companyName: existing.companyName,
       sourceUrl: existing.sourceUrl,
+      onboardingFlowId: existing.onboardingFlowId ?? undefined,
+      pagesList: existing.pagesList ?? undefined,
       summary: existing.summary ?? undefined,
       approvedClaims: existing.approvedClaims ?? undefined,
       guardrails: existing.guardrails ?? undefined,
@@ -73,6 +86,16 @@ export const saveSellerBrain = internalMutation({
   args: {
     companyName: v.string(),
     sourceUrl: v.string(),
+    onboardingFlowId: v.optional(v.id("onboarding_flow")),
+    pagesList: v.optional(
+      v.array(
+        v.object({
+          url: v.string(),
+          title: v.optional(v.string()),
+          category: v.optional(v.string()),
+        }),
+      ),
+    ),
     summary: v.optional(v.string()),
     approvedClaims: v.optional(ClaimsValidator),
     guardrails: v.optional(v.array(v.string())),
@@ -108,6 +131,8 @@ export const saveSellerBrain = internalMutation({
         userId: user._id,
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
+        onboardingFlowId: args.onboardingFlowId,
+        pagesList: args.pagesList,
         summary: args.summary,
         approvedClaims: args.approvedClaims,
         guardrails: args.guardrails,
@@ -127,6 +152,8 @@ export const saveSellerBrain = internalMutation({
     // Always allow updating these base fields
     update.companyName = args.companyName;
     update.sourceUrl = args.sourceUrl;
+    if (typeof args.onboardingFlowId !== "undefined") update.onboardingFlowId = args.onboardingFlowId;
+    if (typeof args.pagesList !== "undefined") update.pagesList = args.pagesList;
     if (typeof args.summary !== "undefined") update.summary = args.summary;
     if (typeof args.approvedClaims !== "undefined") update.approvedClaims = args.approvedClaims;
     if (typeof args.guardrails !== "undefined") update.guardrails = args.guardrails;
@@ -164,57 +191,16 @@ export const seedFromWebsite = action({
       crawlError: undefined,
       },
     );
-
-    try {
-      // Placeholder ingest (no Firecrawl yet)
-      const summary = `Seeded placeholder summary for ${args.companyName} from ${args.sourceUrl}.`;
-      const approvedClaims = [
-        {
-          id: "claim-1",
-          text: `${args.companyName} offers reliable AI sales agent tooling with cited responses.`,
-          source_url: args.sourceUrl,
-        },
-        {
-          id: "claim-2",
-          text: `All messaging is grounded in your approved claims to prevent hallucinations.`,
-          source_url: args.sourceUrl,
-        },
-        {
-          id: "claim-3",
-          text: `Simple onboarding: paste your site and approve claims.`,
-          source_url: args.sourceUrl,
-        },
-      ];
-
-      const _resultSeeded: { sellerBrainId: Id<"seller_brain"> } = await ctx.runMutation(
-        internal.sellerBrain.saveSellerBrain,
-        {
+    // Kick off onboarding workflow (durable)
+    await workflow.start(
+      ctx,
+      internal.workflows.onboardingWorkflow,
+      {
+        sellerBrainId: first.sellerBrainId,
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
-        summary,
-        approvedClaims,
-        crawlStatus: "seeded",
-        crawlError: undefined,
-        },
-      );
-      console.log(_resultSeeded);
-    } catch (err) {
-      const message =
-        typeof err === "object" && err && "message" in err
-          ? String((err as { message?: unknown }).message)
-          : "Seeding failed";
-      const _resultError: { sellerBrainId: Id<"seller_brain"> } = await ctx.runMutation(
-        internal.sellerBrain.saveSellerBrain,
-        {
-        companyName: args.companyName,
-        sourceUrl: args.sourceUrl,
-        crawlStatus: "error",
-        crawlError: message,
-        },
-      );
-      console.error(message, _resultError);
-    }
-
+      },
+    );
     return { sellerBrainId: first.sellerBrainId };
   },
 });

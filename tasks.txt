@@ -1,11 +1,15 @@
 //set up autumn
 //onboarding wizard
 
-pricing table refresh fix
-how to get plan name? check log
-test credit spend
+//ricing table refresh fix
+//how to get plan name? check log
+//test credit spend
 
+//groq and workflow install init
 set up firecrawl in onboarding
+full onboarding flow
+
+implement upgrades
 
 set up lead gen firecrawl + csv upload
 research + dossier firecrawl
