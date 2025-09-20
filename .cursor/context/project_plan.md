@@ -1,181 +1,140 @@
-# Atlas Outbound — Hackathon MVP Plan (Local SMB Pivot)
+# Atlas Outbound — Hackathon MVP Plan (Agency Pivot)
 
 ## MVP goal
-- Eliminate the trust gap in AI sales agents with citations to approved claims, and showcase a real outbound call to a public business phone.
-- Ship a sub-3-minute gold-path demo: paste your site → approve claims → find 3 local businesses → research → click call → book → cited recap email → live timeline + credit meter.
+- Solve the #1 prospecting bottleneck for digital agencies by providing an AI-powered outbound platform that finds qualified local clients, identifies their specific marketing pain points, and initiates a trust-based sales call.
+- Ship a sub-3-minute gold-path demo: an agency owner pastes their site → defines their core service → finds 3 local businesses with identifiable gaps (e.g., no website) → the AI calls, references the gap, cites a case study, and books a discovery call.
 
 ## What’s in vs out (MVP scope)
 
 ### In
-- **Onboarding wizard**: company name + website URL (Firecrawl ingest), approve claims, tone, simple ICP (vertical + city), time zone + availability, default sender.
-- **Lead sourcing (local)**: “Find 5 dentists in San Francisco” via Google Places → returns name, phone, website, address → pick 3.
-- **Dossier**: combine Google Places facts (hours, rating, address, phone) and website crawl (if present). All buyer facts cited (Places URL or website). Talking points map 1:1 to Approved Claims.
-- **Call**: call the business main line via Vapi; live transcript; propose predefined time slots; create ICS; voicemail fallback.
-- **Follow-up**: React email via Resend with citations + ICS; webhooks update UI.
-- **Real-time + credits**: Convex live timeline; Autumn credit meter + `PaywallDialog` (can trigger mid-run). Debit for Places lookup, crawl, AI actions, call minutes.
+- **Agency Onboarding Wizard**: Agency name + website URL (Firecrawl ingest), approve claims (case studies), define `coreOffer`, set `targetVertical` + `targetGeography`, and select `leadQualificationCriteria` (pain points you solve).
+- **Intelligent Lead Sourcing**: "Find 5 roofers in San Francisco" via Google Places, then automatically filter and rank them based on the agency's chosen qualification criteria. Return a list with a powerful, actionable `fit_reason` for each lead (e.g., "Opportunity: No website & low Google rating").
+- **Instant Client Audit (Dossier)**: Combine Google Places data and a website crawl into a mini-audit that highlights the specific pain points the agency can solve. All facts are cited. Talking points map 1:1 to the agency's approved case studies.
+- **Tailored AI Sales Call**: Call the business via Vapi. The AI's opening line is dynamically generated from the lead's `fit_reason` and the agency's `coreOffer`. It proposes time slots, creates an ICS, and has a voicemail fallback.
+- **Professional Follow-up**: A React email sent via Resend includes a recap with cited case studies and the ICS file.
+- **Agency-Ready Platform**: Convex-powered real-time timeline of all activities; Autumn credit meter for usage-based actions (`PaywallDialog` for scaling).
 
 ### Out (for now)
-- Team/SSO, analytics suite, template editor, CRM/Slack/calendar integrations.
-- Direct-dial persona discovery; compliance screens beyond a single consent note + unsubscribe footer.
+- White-labeling for agencies to resell.
+- Full analytics suite (call connection rates, booking rates, etc.).
+- A/B testing for call scripts or email templates.
+- Direct integrations with agency-specific CRMs like HighLevel or GoHighLevel.
 
 ## User journey (gold path)
 - Landing → Google sign-in → `/dashboard/onboarding`
-- **Onboarding**:
-  1) Company + website → Firecrawl → Seed Brain + extracted claims with citations → toggle 3–5 Approved; add 1–2 guardrails (e.g., “don’t discuss pricing”).
-  2) Profile: tone, ICP vertical (e.g., “Dentists”) + city, time zone, 2–3 slot options, default sender.
-- **Lead sourcing**:
-  - “Find 5 dentists in San Francisco” → Google Places results with phone + website → pick 3. Credit meter decrements on accepted leads.
-- **Research & dossier**:
-  - “Research” → fetch Places details → crawl website (if present) → show dossier (summary, place/website facts with citations, talking points mapped to Approved Claims).
-- **Call**:
-  - “Call business” → Vapi dials main line → short qualify → propose slots → “booked” toast. Timeline shows live transcript and outcome.
-- **Follow-up**:
-  - Resend recap email with cited bullets + ICS → timeline updates with delivered/opened.
-- **Paywall**:
-  - Credits near zero → `PaywallDialog` → upgrade → job resumes.
+- **Onboarding (as an Agency Owner)**:
+  1) **Your Agency**: Enter "GrowthLocal" and `growthlocal.co` → Firecrawl ingests the site → Atlas extracts claims like *"We increased inbound leads by 40% for Bay Area Roofers."* → Approve 3 claims.
+  2) **Your Service**: Define your `coreOffer`: "We build modern websites that generate more quote requests."
+  3) **Your Ideal Client**: Set `targetVertical` ("Roofers"), `targetGeography` ("San Francisco"), and check boxes for `leadQualificationCriteria` like "Missing Website" and "Low Google Rating."
+  4) **Your Calendar**: Set tone, time zone, and availability for discovery calls.
+- **Lead Sourcing (Finding Clients)**:
+  - Click “Find Qualified Clients” → Atlas finds roofers, filters them, and presents a list. The `fit_reason` column is the star: *"High-Priority: No website listed."* → You select 3 promising leads.
+- **Research (Instant Audit)**:
+  - Open a lead to see the "Client Opportunity Report." It clearly flags the pain points you can solve, like `GAP: Missing Website`.
+- **Call (Automated Outreach)**:
+  - Click “Call Business” → Vapi dials. The AI uses a tailored script: *"Hi, I'm calling from GrowthLocal. I noticed you don't have a website, which can make it hard for new customers to find you. We specialize in building websites for roofers that get more quote requests... In fact, we helped Bay Area Roofers increase their leads by 40%..."* → The AI books the discovery call.
+- **Follow-up (Closing the Loop)**:
+  - A professional recap email is sent to the roofer (and BCC'd to you) with the cited "40% claim" and the meeting invite.
+- **Paywall (Ready to Scale)**:
+  - As you use the tool, credits deplete, and the `PaywallDialog` appears, showing how a real agency could scale its outreach.
 
 ## Pages and flows (MVP)
-- **Landing**: promise for local SMB outreach; “Start free.”
-- **Auth + Onboarding**: Google OAuth; redirect to `/dashboard/onboarding`.
-- **Onboarding Wizard** (≤5 steps).
-- **Dashboard**: credit meter, next-step cards, live timeline.
-- **Leads List**: minimal table (name, phone, website, fit reason, status).
-- **Lead Detail**: “Trust mode: citations only” badge, dossier cards, citations, Q&A, Call button.
-- **Call View (inline)**: transcript panel, tool toasts, outcome tag.
-- **Email Confirmation Banner**: link to preview recap.
+- **Landing**: Headline: "Stop Prospecting. Start Closing." Sub-headline: "The AI outbound platform for digital agencies."
+- **Auth + Onboarding**: Google OAuth; redirect to a multi-step onboarding wizard designed for agencies.
+- **Onboarding Wizard**: Clear steps for "Your Agency," "Your Service," and "Your Ideal Client."
+- **Dashboard**: "Client Pipeline" view with credit meter, next-step cards, and a live timeline of all outreach activities.
+- **Leads List**: A table renamed to "Client Opportunities" with a prominent, color-coded `fit_reason` column.
+- **Lead Detail**: Re-framed as a "Client Opportunity Report" with "Identified Gaps" and "Talking Points" sections.
+- **Call View (inline)**: Live transcript panel.
+- **Email Confirmation Banner**: "Recap email sent to [lead.name]".
 - **Paywall Dialog** (Autumn).
 
 ## Sponsor integrations (exact touchpoints)
-
-### Auth (Better-Auth + Google)
-- Google sign-in only.
-- Expose `userId`; store on all records.
-
-### Convex
-- Data store (`seller_brain`, `leads`, `dossiers`, `calls`, `emails`, `events`, `usage`).
-- Actions for background jobs; idempotent steps; real-time timeline + usage.
-
-### Google Places API
-- Lead discovery by vertical + city. Fields: `name`, `place_id`, `formatted_address`, `website`, `international_phone_number`, `rating`, `user_ratings_total`, `opening_hours`.
-- Detail endpoint for reliable phone/website. Store `phone_source="google_places"`, `phone_confidence=0.9`.
-
-### Firecrawl
-- Seller Brain ingest from seller’s site (no PDFs).
-- Lead website crawl if website exists; cache demo domains.
-
-### OpenAI
-- Claim extraction from seller site; verifier.
-- Dossier summarization (merge Places + website facts) with citations.
-- Talking points strictly mapped to Approved Claims (each includes `approved_claim_id` + `source_url`).
-- Q&A over embedded snippets with cosine similarity threshold to trigger safe “not found” fallback.
-
-### Vapi
-- Outbound call to `leads.phone`. System prompt includes guardrails.
-- Tools: `proposeTimeSlots` -> `bookMeeting` -> `logOutcome`.
-- Voicemail detection → “Voicemail left” outcome → send modified recap email.
-
-### Resend
-- Send recap email to user by default; include plain-text + ICS (`METHOD:REQUEST`).
-- Webhooks for delivered/opened → timeline updates.
-
-### Autumn
-- Debit credits: per Places acceptance, crawl, AI action, call minute.
-- Show credit bar; trigger `PaywallDialog`; resume jobs. Keys by `userId`.
+- **Better-Auth (Google)**: For agency owner sign-in.
+- **Convex**: The backend for storing agency profiles, client opportunities, call logs, and powering the real-time dashboard.
+- **Google Places API**: The discovery engine for finding local businesses that need the agency's services.
+- **Firecrawl**: To ingest the agency's own website to extract proof points (case studies, testimonials) for cited claims. Also used to audit potential clients' websites.
+- **OpenAI**: The brain for extracting claims, synthesizing the `fit_reason`, and generating talking points that connect an agency's strengths to a client's weaknesses.
+- **Vapi**: To execute the outbound sales call with a dynamic, context-aware script.
+- **Resend**: To send the professional, cited follow-up email and meeting invitation.
+- **Autumn**: To manage the usage-based credit system, making it a real, scalable product.
 
 ## OpenAI prompts/patterns (strict)
-
-### Guardrail enforcement
-- Include user guardrails in all prompts (talking points, Q&A, Vapi persona, email). Consistent refusal: “I can’t discuss pricing, but I can send details by email.”
-
-### Talking points generator
-- **Input**: `approved_claims` `[{id, text, source_url}]`, buyer facts (from Places/website), guardrails, tone.
-- **Instruction**: “Produce 3–5 points. Each must map to exactly one `approved_claim_id` and include its `source_url`. If no suitable claim exists, omit the point. Obey all guardrails.”
-
-### Verifier
-- **Instruction**: “For each talking point, confirm its `approved_claim_id` text strongly supports the statement. If weak, unrelated, or violating a guardrail, reject the point.”
-
-### Q&A
-- Only answer with snippets whose cosine similarity ≥ threshold; otherwise “I couldn’t find that.”
+- **Vapi System Prompt**: "You are a friendly and professional sales development representative for the digital agency, `[agency_profile.companyName]`. Their core service is `[agency_profile.coreOffer]`. You are calling `[lead.name]`. Your primary goal is to book a 15-minute discovery call. Start the conversation by referencing the specific marketing gap we identified: `[lead.fit_reason]`. You must use one of the approved claims from `[agency_profile.approvedClaims]` to build trust. Obey these guardrails: `[agency_profile.guardrails]`."
+- **Talking points generator**: "Input: agency's `approved_claims`, client's `fit_reason` (pain point), agency's `coreOffer`. Instruction: Create 3 talking points. Each point must logically connect the client's pain point to the agency's core offer and be supported by exactly one `approved_claim_id`."
+- **Verifier**: "For each talking point, confirm its `approved_claim_id` strongly supports the statement about solving the client's problem. If weak, reject the point."
+- **Q&A**: "Only answer with snippets whose cosine similarity ≥ threshold; otherwise respond with 'That's a great question for the strategy session, which I can book for you now.'"
 
 ## Minimal data model (Convex)
-- `seller_brain`: `userId`, `companyName`, `sourceUrl`, `approvedClaims[{id, text, source_url}]`, `guardrails[]`, `tone`, `timeZone`, `availability[]`
-- `leads`: `id`, `userId`, `name`, `domain?`, `phone`, `phone_source`, `phone_confidence`, `place_id`, `address`, `city`, `rating`, `reviews_count`, `source="google_places"`, `fit_reason`, `status`
-- `dossier`: `leadId`, `summary`, `facts[{key, value, source_url}]`, `talking_points[{text, approved_claim_id, source_url}]`, `embeddingsRef`
-- `calls`: `id`, `leadId`, `userId`, `transcript[]`, `outcome`, `meeting_time`, `icsUrl`
-- `emails`: `id`, `leadId`, `subject`, `html`, `status`, `deliveredAt`, `openedAt`
-- `events` (timeline): `id`, `userId`, `type`, `subtype`, `refId`, `message`, `ts`
-- `usage`: `userId`, `plan`, `credits`, `counters {places_lookups, crawl_pages, ai_actions, call_minutes}`
+- `agency_profile`: `userId`, `companyName`, `sourceUrl`, `approvedClaims[{id, text, source_url}]`, `guardrails[]`, `tone`, `timeZone`, `availability[]`, `targetVertical`, `targetGeography`, `coreOffer`, `leadQualificationCriteria[]`.
+- `client_opportunities`: `id`, `agencyId` (fk to `agency_profile`), `name`, `domain?`, `phone`, `place_id`, `address`, `city`, `rating`, `reviews_count`, `source="google_places"`, `fit_reason`, `status`.
+- `audit_dossier`: `opportunityId`, `summary`, `identified_gaps[{key, value, source_url}]`, `talking_points[{text, approved_claim_id, source_url}]`.
+- `calls`: `id`, `opportunityId`, `agencyId`, `transcript[]`, `outcome`, `meeting_time`.
+- `emails`: `id`, `opportunityId`, `subject`, `html`, `status`.
+- `events` (timeline): `id`, `agencyId`, `type`, `refId`, `message`.
+- `usage`: `agencyId`, `plan`, `credits`, `counters{...}`.
 
 ## Pipelines (jobs)
-- **Onboarding**: Firecrawl crawl → OpenAI ExtractClaims + Seed Brain summary → Verifier → store approved subset + summary.
-- **Lead discovery**: Places text search by vertical + city → details per result → synthesize `fit_reason` (e.g., “High rating; website lists online booking”) → accept 3.
-- **Research**: For each lead → collect Places facts; if website exists → Firecrawl homepage → Extract facts → OpenAI summarize/talking_points → Verifier → store.
-- **Call**: Start Vapi → stream transcript → tool events → on outcome, generate ICS & log.
-- **Email**: On call outcome → render template → Resend send → webhook updates.
-- **Credits**: Check allowance before each step; debit on completion; idempotent; trigger Paywall when near zero.
+- **Onboarding**: Firecrawl agency site → Extract claims → Agency owner approves claims & completes the offer/client profile form.
+- **Lead Qualification**: Places search by `targetVertical`+`targetGeography` → Get details for each → Filter/rank against `leadQualificationCriteria` → Synthesize a powerful `fit_reason`.
+- **Client Audit**: For each opportunity, collect Places facts → If website exists, crawl and analyze for pain points (e.g., mobile-friendliness, slow speed) → Store results in `audit_dossier`.
+- **Outreach Call**: Start Vapi with the dynamic system prompt → Stream transcript → On outcome, generate ICS & log.
+- **Follow-up Email**: On call outcome, render template → Send via Resend.
+- **Credit Management**: Check allowance before each billable step; debit on completion.
 
 ## UI specifics that sell the MVP
-- Trust mode badges on Dossier and Call.
-- Interactive citations (hover shows “Source Claim” or “Source: Google Places/lead website”).
-- Progressive states (“Finding local businesses…”, “Verifying claims…”, “Calling…”).
-- Live Timeline showing each step.
-- Credit Meter visibly decrementing per action.
+- The multi-step onboarding wizard feels tailored and intelligent, making the agency user feel understood.
+- The "Client Opportunities" list with color-coded badges for the `fit_reason` (e.g., a red "NO WEBSITE" badge) is the central "Aha!" moment.
+- The "Client Opportunity Report" view, which clearly lays out "Identified Gaps" and how the agency's "Proof Points" (claims) solve them.
+- "Trust Mode: Case Studies Cited" badges reinforce the core value prop.
 
 ## Tech stack
-- Next.js + TypeScript + Tailwind
-- Better-Auth (Google)
-- Convex (data, jobs, RT)
-- Google Places API
-- Firecrawl
-- OpenAI
-- Vapi
-- Resend
-- Autumn
-- Deployed to Vercel
+- Next.js + TypeScript + Tailwind (For the agency-facing dashboard)
+- Better-Auth (Google) (Secure sign-in for agency owners)
+- Convex (Real-time backend for a fluid, responsive UI)
+- Google Places API (The source of all client opportunity data)
+- Firecrawl (For both initial agency site ingest and client site auditing)
+- OpenAI (The intelligence layer for analysis and conversation)
+- Vapi (The voice that executes the outreach)
+- Resend (For professional email follow-ups)
+- Autumn (To monetize and manage usage like a real SaaS product)
+- Vercel (For deployment)
 
 ## 3-minute demo script
-1) Sign in with Google → `/dashboard/onboarding`.
-2) Enter Company + website → watch Seed Brain + claims with citations → approve 3–5; add guardrail “no pricing.”
-3) Set ICP: Vertical “Dentists”, City “San Francisco”; Tone “Consultative”; TZ + availability.
-4) Leads: click “Find dentists in San Francisco” → pick 3 with phone + website → note `fit_reasons`.
-5) Open a lead → “Research” → dossier fills with Places + website facts; hover a citation tooltip.
-6) Click “Call business” → live transcript; ask about price → agent refuses per guardrail; propose time → booked toast.
-7) Show recap email with cited bullets + ICS; timeline updates delivered/opened.
-8) Credits hit threshold → `PaywallDialog` → upgrade → job resumes.
+1) **Setup (0:00-0:30)**: "Hi, I'm the founder of a small web dev agency. My biggest problem is finding time for sales. So I built Atlas. Let me show you how it works."
+2) **Onboarding (0:30-1:15)**: Sign in. Paste your agency's URL. "Atlas reads my site and pulls out my case studies." Approve a claim like "Increased leads 40% for Bay Area Roofers." Quickly fill out the core service ("Websites for contractors") and ideal client profile (Roofers in SF with "No Website").
+3) **Lead Gen (1:15-1:45)**: Click "Find Clients." A list appears. "In seconds, Atlas found three roofers in SF that don't have a website. This `fit_reason` column is pure gold. Let's call this one."
+4) **The Call (1:45-2:30)**: Click call. A live transcript pops up. We hear the AI: *"Hi, I'm calling from GrowthLocal. I found you on Google but noticed you don't have a website, and I know how important that is for getting new projects. We actually helped another local company, Bay Area Roofers, increase their leads by 40% after we built their new site. Would you have 15 minutes next week for a quick chat about it?"* ... The call gets booked.
+5) **Closing (2:30-3:00)**: "Boom. A qualified discovery call is booked. The follow-up email with the case study is already sent. The entire process was automated, trusted, and took less than 3 minutes. That's Atlas, the outbound platform for agencies."
 
 ## Build schedule (10–12 days)
-- **Day 1**: Scaffold; Google OAuth; Convex schema; Landing + Onboarding route.
-- **Day 2**: Firecrawl ingest + ExtractClaims + Verifier; Approve Claims UI.
-- **Day 3**: ICP mini-form (vertical + city); Guardrail enforcement; Autumn meter basics.
-- **Day 4**: Google Places discovery (search + details); lead table; `fit_reason` synthesis; store phone/website/`place_id`.
-- **Day 5**: Research pipeline merging Places facts + optional website crawl; interactive citation tooltips.
-- **Day 6**: Vapi outbound call to `leads.phone`; tools; voicemail fallback; ICS generation.
-- **Day 7**: Resend recap email (HTML + plaintext + ICS); webhooks; timeline view.
-- **Day 8**: `PaywallDialog`; idempotent debit rules; resume jobs.
-- **Day 9**: UI polish: skeletons, spinners, error toasts; Trust Mode badges; phone source badges.
-- **Day 10**: Cache demo `place_ids` and crawls; flaky network safeguards.
-- **Day 11**: Record demo; README with Judge Path; deploy; social posts.
-- **Day 12**: Buffer for bugs/perf; dry runs.
+- **Day 1**: Scaffold; Auth; Convex schema (with `agency_profile`); Landing page with new copy.
+- **Day 2**: Firecrawl ingest for agency claims; Approve Claims UI.
+- **Day 3**: Build the full agency onboarding wizard (Service, Ideal Client, Qualifiers).
+- **Day 4**: Implement the intelligent lead sourcing pipeline (search, filter, rank, `fit_reason`).
+- **Day 5**: Build the "Client Opportunity Report" UI and the research pipeline to populate it.
+- **Day 6**: Integrate Vapi with the fully dynamic, agency-aware system prompt.
+- **Day 7**: Integrate Resend for emails; build timeline view.
+- **Day 8**: Integrate Autumn `PaywallDialog` and credit logic.
+- **Day 9**: UI polish: loading states, error handling, `fit_reason` badges.
+- **Day 10**: Cache demo data to ensure a smooth presentation.
+- **Day 11**: Record the demo video; write the README; deploy.
+- **Day 12**: Final bug fixes and presentation dry runs.
 
 ## Risk mitigation
-- **Places quotas/latency**: Cache a few `place_ids` and details server-side for demo cities.
-- **Phone accuracy**: Use `international_phone_number`; validate format; if call failure, log outcome and send adjusted email.
-- **Website missing**: Dossier still works with Places facts alone.
-- **Call compliance**: Keep a consent note; avoid sensitive categories; for live demo, call a hotline or your secondary line if needed.
-- **Hallucinations**: Maintain 1:1 mapping of talking points to Approved Claims; strict Verifier; “not found” fallback in Q&A.
-- **Email deliverability**: Include plaintext; correct ICS headers.
-- **Credit double-charging**: Idempotent jobs.
+- **Places quotas/latency**: Pre-cache a few agency profiles and client opportunity searches for demo cities.
+- **Phone accuracy**: Use `international_phone_number`; if a call fails, the status updates to "Bad Number" and the agency isn't charged.
+- **Website missing**: This is no longer a bug; it's a feature! It's a key qualification criterion.
+- **Call compliance**: A consent note is still key. The niche focus on B2B service providers is lower risk than other categories.
+- **Hallucinations**: The strict 1:1 mapping of talking points to an agency's approved claims is the core defense.
 
 ## Deliverables and checklist
 - Live Vercel app URL
-- GitHub repo + README:
-  - Judge Path from fresh signup
-  - Integration notes and file paths
-  - Google OAuth and Places setup notes
-- 3–4 min demo video showing the gold path
-- Social posts tagging sponsors
+- GitHub repo + README (with the agency-focused Judge Path)
+- 3-min demo video telling the agency owner story
+- Social posts tagging sponsors, positioned as a tool for agencies
 
 ## Stretch (only if time remains)
-- Simulate Call toggle (agent role-plays buyer to your phone) as a fallback if outbound is flaky.
-- “Copy recap to clipboard” on Lead Detail.
-- Simple inbound web voice demo button with Vapi.
+- **Add more `leadQualificationCriteria`**: "Website not mobile friendly" (detectable via Firecrawl), or "No Google Analytics tag found."
+- **"Simulate Call" button**: Allows the agency owner to receive the AI call on their own phone to test the script before going live.
+- **Simple inbound demo**: A "Talk to AI Sales Rep" button on the Atlas landing page itself, powered by Vapi, to demo the tech instantly.

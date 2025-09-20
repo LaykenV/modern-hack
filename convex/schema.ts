@@ -6,7 +6,8 @@ import { v } from "convex/values";
 // app will continue to work.
 // The schema provides more precise TypeScript types.
 export default defineSchema({
-  seller_brain: defineTable({
+  // Agency profile - updated from seller brain
+  agency_profile: defineTable({
     userId: v.string(),
     companyName: v.string(),
     sourceUrl: v.string(),
@@ -34,15 +35,75 @@ export default defineSchema({
     tone: v.optional(v.string()),
     timeZone: v.optional(v.string()),
     availability: v.optional(v.array(v.string())),
-    icpIndustry: v.optional(v.array(v.string())),
-    icpCompanySize: v.optional(v.array(v.string())),
-    icpBuyerRole: v.optional(v.array(v.string())),
-    // Legacy status fields removed - use onboarding_flow.status and phases instead
+    targetVertical: v.optional(v.string()),
+    targetGeography: v.optional(v.string()),
+    coreOffer: v.optional(v.string()),
+    leadQualificationCriteria: v.optional(v.array(v.string())),
   }).index("by_userId", ["userId"]),
+
+  // Client opportunities - leads found via Google Places
+  client_opportunities: defineTable({
+    agencyId: v.id("agency_profile"),
+    name: v.string(),
+    domain: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    place_id: v.string(),
+    address: v.optional(v.string()),
+    city: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    reviews_count: v.optional(v.number()),
+    source: v.string(), // "google_places"
+    fit_reason: v.optional(v.string()),
+    status: v.optional(v.string()),
+  }).index("by_agency", ["agencyId"]).index("by_place_id", ["place_id"]),
+
+  // Audit dossier - detailed analysis of each opportunity
+  audit_dossier: defineTable({
+    opportunityId: v.id("client_opportunities"),
+    summary: v.optional(v.string()),
+    identified_gaps: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+          source_url: v.optional(v.string()),
+        }),
+      ),
+    ),
+    talking_points: v.optional(
+      v.array(
+        v.object({
+          text: v.string(),
+          approved_claim_id: v.string(),
+          source_url: v.optional(v.string()),
+        }),
+      ),
+    ),
+  }).index("by_opportunity", ["opportunityId"]),
+
+  // Call records
+  calls: defineTable({
+    opportunityId: v.id("client_opportunities"),
+    agencyId: v.id("agency_profile"),
+    transcript: v.optional(v.array(v.any())), // Flexible transcript format
+    outcome: v.optional(v.string()),
+    meeting_time: v.optional(v.string()),
+    status: v.optional(v.string()),
+    duration: v.optional(v.number()),
+  }).index("by_opportunity", ["opportunityId"]).index("by_agency", ["agencyId"]),
+
+  // Email records
+  emails: defineTable({
+    opportunityId: v.id("client_opportunities"),
+    subject: v.string(),
+    html: v.string(),
+    status: v.optional(v.string()),
+    sent_at: v.optional(v.number()),
+  }).index("by_opportunity", ["opportunityId"]),
 
   onboarding_flow: defineTable({
     userId: v.string(),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     companyName: v.string(),
     sourceUrl: v.string(),
     workflowId: v.optional(v.string()),
@@ -92,14 +153,14 @@ export default defineSchema({
       message: v.string(),
       timestamp: v.number(),
     })),
-  }).index("by_userId", ["userId"]).index("by_sellerBrainId", ["sellerBrainId"]),
+  }).index("by_userId", ["userId"]).index("by_agencyProfileId", ["agencyProfileId"]),
   // Note: Removed by_workflowId index since workflowId is optional and causes index issues
-  // Using programmatic lookup with fallback to sellerBrainId instead
+  // Using programmatic lookup with fallback to agencyProfileId instead
 
 
   crawl_pages: defineTable({
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     url: v.string(),
     status: v.union(
       v.literal("queued"),

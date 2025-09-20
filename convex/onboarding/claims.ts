@@ -3,7 +3,7 @@ import { v } from "convex/values";
 // PhaseStatus import removed as it's no longer used
 import { normalizeUrl, truncateContent } from "./contentUtils";
 import { internal } from "../_generated/api";
-import { atlasAgent, atlasAgentGroq } from "../agent";
+import { atlasAgentGroq } from "../agent";
 import type { Id } from "../_generated/dataModel";
 
 export const loadClaimsContext = internalQuery({
@@ -57,16 +57,22 @@ export const generateClaims = internalAction({
       const p = limitedPages[i];
       let snippet = "";
       if (p.contentRef) {
-        const url = await ctx.storage.getUrl(p.contentRef);
-        if (url) {
-          try {
-            const resp = await fetch(url);
-            const text = await resp.text();
+        try {
+          const blob = await ctx.storage.get(p.contentRef);
+          if (blob) {
+            const text = await blob.text();
             snippet = truncateContent(text, 4000);
-            // Small delay to avoid overwhelming storage API
-            await new Promise(resolve => setTimeout(resolve, 100));
-          } catch {}
+            console.log(`Successfully loaded content for ${p.url}: ${text.length} chars`);
+          } else {
+            console.warn(`No blob found for contentRef ${p.contentRef} at URL ${p.url}`);
+          }
+          // Small delay to avoid overwhelming storage API
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (e) {
+          console.error(`Failed to load content for ${p.url}:`, e);
         }
+      } else {
+        console.warn(`No contentRef for URL ${p.url}`);
       }
       results.push({ i, line: `Source [${i + 1}]: ${p.url}\n${snippet}` });
     }
@@ -78,7 +84,7 @@ export const generateClaims = internalAction({
   const contextLines = lines.join("\n\n");
   const prompt = `You are generating factual, verifiable product/company claims based strictly on the provided sources.\n\nRules:\n- Only write claims that are directly supported by the sources.\n- Keep each claim short (<= 180 characters) and specific.\n- Output only JSON array, no extra text.\n- Each claim must include text and source_url (one of the provided sources).\n- 3 to 5 claims total.\n\nSources:\n${contextLines}\n\nOutput format:\n[{"text": "...", "source_url": "..."}]`;
 
-  const result = await atlasAgent.generateText(ctx, { threadId: smartThreadId }, { prompt });
+  const result = await atlasAgentGroq.generateText(ctx, { threadId: smartThreadId }, { prompt });
   const raw = (result.text ?? "").trim();
   let claims: Array<{ text: string; source_url: string }> = [];
   try {
@@ -118,7 +124,7 @@ export const finishVerifyClaims = internalMutation({
     const { onboardingFlowId, accepted } = args;
     const flow = await ctx.db.get(onboardingFlowId);
     if (!flow) return null;
-    await ctx.db.patch(flow.sellerBrainId, { approvedClaims: accepted });
+    await ctx.db.patch(flow.agencyProfileId, { approvedClaims: accepted }); 
     // Phase status updates are now handled by the workflow
     return null;
   },
@@ -132,6 +138,14 @@ export const verifyClaims = internalAction({
   returns: v.array(v.object({ id: v.string(), text: v.string(), source_url: v.string() })),
   handler: async (ctx, args) => {
     const { onboardingFlowId, candidates } = args;
+    
+    // Get the onboarding flow to access the fastThreadId (using internal query)
+    const flow = await ctx.runQuery(internal.onboarding.queries.getOnboardingFlowInternal, { onboardingFlowId });
+    if (!flow) throw new Error("Onboarding flow not found");
+    if (!flow.fastThreadId) throw new Error("Fast thread not initialized");
+    
+    // At this point, flow is guaranteed to be non-null
+    
     // Verification phase tracking is now handled by the workflow
 
   const limit = 2;
@@ -149,18 +163,21 @@ export const verifyClaims = internalAction({
       try {
         const page = await ctx.runQuery(internal.onboarding.claims.getCrawlPageByUrl, { onboardingFlowId, url: n });
         if (page?.contentRef) {
-          const signedUrl = await ctx.storage.getUrl(page.contentRef);
-          if (signedUrl) {
-            const resp = await fetch(signedUrl, { method: "GET" });
-            const text = await resp.text();
+          const blob = await ctx.storage.get(page.contentRef);
+          if (blob) {
+            const text = await blob.text();
             snippets[n] = truncateContent(text, 6000);
+            console.log(`Successfully loaded verification content for ${n}: ${text.length} chars`);
           } else {
+            console.warn(`No blob found for contentRef ${page.contentRef} at URL ${n}`);
             snippets[n] = "";
           }
         } else {
+          console.warn(`No contentRef for verification URL ${n}`);
           snippets[n] = "";
         }
-      } catch {
+      } catch (e) {
+        console.error(`Failed to load verification content for ${n}:`, e);
         snippets[n] = "";
       }
     }
@@ -179,7 +196,7 @@ export const verifyClaims = internalAction({
 
       let ok = false;
       try {
-        const res = await atlasAgentGroq.generateText(ctx, {}, { prompt });
+        const res = await atlasAgentGroq.generateText(ctx, { threadId: flow!.fastThreadId }, { prompt });
         const parsed = JSON.parse(res.text ?? "{}");
         ok = !!parsed.accepted;
         // Individual claim verification logging is now handled by the workflow

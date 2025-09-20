@@ -6,7 +6,7 @@ import { internal } from "../_generated/api";
 export const saveScrapedPageContent = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     url: v.string(),
     title: v.optional(v.string()),
     markdown: v.optional(v.string()),
@@ -17,7 +17,7 @@ export const saveScrapedPageContent = internalMutation({
     // Use consolidated upsert function, preserving existing content
     await ctx.runMutation(internal.onboarding.pageUtils.upsertPageData, {
       onboardingFlowId: args.onboardingFlowId,
-      sellerBrainId: args.sellerBrainId,
+      agencyProfileId: args.agencyProfileId,
       url: args.url,
       title: args.title,
       markdown: args.markdown,

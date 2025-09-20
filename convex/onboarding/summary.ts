@@ -1,13 +1,13 @@
 import { internalMutation, internalAction, query } from "../_generated/server";
 import { v } from "convex/values";
 // Phase status updates are now handled by the workflow
-import { atlasAgent } from "../agent";
+import { atlasAgentGroq } from "../agent";
 import { authComponent } from "../auth";
 import { components } from "../_generated/api";
-import { listMessages, syncStreams, extractText, vStreamArgs } from "@convex-dev/agent";
+import { listMessages, syncStreams, extractText, vStreamArgs, type SyncStreamsReturnValue } from "@convex-dev/agent";
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "../_generated/api";
-import { normalizeUrl } from "./contentUtils";
+import { normalizeUrl, truncateContent } from "./contentUtils";
 
 export const markSummaryStreamingStarted = internalMutation({
   args: { onboardingFlowId: v.id("onboarding_flow") },
@@ -31,16 +31,53 @@ export const streamSummary = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-  const { onboardingFlowId, smartThreadId, companyName, sourceUrl, contextUrls } = args;
+    const { onboardingFlowId, smartThreadId, companyName, sourceUrl, contextUrls } = args;
     await ctx.runMutation(internal.onboarding.summary.markSummaryStreamingStarted, { onboardingFlowId });
-    const prompt = `Create a concise, accurate company overview for ${companyName} (${sourceUrl}). Cite sources as [n] mapped to these URLs (in importance order):\n${contextUrls.slice(0, 10).map((u, i) => `[${i + 1}] ${u}`).join("\n")}`;
-    await atlasAgent.streamText(
+    
+    // Load actual content from storage instead of just URLs
+    const contentLines: Array<string> = [];
+    const limitedUrls = contextUrls.slice(0, 8); // Limit to prevent memory issues
+    
+    for (let i = 0; i < limitedUrls.length; i++) {
+      const url = limitedUrls[i];
+      try {
+        // Get the page data from the database
+        const page = await ctx.runQuery(internal.onboarding.claims.getCrawlPageByUrl, { 
+          onboardingFlowId, 
+          url 
+        });
+        
+        if (page?.contentRef) {
+          const blob = await ctx.storage.get(page.contentRef);
+          if (blob) {
+            const text = await blob.text();
+            const truncated = truncateContent(text, 3000);
+            contentLines.push(`Source [${i + 1}]: ${url}\n${truncated}`);
+            console.log(`Successfully loaded summary content for ${url}: ${text.length} chars`);
+          } else {
+            console.warn(`No blob found for summary URL ${url}`);
+            contentLines.push(`Source [${i + 1}]: ${url}\n[Content not available]`);
+          }
+        } else {
+          console.warn(`No contentRef for summary URL ${url}`);
+          contentLines.push(`Source [${i + 1}]: ${url}\n[Content not available]`);
+        }
+      } catch (e) {
+        console.error(`Failed to load summary content for ${url}:`, e);
+        contentLines.push(`Source [${i + 1}]: ${url}\n[Content loading failed]`);
+      }
+    }
+    
+    const contextContent = contentLines.join("\n\n");
+    const prompt = `Create a concise, accurate company overview for ${companyName} (${sourceUrl}) based on the provided content. Cite sources as [n] where n corresponds to the source numbers below:\n\n${contextContent}`;
+    
+    await atlasAgentGroq.streamText(
       ctx,
       { threadId: smartThreadId },
       { prompt },
       { saveStreamDeltas: true },
     );
-      return null;
+    return null;
   },
 });
 
@@ -65,25 +102,9 @@ export const finalizeSummary = internalAction({
   },
 });
 
-export const generateSummary = internalAction({
-  args: {
-    onboardingFlowId: v.id("onboarding_flow"),
-    companyName: v.string(),
-    sourceUrl: v.string(),
-    pageUrls: v.array(v.string()),
-  },
-  returns: v.string(),
-  handler: async (ctx, args) => {
-  const { companyName, sourceUrl, pageUrls } = args;
-    const pagesSnippet = pageUrls.slice(0, 5).map((u, i) => `[${i + 1}] ${u}`).join("\n");
-    const summary = `Company: ${companyName}\nWebsite: ${sourceUrl}\n\nOverview:\n${companyName} provides products and services documented on the following pages:\n${pagesSnippet}\n\nThis is an automatically generated initial summary.`;
-      return summary;
-  },
-});
-
 export const saveSummaryAndSeed = internalMutation({
   args: {
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     onboardingFlowId: v.id("onboarding_flow"),
     summary: v.string(),
     pagesList: v.optional(
@@ -92,7 +113,7 @@ export const saveSummaryAndSeed = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { sellerBrainId, onboardingFlowId, summary, pagesList } = args;
+    const { agencyProfileId, onboardingFlowId, summary, pagesList } = args;
     
     // Compute enriched pagesList if not provided
     let finalPagesList: Array<{ url: string; title?: string; category?: string }> = pagesList ?? [];
@@ -129,7 +150,7 @@ export const saveSummaryAndSeed = internalMutation({
       finalPagesList = enriched;
     }
 
-    await ctx.db.patch(sellerBrainId, {
+    await ctx.db.patch(agencyProfileId, {
       summary,
       pagesList: finalPagesList,
     });
@@ -145,37 +166,30 @@ export const listSummaryMessages = query({
     paginationOpts: paginationOptsValidator,
     streamArgs: vStreamArgs,
   },
-  returns: v.object({
-    page: v.array(v.any()),
-    isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    streams: v.object({
-      deltas: v.array(v.any()),
-      hasActiveStream: v.boolean(),
-    }),
-  }),
+  returns: v.any(),
   handler: async (ctx, args) => {
     const flow = await ctx.db.get(args.onboardingFlowId);
     const user = await authComponent.getAuthUser(ctx);
     if (!flow || !user || flow.userId !== user._id) throw new Error("Forbidden");
-    if (flow.smartThreadId !== args.threadId) throw new Error("Forbidden");
+
+    // If thread isn't ready yet or doesn't match, return empty results for the UI hook
+    if (!args.threadId || !flow.smartThreadId || flow.smartThreadId !== args.threadId) {
+      const emptyStreams: SyncStreamsReturnValue = { kind: "deltas", deltas: [] };
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: "",
+        streams: emptyStreams,
+      };
+    }
     const agentArgs = {
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
       streamArgs: args.streamArgs,
     };
     const paginated = await listMessages(ctx, components.agent, agentArgs);
-    const rawStreams = await syncStreams(ctx, components.agent, agentArgs);
-    const shapedStreams = {
-      deltas: Array.isArray((rawStreams as unknown as { deltas?: Array<unknown> }).deltas)
-        ? (rawStreams as unknown as { deltas: Array<unknown> }).deltas
-        : [],
-      hasActiveStream: Boolean(
-        (rawStreams as unknown as { hasActiveStream?: boolean }).hasActiveStream ??
-          (rawStreams as unknown as { active?: Array<unknown> }).active?.length,
-      ),
-    };
-      return { ...paginated, streams: shapedStreams };
+    const streams = await syncStreams(ctx, components.agent, agentArgs);
+    return { ...paginated, streams };
   },
 });
 

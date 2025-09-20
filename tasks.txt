@@ -9,9 +9,23 @@
 //set up firecrawl in onboarding
 //full onboarding flow
 
-continue refining onboarding workflow
-prompt with firecrawl docs to check and ai agent + workflow docs
+//ontinue refining onboarding workflow
+//prompt with firecrawl docs to check and ai agent + workflow docs
 test it 
+
+pages not updated from queued
+claims only getting urls as context so they suck
+claims and guardrails need their own step
+//onboarding only uses fast agent?
+claims and summary need to happen in parallel
+also return 'core offer'
+//dashboard and onboarding redirecting
+//update seller brain and final step form
+
+//update schema and onboarding form
+give manual or automated option
+
+update prompts in workflow for agency
 
 
 set up lead gen firecrawl / google api

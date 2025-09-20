@@ -1,7 +1,5 @@
-import { internalMutation, internalAction } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-import { PageStatus } from "./constants";
-import { normalizeUrl } from "./contentUtils";
 import { internal } from "../_generated/api";
 
 export const markCrawlStarted = internalMutation({
@@ -20,7 +18,7 @@ export const markCrawlStarted = internalMutation({
 export const upsertCrawlPages = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     pages: v.array(
       v.object({
         url: v.string(),
@@ -36,14 +34,10 @@ export const upsertCrawlPages = internalMutation({
     // Use consolidated batch upsert function
     await ctx.runMutation(internal.onboarding.pageUtils.batchUpsertCrawlPages, {
       onboardingFlowId: args.onboardingFlowId,
-      sellerBrainId: args.sellerBrainId,
+      agencyProfileId: args.agencyProfileId,
       pages: args.pages,
     });
     
     return null;
   },
 });
-
-
-
-

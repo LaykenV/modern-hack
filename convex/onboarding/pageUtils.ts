@@ -16,7 +16,7 @@ import { internal } from "../_generated/api";
 export const upsertPageData = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     url: v.string(),
     title: v.optional(v.string()),
     markdown: v.optional(v.string()),
@@ -25,7 +25,7 @@ export const upsertPageData = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { onboardingFlowId, sellerBrainId, url, title, markdown, statusCode, preserveExistingContent } = args;
+    const { onboardingFlowId, agencyProfileId, url, title, markdown, statusCode, preserveExistingContent } = args;
     
     // Validate flow exists
     const flow = await ctx.db.get(onboardingFlowId);
@@ -44,7 +44,8 @@ export const upsertPageData = internalMutation({
     } else if (isFailed) {
       newStatus = PageStatus.failed;
     } else {
-      newStatus = PageStatus.fetching;
+      // When markdown is null/undefined (discovery-only mode), set status to "queued" instead of "fetching"
+      newStatus = PageStatus.queued;
     }
     
     // Check for existing page
@@ -59,7 +60,7 @@ export const upsertPageData = internalMutation({
       // Insert new page
       await ctx.db.insert("crawl_pages", {
         onboardingFlowId,
-        sellerBrainId,
+        agencyProfileId,
         url: normalizedUrl,
         title,
         status: newStatus,
@@ -71,7 +72,7 @@ export const upsertPageData = internalMutation({
       if (hasMarkdown && markdown) {
         await ctx.scheduler.runAfter(0, internal.onboarding.pageUtils.storePageMarkdown, {
           onboardingFlowId,
-          sellerBrainId,
+          agencyProfileId,
           url: normalizedUrl,
           markdown,
         });
@@ -88,7 +89,7 @@ export const upsertPageData = internalMutation({
       if (hasMarkdown && markdown && (!preserveExistingContent || !existing.contentRef)) {
         await ctx.scheduler.runAfter(0, internal.onboarding.pageUtils.storePageMarkdown, {
           onboardingFlowId,
-          sellerBrainId,
+          agencyProfileId,
           url: normalizedUrl,
           markdown,
         });
@@ -107,20 +108,20 @@ export const upsertPageData = internalMutation({
 export const storePageMarkdown = internalAction({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     url: v.string(),
     markdown: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { onboardingFlowId, sellerBrainId, url, markdown } = args;
+    const { onboardingFlowId, agencyProfileId, url, markdown } = args;
     
     try {
       const contentRef = await ctx.storage.store(new Blob([markdown], { type: "text/markdown" }));
       
       await ctx.runMutation(internal.onboarding.pageUtils.applyStoredPageContent, {
         onboardingFlowId,
-        sellerBrainId,
+        agencyProfileId,
         url,
         contentRef,
       });
@@ -139,7 +140,7 @@ export const storePageMarkdown = internalAction({
 export const applyStoredPageContent = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     url: v.string(),
     contentRef: v.id("_storage"),
   },
@@ -174,7 +175,7 @@ export const applyStoredPageContent = internalMutation({
 export const batchUpsertCrawlPages = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     pages: v.array(
       v.object({
         url: v.string(),
@@ -186,13 +187,13 @@ export const batchUpsertCrawlPages = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { onboardingFlowId, sellerBrainId, pages } = args;
+    const { onboardingFlowId, agencyProfileId, pages } = args;
     
     // Process each page using the consolidated upsert function
     for (const page of pages) {
       await ctx.runMutation(internal.onboarding.pageUtils.upsertPageData, {
         onboardingFlowId,
-        sellerBrainId,
+        agencyProfileId,
         url: page.url,
         title: page.title,
         markdown: page.markdown,

@@ -35,12 +35,13 @@ function DashboardContent() {
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
   const router = useRouter();
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
+  const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
 
   useEffect(() => {
-    if (user && (!sellerBrain || sellerBrain.crawlStatus !== "approved")) {
+    if (user && (!sellerBrain || (onboardingStatus !== "completed" && onboardingStatus !== null))) {
       router.replace("/dashboard/onboarding");
     }
-  }, [user, sellerBrain, router]);
+  }, [user, sellerBrain, router, onboardingStatus]);
   return (
     <div className="max-w-2xl mx-auto w-full">
       <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
@@ -100,13 +101,8 @@ function DashboardContent() {
               </p>
             )}
             <p>
-              <span className="font-medium">Status:</span> {sellerBrain.crawlStatus}
+              <span className="font-medium">Status:</span> {onboardingStatus ?? "Not started"}
             </p>
-            {typeof sellerBrain.crawlError !== "undefined" && sellerBrain.crawlError && (
-              <p className="text-red-600 dark:text-red-400">
-                <span className="font-medium">Error:</span> {sellerBrain.crawlError}
-              </p>
-            )}
             {typeof sellerBrain.tone !== "undefined" && (
               <p>
                 <span className="font-medium">Tone:</span> {sellerBrain.tone}
@@ -122,19 +118,24 @@ function DashboardContent() {
                 <span className="font-medium">Availability:</span> {sellerBrain.availability.join(", ")}
               </p>
             )}
-            {Array.isArray(sellerBrain.icpIndustry) && sellerBrain.icpIndustry.length > 0 && (
+            {Array.isArray(sellerBrain.targetVertical) && sellerBrain.targetVertical.length > 0 && (
               <p>
-                <span className="font-medium">ICP Industries:</span> {sellerBrain.icpIndustry.join(", ")}
+                <span className="font-medium">Target Vertical:</span> {sellerBrain.targetVertical.join(", ")}
               </p>
             )}
-            {Array.isArray(sellerBrain.icpCompanySize) && sellerBrain.icpCompanySize.length > 0 && (
+            {sellerBrain.targetGeography && (
               <p>
-                <span className="font-medium">ICP Company Sizes:</span> {sellerBrain.icpCompanySize.join(", ")}
+                <span className="font-medium">Target Geography:</span> {sellerBrain.targetGeography}
               </p>
             )}
-            {Array.isArray(sellerBrain.icpBuyerRole) && sellerBrain.icpBuyerRole.length > 0 && (
+            {sellerBrain.coreOffer && (
               <p>
-                <span className="font-medium">ICP Buyer Roles:</span> {sellerBrain.icpBuyerRole.join(", ")}
+                <span className="font-medium">Core Offer:</span> {sellerBrain.coreOffer}
+              </p>
+            )}
+            {Array.isArray(sellerBrain.leadQualificationCriteria) && sellerBrain.leadQualificationCriteria.length > 0 && (
+              <p>
+                <span className="font-medium">Lead Qualification Criteria:</span> {sellerBrain.leadQualificationCriteria.join(", ")}
               </p>
             )}
             {Array.isArray(sellerBrain.guardrails) && sellerBrain.guardrails.length > 0 && (

@@ -6,16 +6,69 @@ import { internal } from "../_generated/api";
 import { calculateOverallProgress } from "./statusUtils";
 // EventTypes no longer needed with simplified event model
 
-export const listFlowPages = internalQuery({
+// Internal: Get onboarding flow without auth (for workflow use)
+export const getOnboardingFlowInternal = internalQuery({
   args: { onboardingFlowId: v.id("onboarding_flow") },
-  returns: v.array(v.object({ url: v.string(), title: v.optional(v.string()) })),
+  returns: v.union(
+    v.object({
+      _id: v.id("onboarding_flow"),
+      _creationTime: v.number(),
+      userId: v.string(),
+      agencyProfileId: v.id("agency_profile"),
+      companyName: v.string(),
+      sourceUrl: v.string(),
+      status: v.union(v.literal("idle"), v.literal("running"), v.literal("error"), v.literal("completed")),
+      phases: v.array(v.object({
+        name: v.union(
+          v.literal("crawl"),
+          v.literal("filter"),
+          v.literal("scrape"),
+          v.literal("summary"),
+          v.literal("claims"),
+          v.literal("verify"),
+        ),
+        status: v.union(
+          v.literal("pending"),
+          v.literal("running"),
+          v.literal("complete"),
+          v.literal("error"),
+        ),
+        progress: v.number(),
+        errorMessage: v.optional(v.string()),
+        startedAt: v.optional(v.number()),
+        completedAt: v.optional(v.number()),
+        duration: v.optional(v.number()),
+      })),
+      fastThreadId: v.optional(v.string()),
+      smartThreadId: v.optional(v.string()),
+      relevantPages: v.optional(v.array(v.string())),
+      lastEvent: v.optional(v.object({
+        type: v.string(),
+        message: v.string(),
+        timestamp: v.number(),
+      })),
+      workflowId: v.optional(v.string()),
+      workflowStatus: v.optional(v.union(v.literal("running"), v.literal("completed"), v.literal("failed"), v.literal("cancelled"))),
+      crawlJobId: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const { onboardingFlowId } = args;
-    const rows = await ctx.db
-      .query("crawl_pages")
-      .withIndex("by_flow", (q) => q.eq("onboardingFlowId", onboardingFlowId))
-      .collect();
-    return rows.map((r) => ({ url: r.url, title: r.title ?? undefined }));
+    const flow = await ctx.db.get(onboardingFlowId);
+    if (!flow) return null;
+    
+    // Ensure all optional fields are present for validation
+    return {
+      ...flow,
+      workflowId: flow.workflowId ?? undefined,
+      workflowStatus: flow.workflowStatus ?? undefined,
+      crawlJobId: flow.crawlJobId ?? undefined,
+      fastThreadId: flow.fastThreadId ?? undefined,
+      smartThreadId: flow.smartThreadId ?? undefined,
+      relevantPages: flow.relevantPages ?? undefined,
+      lastEvent: flow.lastEvent ?? undefined,
+    };
   },
 });
 
@@ -86,7 +139,7 @@ export const getOnboardingFlow = query({
   returns: v.object({
     _id: v.id("onboarding_flow"),
     userId: v.string(),
-    sellerBrainId: v.id("seller_brain"),
+    agencyProfileId: v.id("agency_profile"),
     companyName: v.string(),
     sourceUrl: v.string(),
     status: v.union(v.literal("idle"), v.literal("running"), v.literal("error"), v.literal("completed")),
@@ -109,6 +162,7 @@ export const getOnboardingFlow = query({
       errorMessage: v.optional(v.string()),
       startedAt: v.optional(v.number()),
       completedAt: v.optional(v.number()),
+      duration: v.optional(v.number()),
     })),
     counts: v.object({
       discoveredCount: v.number(),
@@ -145,7 +199,7 @@ export const getOnboardingFlow = query({
     return {
       _id: flow._id,
       userId: flow.userId,
-      sellerBrainId: flow.sellerBrainId,
+      agencyProfileId: flow.agencyProfileId,
       companyName: flow.companyName,
       sourceUrl: flow.sourceUrl,
       status: flow.status,
@@ -192,6 +246,24 @@ export const getOverallProgress = query({
     if (!user || flow.userId !== user._id) throw new Error("Forbidden");
     
     return calculateOverallProgress(flow.phases);
+  },
+});
+
+export const getOnboardingStatus = query({
+  args: { onboardingFlowId: v.optional(v.id("onboarding_flow")) },
+  returns: v.union(
+    v.literal("idle"),
+    v.literal("running"),
+    v.literal("error"),
+    v.literal("completed"),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const { onboardingFlowId } = args;
+    if (!onboardingFlowId) return null;
+    const flow = await ctx.db.get(onboardingFlowId);
+    if (!flow) return null;
+    return flow.status;
   },
 });
 

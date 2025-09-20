@@ -39,10 +39,10 @@ export const getForCurrentUser = query({
       tone: v.optional(v.string()),
       timeZone: v.optional(v.string()),
       availability: v.optional(v.array(v.string())),
-      icpIndustry: v.optional(v.array(v.string())),
-      icpCompanySize: v.optional(v.array(v.string())),
-      icpBuyerRole: v.optional(v.array(v.string())),
-      // Legacy status fields removed - check onboarding_flow.status instead
+      targetVertical: v.optional(v.string()),
+      targetGeography: v.optional(v.string()),
+      coreOffer: v.optional(v.string()),
+      leadQualificationCriteria: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (ctx) => {
@@ -50,7 +50,7 @@ export const getForCurrentUser = query({
     if (!user) return null;
 
     const existing = await ctx.db
-      .query("seller_brain")
+      .query("agency_profile")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
@@ -68,17 +68,19 @@ export const getForCurrentUser = query({
       tone: existing.tone ?? undefined,
       timeZone: existing.timeZone ?? undefined,
       availability: existing.availability ?? undefined,
-      icpIndustry: existing.icpIndustry ?? undefined,
-      icpCompanySize: existing.icpCompanySize ?? undefined,
-      icpBuyerRole: existing.icpBuyerRole ?? undefined,
+      targetVertical: existing.targetVertical ?? undefined,
+      targetGeography: existing.targetGeography ?? undefined,
+      coreOffer: existing.coreOffer ?? undefined,
+      leadQualificationCriteria: existing.leadQualificationCriteria ?? undefined,
     };
   },
 });
 
-export const saveSellerBrain = internalMutation({
+export const saveAgencyProfile = internalMutation({
   args: {
     companyName: v.string(),
     sourceUrl: v.string(),
+    userId: v.string(), // Pass userId from authenticated action
     onboardingFlowId: v.optional(v.id("onboarding_flow")),
     pagesList: v.optional(
       v.array(
@@ -95,23 +97,21 @@ export const saveSellerBrain = internalMutation({
     tone: v.optional(v.string()),
     timeZone: v.optional(v.string()),
     availability: v.optional(v.array(v.string())),
-    icpIndustry: v.optional(v.array(v.string())),
-    icpCompanySize: v.optional(v.array(v.string())),
-    icpBuyerRole: v.optional(v.array(v.string())),
+    targetVertical: v.optional(v.string()),
+    targetGeography: v.optional(v.string()),
+    coreOffer: v.optional(v.string()),
+    leadQualificationCriteria: v.optional(v.array(v.string())),
   },
-  returns: v.object({ sellerBrainId: v.id("seller_brain") }),
+  returns: v.object({ agencyProfileId: v.id("agency_profile") }),
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
-    if (!user) throw new Error("Unauthorized");
-
     const existing = await ctx.db
-      .query("seller_brain")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .query("agency_profile")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
 
     if (!existing) {
-      const id = await ctx.db.insert("seller_brain", {
-        userId: user._id,
+      const id = await ctx.db.insert("agency_profile", {
+        userId: args.userId,
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
         onboardingFlowId: args.onboardingFlowId,
@@ -122,11 +122,12 @@ export const saveSellerBrain = internalMutation({
         tone: args.tone,
         timeZone: args.timeZone,
         availability: args.availability,
-        icpIndustry: args.icpIndustry,
-        icpCompanySize: args.icpCompanySize,
-        icpBuyerRole: args.icpBuyerRole,
+        targetVertical: args.targetVertical,
+        targetGeography: args.targetGeography,
+        coreOffer: args.coreOffer,
+        leadQualificationCriteria: args.leadQualificationCriteria,
       });
-      return { sellerBrainId: id };
+      return { agencyProfileId: id };
     }
 
     const update: Record<string, unknown> = {};
@@ -141,12 +142,12 @@ export const saveSellerBrain = internalMutation({
     if (typeof args.tone !== "undefined") update.tone = args.tone;
     if (typeof args.timeZone !== "undefined") update.timeZone = args.timeZone;
     if (typeof args.availability !== "undefined") update.availability = args.availability;
-    if (typeof args.icpIndustry !== "undefined") update.icpIndustry = args.icpIndustry;
-    if (typeof args.icpCompanySize !== "undefined") update.icpCompanySize = args.icpCompanySize;
-    if (typeof args.icpBuyerRole !== "undefined") update.icpBuyerRole = args.icpBuyerRole;
+    if (typeof args.targetVertical !== "undefined") update.targetVertical = args.targetVertical;
+    if (typeof args.targetGeography !== "undefined") update.targetGeography = args.targetGeography;
+    if (typeof args.coreOffer !== "undefined") update.coreOffer = args.coreOffer;
 
     await ctx.db.patch(existing._id, update);
-    return { sellerBrainId: existing._id };
+    return { agencyProfileId: existing._id };
   },
 });
 
@@ -155,17 +156,18 @@ export const seedFromWebsite = action({
     companyName: v.string(),
     sourceUrl: v.string(),
   },
-  returns: v.object({ sellerBrainId: v.id("seller_brain") }),
+  returns: v.object({ agencyProfileId: v.id("agency_profile") }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new Error("Unauthorized");
 
-    // Create seller brain record (status tracking moved to onboarding_flow)
-    const first: { sellerBrainId: Id<"seller_brain"> } = await ctx.runMutation(
-      internal.sellerBrain.saveSellerBrain,
+    // Create agency profile record (status tracking moved to onboarding_flow)
+    const first: { agencyProfileId: Id<"agency_profile"> } = await ctx.runMutation(
+      internal.sellerBrain.saveAgencyProfile,
       {
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
+        userId: user._id, // Pass the authenticated user ID
       },
     );
     // Kick off onboarding workflow (durable) with completion handler
@@ -173,56 +175,61 @@ export const seedFromWebsite = action({
       ctx,
       internal.onboarding.workflow.onboardingWorkflow,
       {
-        sellerBrainId: first.sellerBrainId,
+        agencyProfileId: first.agencyProfileId,
         companyName: args.companyName,
         sourceUrl: args.sourceUrl,
+        userId: user._id, // Pass the authenticated user ID
       },
       {
         onComplete: internal.sellerBrain.handleWorkflowComplete,
-        context: { sellerBrainId: first.sellerBrainId },
+        context: { agencyProfileId: first.agencyProfileId },
       },
     );
     
-    // Store workflow ID for tracking
-    await ctx.runMutation(internal.onboarding.init.setWorkflowId, {
-      sellerBrainId: first.sellerBrainId,
-      workflowId: String(workflowId),
-    });
-    return { sellerBrainId: first.sellerBrainId };
+    // Store workflow ID for tracking (best-effort; flow may not exist yet)
+    try {
+      await ctx.runMutation(internal.onboarding.init.setWorkflowId, {
+        agencyProfileId: first.agencyProfileId,
+        workflowId: String(workflowId),
+      });
+    } catch (e) {
+      console.warn("setWorkflowId skipped (flow not yet initialized):", e);
+    }
+    return { agencyProfileId: first.agencyProfileId };
   },
 });
 
 export const finalizeOnboarding = internalMutation({
   args: {
+    userId: v.string(), // Pass userId from authenticated public mutation
     approvedClaims: ClaimsValidator,
     guardrails: v.array(v.string()),
     tone: v.string(),
-    icpIndustry: v.array(v.string()),
-    icpCompanySize: v.array(v.string()),
-    icpBuyerRole: v.array(v.string()),
+    targetVertical: v.string(),
+    targetGeography: v.string(),
+    coreOffer: v.string(),
     timeZone: v.string(),
     availability: v.array(v.string()),
+    leadQualificationCriteria: v.array(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
-    if (!user) throw new Error("Unauthorized");
     const existing = await ctx.db
-      .query("seller_brain")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .query("agency_profile")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
-    if (!existing) throw new Error("Seller brain not found");
+    if (!existing) throw new Error("Agency profile not found");
 
     await ctx.db.patch(existing._id, {
       approvedClaims: args.approvedClaims,
       guardrails: args.guardrails,
       tone: args.tone,
-      icpIndustry: args.icpIndustry,
-      icpCompanySize: args.icpCompanySize,
-      icpBuyerRole: args.icpBuyerRole,
+      targetVertical: args.targetVertical,
+      targetGeography: args.targetGeography,
+      coreOffer: args.coreOffer,
       timeZone: args.timeZone,
       availability: args.availability,
-      // Status tracking moved to onboarding_flow
+      leadQualificationCriteria: args.leadQualificationCriteria,
     });
     return null;
   },
@@ -233,15 +240,22 @@ export const finalizeOnboardingPublic = mutation({
     approvedClaims: ClaimsValidator,
     guardrails: v.array(v.string()),
     tone: v.string(),
-    icpIndustry: v.array(v.string()),
-    icpCompanySize: v.array(v.string()),
-    icpBuyerRole: v.array(v.string()),
+    targetVertical: v.string(),
+    targetGeography: v.string(),
+    coreOffer: v.string(),
     timeZone: v.string(),
     availability: v.array(v.string()),
+    leadQualificationCriteria: v.array(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.runMutation(internal.sellerBrain.finalizeOnboarding, args);
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+    
+    await ctx.runMutation(internal.sellerBrain.finalizeOnboarding, {
+      ...args,
+      userId: user._id,
+    });
     return null;
   },
 });
@@ -250,17 +264,17 @@ export const handleWorkflowComplete = internalMutation({
   args: {
     workflowId: vWorkflowId,
     result: vResultValidator,
-    context: v.object({ sellerBrainId: v.id("seller_brain") }),
+    context: v.object({ agencyProfileId: v.id("agency_profile") }),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const { workflowId, result, context } = args;
     
-    // Find the onboarding flow by sellerBrainId since workflowId index was removed
+    // Find the onboarding flow by agencyProfileId since workflowId index was removed
     // (optional workflowId causes index issues in Convex)
     const flow = await ctx.db
       .query("onboarding_flow")
-      .withIndex("by_sellerBrainId", (q) => q.eq("sellerBrainId", context.sellerBrainId))
+      .withIndex("by_agencyProfileId", (q) => q.eq("agencyProfileId", context.agencyProfileId))
       .order("desc")
       .first();
     
@@ -276,7 +290,7 @@ export const handleWorkflowComplete = internalMutation({
     }
     
     if (!flow) {
-      console.error(`No onboarding flow found for workflow ${workflowId} or sellerBrainId ${context.sellerBrainId}`);
+      console.error(`No onboarding flow found for workflow ${workflowId} or agencyProfileId ${context.agencyProfileId}`);
       return null;
     }
     
@@ -313,7 +327,7 @@ export const handleWorkflowComplete = internalMutation({
     
     // Log completion for monitoring
     console.log(`Workflow ${workflowId} completed with status: ${result.kind}`, {
-      sellerBrainId: context.sellerBrainId,
+      agencyProfileId: context.agencyProfileId,
       flowId: flow._id,
       error: result.kind === "failed" ? result.error : null,
     });

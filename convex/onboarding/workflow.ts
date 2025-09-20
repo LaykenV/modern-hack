@@ -4,13 +4,21 @@ import { internal } from "../_generated/api";
 
 // Onboarding Workflow Definition
 export const onboardingWorkflow = workflow.define({
-  args: { sellerBrainId: v.id("seller_brain"), companyName: v.string(), sourceUrl: v.string() },
+  args: { agencyProfileId: v.id("agency_profile"), companyName: v.string(), sourceUrl: v.string(), userId: v.string() },
   handler: async (step, args): Promise<null> => {
-    const { onboardingFlowId } = await step.runMutation(internal.onboarding.init.initOnboarding, args);
+    const { onboardingFlowId } = await step.runMutation(internal.onboarding.init.initOnboarding, {
+      agencyProfileId: args.agencyProfileId,
+      companyName: args.companyName,
+      sourceUrl: args.sourceUrl,
+      userId: args.userId,
+    });
     
     // Create threads for AI agents
     const threads = await step.runAction(internal.onboarding.init.createThreads, { onboardingFlowId });
     await step.runMutation(internal.onboarding.init.setThreads, { onboardingFlowId, ...threads });
+
+    // Discovered pages from crawl phase (used in filter phase)
+    let discoveredPages: Array<{ url: string; title?: string }> = [];
 
     try {
       // Start crawl phase with custom retry for network operations
@@ -35,18 +43,18 @@ export const onboardingWorkflow = workflow.define({
       
       for (let i = 0; i < maxIterations; i++) {
         const snapshot = await step.runAction(
-          internal.firecrawlActions.getCrawlStatus,
-          { crawlJobId: started.crawlJobId, autoPaginate: i === 0 },
+          internal.firecrawlActions.getCrawlStatusOnly,
+          { 
+            crawlJobId: started.crawlJobId, 
+            autoPaginate: i === 0 
+          },
           i === 0 ? 
             { retry: { maxAttempts: 3, initialBackoffMs: 1000, base: 2 } } : 
             { runAfter: 2000, retry: { maxAttempts: 2, initialBackoffMs: 500, base: 2 } },
         );
-        await step.runMutation(internal.onboarding.crawl.upsertCrawlPages, { 
-          onboardingFlowId, 
-          sellerBrainId: args.sellerBrainId, 
-          pages: snapshot.pages, 
-          totals: { total: snapshot.total, completed: snapshot.completed } 
-        });
+        
+        // Store discovered pages for filtering (don't save to DB yet)
+        discoveredPages = snapshot.pages;
         
         // Update crawl progress using Firecrawl's completed/total directly
         if (snapshot.total && snapshot.completed !== undefined) {
@@ -64,10 +72,14 @@ export const onboardingWorkflow = workflow.define({
       }
       
       // Check if we timed out
-      const finalSnapshot = await step.runAction(internal.firecrawlActions.getCrawlStatus, { crawlJobId: started.crawlJobId, autoPaginate: true });
+      const finalSnapshot = await step.runAction(internal.firecrawlActions.getCrawlStatusOnly, { 
+        crawlJobId: started.crawlJobId, 
+        autoPaginate: true 
+      });
       if (finalSnapshot.status !== "completed") {
         throw new Error(`Crawl timed out after ${MAX_CRAWL_MINUTES} minutes (demo timeout). Status: ${finalSnapshot.status}`);
       }
+      discoveredPages = finalSnapshot.pages;
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
         onboardingFlowId,
         phaseName: "crawl",
@@ -81,7 +93,7 @@ export const onboardingWorkflow = workflow.define({
       throw new Error(`Crawl phase failed: ${String(e)}`);
     }
 
-    // Filter relevant pages
+    // Filter relevant pages and save them to database
     let relevant: Array<string> = [];
     try {
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
@@ -93,7 +105,13 @@ export const onboardingWorkflow = workflow.define({
         subPhaseProgress: 0.2,
         eventMessage: "Filtering relevant pages"
       });
-      const allPages = await step.runQuery(internal.onboarding.queries.listFlowPages, { onboardingFlowId });
+      
+      // Filter using the discovered pages from crawl (not from database)
+      relevant = await step.runAction(internal.onboarding.filter.filterRelevantPages, { 
+        pages: discoveredPages, 
+        onboardingFlowId 
+      });
+      
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
         onboardingFlowId,
         phaseName: "filter",
@@ -101,8 +119,16 @@ export const onboardingWorkflow = workflow.define({
         total: 1,
         subPhaseProgress: 0.6,
       });
-      relevant = await step.runAction(internal.onboarding.filter.filterRelevantPages, { pages: allPages });
+      
+      // Save filtered pages to database and set relevant pages list
+      await step.runAction(internal.onboarding.filter.saveFilteredPages, {
+        onboardingFlowId,
+        agencyProfileId: args.agencyProfileId,
+        relevantPages: relevant,
+        discoveredPages: discoveredPages
+      });
       await step.runMutation(internal.onboarding.filter.setRelevantPages, { onboardingFlowId, relevantPages: relevant });
+      
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
         onboardingFlowId,
         phaseName: "filter",
@@ -129,7 +155,7 @@ export const onboardingWorkflow = workflow.define({
       });
       await step.runAction(internal.firecrawlActions.scrapeRelevantPages, { 
         onboardingFlowId, 
-        sellerBrainId: args.sellerBrainId, 
+        agencyProfileId: args.agencyProfileId, 
         urls: relevant 
       }, { retry: { maxAttempts: 4, initialBackoffMs: 1500, base: 2 } });
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
@@ -174,7 +200,7 @@ export const onboardingWorkflow = workflow.define({
         smartThreadId: threads.smartThreadId 
       }, { retry: true });
       await step.runMutation(internal.onboarding.summary.saveSummaryAndSeed, { 
-        sellerBrainId: args.sellerBrainId, 
+        agencyProfileId: args.agencyProfileId, 
         onboardingFlowId, 
         summary 
       });
