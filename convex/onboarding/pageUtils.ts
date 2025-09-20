@@ -3,7 +3,7 @@
  * Replaces separate logic in crawl.ts and scrape.ts
  */
 
-import { internalMutation, internalAction } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { PageStatus } from "./constants";
 import { normalizeUrl } from "./contentUtils";
@@ -25,7 +25,7 @@ export const upsertPageData = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { onboardingFlowId, agencyProfileId, url, title, markdown, statusCode, preserveExistingContent } = args;
+    const { onboardingFlowId, agencyProfileId, url, title, markdown, statusCode } = args;
     
     // Validate flow exists
     const flow = await ctx.db.get(onboardingFlowId);
@@ -57,7 +57,7 @@ export const upsertPageData = internalMutation({
       .unique();
     
     if (!existing) {
-      // Insert new page
+      // Insert new page without contentRef initially
       await ctx.db.insert("crawl_pages", {
         onboardingFlowId,
         agencyProfileId,
@@ -68,15 +68,7 @@ export const upsertPageData = internalMutation({
         contentRef: undefined,
       });
       
-      // Store markdown content if available
-      if (hasMarkdown && markdown) {
-        await ctx.scheduler.runAfter(0, internal.onboarding.pageUtils.storePageMarkdown, {
-          onboardingFlowId,
-          agencyProfileId,
-          url: normalizedUrl,
-          markdown,
-        });
-      }
+      // Note: Storage now happens synchronously in scraping actions - no async scheduling needed
     } else {
       // Update existing page
       const updates: Record<string, unknown> = {
@@ -85,15 +77,7 @@ export const upsertPageData = internalMutation({
         httpStatus: httpStatus || existing.httpStatus,
       };
       
-      // Store markdown content if available and not preserving existing content
-      if (hasMarkdown && markdown && (!preserveExistingContent || !existing.contentRef)) {
-        await ctx.scheduler.runAfter(0, internal.onboarding.pageUtils.storePageMarkdown, {
-          onboardingFlowId,
-          agencyProfileId,
-          url: normalizedUrl,
-          markdown,
-        });
-      }
+      // Note: Storage now happens synchronously in scraping actions - no async scheduling needed
       
       await ctx.db.patch(existing._id, updates);
     }
@@ -102,72 +86,7 @@ export const upsertPageData = internalMutation({
   },
 });
 
-/**
- * Store markdown content as a blob and update page reference
- */
-export const storePageMarkdown = internalAction({
-  args: {
-    onboardingFlowId: v.id("onboarding_flow"),
-    agencyProfileId: v.id("agency_profile"),
-    url: v.string(),
-    markdown: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const { onboardingFlowId, agencyProfileId, url, markdown } = args;
-    
-    try {
-      const contentRef = await ctx.storage.store(new Blob([markdown], { type: "text/markdown" }));
-      
-      await ctx.runMutation(internal.onboarding.pageUtils.applyStoredPageContent, {
-        onboardingFlowId,
-        agencyProfileId,
-        url,
-        contentRef,
-      });
-    } catch (e) {
-      console.error("Storage operation failed for URL:", url, e);
-      // Don't throw - just log and continue. Page will remain without contentRef
-    }
-    
-    return null;
-  },
-});
-
-/**
- * Apply stored content reference to a page
- */
-export const applyStoredPageContent = internalMutation({
-  args: {
-    onboardingFlowId: v.id("onboarding_flow"),
-    agencyProfileId: v.id("agency_profile"),
-    url: v.string(),
-    contentRef: v.id("_storage"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const { onboardingFlowId, url, contentRef } = args;
-    const flow = await ctx.db.get(onboardingFlowId);
-    if (!flow) throw new Error("Flow not found");
-    
-    const normalizedUrl = normalizeUrl(url);
-    const existing = await ctx.db
-      .query("crawl_pages")
-      .withIndex("by_flow_and_url", (q) => 
-        q.eq("onboardingFlowId", onboardingFlowId).eq("url", normalizedUrl)
-      )
-      .unique();
-    
-    if (!existing) return null;
-    
-    await ctx.db.patch(existing._id, { 
-      contentRef, 
-      status: PageStatus.scraped 
-    });
-    
-    return null;
-  },
-});
+// Note: Legacy async storage functions removed - storage now happens synchronously in scraping actions
 
 /**
  * Batch upsert pages from crawl results

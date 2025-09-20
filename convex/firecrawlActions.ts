@@ -53,12 +53,12 @@ export const scrapeUrl = internalAction({
       onlyMainContent: false,
       maxAge: 0,
     });
-    const doc = (res as unknown as { data?: { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } } }).data;
+    const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
     return {
-      url: doc?.metadata?.sourceURL ?? doc?.metadata?.url ?? url,
-      title: doc?.metadata?.title ?? undefined,
-      markdown: doc?.markdown ?? undefined,
-      statusCode: doc?.metadata?.statusCode ?? undefined,
+      url: response.metadata?.sourceURL ?? response.metadata?.url ?? url,
+      title: response.metadata?.title ?? undefined,
+      markdown: response.markdown ?? undefined,
+      statusCode: response.metadata?.statusCode ?? undefined,
     };
   },
 });
@@ -156,14 +156,30 @@ export const scrapeRelevantPages = internalAction({
               maxAge: 0, // Always fresh for important pages
             });
             
-            const doc = (res as unknown as { data?: { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } } }).data;
-            await ctx.runMutation(internal.onboarding.scrape.saveScrapedPageContent, {
+            // Parse Firecrawl response - markdown is directly on response object
+            const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
+            console.log(`Firecrawl response for ${url} - has markdown: ${!!response.markdown}, length: ${response.markdown?.length || 0}`);
+            
+            // Store markdown content directly in storage, then save to database
+            let contentRef: any = undefined;
+            if (response.markdown) {
+              try {
+                contentRef = await ctx.storage.store(new Blob([response.markdown], { type: "text/markdown" }));
+                console.log(`Successfully stored content for ${url}: ${response.markdown.length} chars, contentRef: ${contentRef}`);
+              } catch (e) {
+                console.error(`Failed to store content for ${url}:`, e);
+              }
+            } else {
+              console.warn(`No markdown content found for ${url}`);
+            }
+            
+            await ctx.runMutation(internal.onboarding.scrape.saveScrapedPageContentWithStorage, {
               onboardingFlowId,
               agencyProfileId,
-              url: doc?.metadata?.sourceURL ?? url,
-              title: doc?.metadata?.title,
-              markdown: doc?.markdown,
-              statusCode: doc?.metadata?.statusCode,
+              url: response.metadata?.sourceURL ?? url,
+              title: response.metadata?.title,
+              contentRef,
+              statusCode: response.metadata?.statusCode,
             });
             
             // Update progress after each page

@@ -48,6 +48,7 @@ export const streamSummary = internalAction({
         });
         
         if (page?.contentRef) {
+          console.log(`Attempting to load content for summary URL ${url}, contentRef: ${page.contentRef}`);
           const blob = await ctx.storage.get(page.contentRef);
           if (blob) {
             const text = await blob.text();
@@ -55,11 +56,11 @@ export const streamSummary = internalAction({
             contentLines.push(`Source [${i + 1}]: ${url}\n${truncated}`);
             console.log(`Successfully loaded summary content for ${url}: ${text.length} chars`);
           } else {
-            console.warn(`No blob found for summary URL ${url}`);
+            console.warn(`No blob found for summary URL ${url}, contentRef: ${page.contentRef}`);
             contentLines.push(`Source [${i + 1}]: ${url}\n[Content not available]`);
           }
         } else {
-          console.warn(`No contentRef for summary URL ${url}`);
+          console.warn(`No contentRef for summary URL ${url}, page data:`, page);
           contentLines.push(`Source [${i + 1}]: ${url}\n[Content not available]`);
         }
       } catch (e) {

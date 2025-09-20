@@ -58,6 +58,7 @@ export const generateClaims = internalAction({
       let snippet = "";
       if (p.contentRef) {
         try {
+          console.log(`Attempting to load content for claims URL ${p.url}, contentRef: ${p.contentRef}`);
           const blob = await ctx.storage.get(p.contentRef);
           if (blob) {
             const text = await blob.text();
@@ -72,7 +73,7 @@ export const generateClaims = internalAction({
           console.error(`Failed to load content for ${p.url}:`, e);
         }
       } else {
-        console.warn(`No contentRef for URL ${p.url}`);
+        console.warn(`No contentRef for URL ${p.url}, page data:`, p);
       }
       results.push({ i, line: `Source [${i + 1}]: ${p.url}\n${snippet}` });
     }
