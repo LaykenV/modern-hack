@@ -2,6 +2,7 @@ import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 // Phase status updates are now handled by the workflow
 import { internal } from "../_generated/api";
+import { normalizeUrl } from "./contentUtils";
 
 export const saveScrapedPageContent = internalMutation({
   args: {
@@ -46,8 +47,16 @@ export const saveScrapedPageContentWithStorage = internalMutation({
     const flow = await ctx.db.get(onboardingFlowId);
     if (!flow) throw new Error("Flow not found");
     
-    const normalizedUrl = url.replace(/\/$/, "").replace(/^https?:\/\/www\./, "https://");
+    const normalizedUrl = normalizeUrl(url);
     const httpStatus = statusCode ?? 0;
+    
+    // Check for existing page first to preserve current status
+    const existing = await ctx.db
+      .query("crawl_pages")
+      .withIndex("by_flow_and_url", (q) => 
+        q.eq("onboardingFlowId", onboardingFlowId).eq("url", normalizedUrl)
+      )
+      .unique();
     
     // Determine status based on content and HTTP status
     const hasContent = !!contentRef && httpStatus >= 200 && httpStatus < 400;
@@ -59,16 +68,10 @@ export const saveScrapedPageContentWithStorage = internalMutation({
     } else if (isFailed) {
       newStatus = "failed";
     } else {
-      newStatus = "queued";
+      // For ambiguous outcomes (no content, no definitive status), preserve existing status
+      // or mark as failed if no existing page to avoid stuck "fetching" states
+      newStatus = existing?.status ?? "failed";
     }
-    
-    // Check for existing page
-    const existing = await ctx.db
-      .query("crawl_pages")
-      .withIndex("by_flow_and_url", (q) => 
-        q.eq("onboardingFlowId", onboardingFlowId).eq("url", normalizedUrl)
-      )
-      .unique();
     
     if (!existing) {
       // Insert new page
@@ -83,15 +86,22 @@ export const saveScrapedPageContentWithStorage = internalMutation({
         contentRef,
       });
     } else {
-      // Update existing page
+      // Update existing page - only update status if we have a definitive result
       const finalContentRef = contentRef ?? existing.contentRef;
-      console.log(`Updating existing page for ${normalizedUrl} with contentRef: ${finalContentRef}, status: ${newStatus}`);
-      await ctx.db.patch(existing._id, {
+      const updates: Record<string, unknown> = {
         title: title ?? existing.title,
-        status: newStatus,
         httpStatus: httpStatus || existing.httpStatus,
         contentRef: finalContentRef,
-      });
+      };
+      
+      // Only update status if we have a definitive result (scraped or failed)
+      // Otherwise preserve the current status (likely "fetching")
+      if (hasContent || isFailed) {
+        updates.status = newStatus;
+      }
+      
+      console.log(`Updating existing page for ${normalizedUrl} with contentRef: ${finalContentRef}, status: ${updates.status ?? existing.status}`);
+      await ctx.db.patch(existing._id, updates);
     }
     
     return null;

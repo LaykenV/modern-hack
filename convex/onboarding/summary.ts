@@ -70,7 +70,15 @@ export const streamSummary = internalAction({
     }
     
     const contextContent = contentLines.join("\n\n");
-    const prompt = `Create a concise, accurate company overview for ${companyName} (${sourceUrl}) based on the provided content. Cite sources as [n] where n corresponds to the source numbers below:\n\n${contextContent}`;
+    const prompt = `You are an analyst. Using only the sources below, write a concise overview of ${companyName} (${sourceUrl}).
+
+Requirements:
+- 4–8 sentences, plain text (no headings or bullets), <= 180 words
+- Cover: what they do, who they serve, how they deliver value, notable products/services, location if clearly stated
+- Do not speculate; omit anything not supported by the sources
+
+Sources:
+${contextContent}`;
     
     await atlasAgentGroq.streamText(
       ctx,

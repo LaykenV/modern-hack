@@ -99,12 +99,19 @@ Steps (high level) ✅ **SIMPLIFIED**:
 4) Scrape relevant pages ✅ **ENHANCED FOR TARGETED SCRAPING** (Firecrawl `scrape`) in parallel
    - **Modular Status Update**: `statusUtils.updatePhaseStatus("scrape", "running", 0.2, eventMessage: "Scraping relevant pages")`.
    - **Targeted Scraping**: Only scrape URLs from `relevantPages` array (typically ~10-15 pages instead of all ~29+ discovered).
-   - **Enhanced Batching**: Increased batch size from 2 to 3 for better throughput with rate limiting (200ms between batches).
+   - **Enhanced Batching**: Increased batch size from 2 to 4 for better throughput with rate limiting (200ms between batches).
    - **Real-time Progress**: Update progress after each individual page completion for better UX.
    - **High-Fidelity Content**: Use `onlyMainContent: false` and `maxAge: 0` for comprehensive, fresh content.
    - **Enhanced retry policy**: 4 attempts with 1.5s initial backoff for network resilience.
+   - **Page Status Transitions** ✅ **JANUARY 2025 FIX**: Proper status flow implementation:
+     - Before scraping each URL → `markPageFetching()` sets status to `"fetching"`
+     - After successful scrape with content → `"scraped"`
+     - After failed scrape (4xx/5xx HTTP status) → `"failed"`
+     - On scraping exception → `markPageFailed()` sets status to `"failed"`
+     - Ambiguous outcomes (no content, no definitive status) → preserve `"fetching"` or mark `"failed"` if no existing page
    - **Error Resilience**: Continue scraping other pages if individual pages fail (no workflow crash).
    - **Consolidated Processing**: Use `pageUtils.upsertPageData` with content preservation for consistent page updates.
+   - **URL Normalization**: Use `contentUtils.normalizeUrl()` for consistent URL handling across all operations.
    - Store `contentRef` for each page, mark `scraped` or `failed`.
    - **Modular Status Update**: `statusUtils.updatePhaseStatus("scrape", "complete", 1.0, eventMessage: "Scraping completed")`.
 
@@ -263,6 +270,7 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 18) ✅ **ENHANCED SCRAPING**: Improved progress tracking, batching, and error resilience for targeted scraping.
 19) ✅ **AGENT INTEGRATION FIX**: **DECEMBER 2024** - Resolved "Specify userId or threadId" error by properly passing thread context to all agent calls.
 20) ✅ **FILTER-BEFORE-SAVE OPTIMIZATION**: **DECEMBER 2024** - Only relevant pages saved to database after filtering, eliminating storage of irrelevant discovered pages.
+21) ✅ **PAGE STATUS TRANSITIONS FIX**: **JANUARY 2025** - Implemented proper page status flow with `markPageFetching()` and `markPageFailed()` functions for correct `queued → fetching → scraped/failed` transitions.
 
 ### Architecture Simplification ✅ **ENHANCED WITH PARALLEL GENERATION MODEL**
 - **Modular Architecture**: Split into `contentUtils.ts`, `statusUtils.ts`, `pageUtils.ts`, and new `offer.ts` for better separation of concerns
@@ -435,7 +443,52 @@ The onboarding workflow now includes a dedicated **Core Offer** generation phase
 - ✅ **THREE-THREAD MODEL**: **JANUARY 2025 UPGRADE** - Replaced `fastThreadId`/`smartThreadId` with dedicated `summaryThread`, `coreOfferThread`, `claimThread`
 - ✅ **CORE OFFER MODULE**: **JANUARY 2025 UPGRADE** - New `offer.ts` module handles Core Offer generation and saving to `agency_profile.coreOffer`
 - ✅ **ENHANCED UI**: **JANUARY 2025 UPGRADE** - Updated progress display and streaming to support parallel generation and core offer display
-- ✅ **Documentation**: Fully updated to reflect all implementations including parallel generation, three-thread model, and core offer phase
+- ✅ **PAGE STATUS TRANSITIONS**: **JANUARY 2025 FIX** - Implemented proper page status flow with dedicated status setters and exception handling for correct UI feedback
+- ✅ **Documentation**: Fully updated to reflect all implementations including parallel generation, three-thread model, core offer phase, and page status transitions
+
+## 🔄 **PAGE STATUS TRANSITIONS FIX - JANUARY 2025** ✅ **IMPLEMENTED**
+
+### Problem Solved
+Pages never entered the "fetching" status during scraping, causing UI to show incorrect progress. Pages would transition directly from "queued" to "scraped" or "failed", missing the intermediate "fetching" state that indicates active scraping.
+
+### Root Causes Fixed
+1. **Missing Status Setter**: No dedicated function to mark pages as "fetching" before scraping operations
+2. **No Pre-Scrape Status Update**: `scrapeRelevantPages` didn't set "fetching" before calling Firecrawl
+3. **Status Reversion**: `saveScrapedPageContentWithStorage` could revert status to "queued" for ambiguous outcomes
+4. **Exception Handling**: Failed scrapes didn't properly mark pages as "failed"
+
+### Solution Implemented
+**Dedicated Status Management Functions**:
+1. **`markPageFetching()`**: Sets page status to "fetching" before scraping with proper URL normalization
+2. **`markPageFailed()`**: Marks pages as "failed" when exceptions occur during scraping
+3. **Enhanced Status Preservation**: Only update status for definitive outcomes (scraped/failed), preserve "fetching" otherwise
+
+### Key Changes Made
+- ✅ **Pre-Scrape Status**: `scrapeRelevantPages` calls `markPageFetching()` before each Firecrawl operation
+- ✅ **Exception Handling**: Scraping exceptions trigger `markPageFailed()` for proper error state
+- ✅ **URL Normalization**: Use `contentUtils.normalizeUrl()` consistently across all status operations
+- ✅ **Status Preservation**: `saveScrapedPageContentWithStorage` preserves "fetching" for ambiguous outcomes
+- ✅ **Definitive Transitions**: Only update to "scraped" with content or "failed" with HTTP errors
+
+### Status Flow Implementation
+```
+Discovery Phase: URLs saved as "queued" (no content yet)
+↓
+Scrape Phase: 
+  Before scraping → markPageFetching() → "fetching"
+  ↓
+  After scraping:
+    - Success with content (2xx) → "scraped"
+    - HTTP error (4xx/5xx) → "failed" 
+    - Exception during scrape → markPageFailed() → "failed"
+    - Ambiguous outcome → preserve "fetching"
+```
+
+### Performance Impact
+- **UI Accuracy**: 100% correct status transitions with proper "fetching" indication during scraping
+- **Progress Feedback**: Real-time `fetchingCount` updates show active scraping operations
+- **Error Visibility**: Failed pages properly marked instead of stuck in intermediate states
+- **Status Reliability**: No reversions from "fetching" back to "queued" for better UX
 
 ## 🔐 **AUTHENTICATION FIX - DECEMBER 2024** ✅ **IMPLEMENTED**
 

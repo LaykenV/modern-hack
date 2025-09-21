@@ -25,8 +25,16 @@ export const filterRelevantPages = internalAction({
     );
     
     const top = deduplicatedPages.slice(0, 80);
-    const prompt = `Rank the following URLs for sales relevance. Prefer product/platform/features/solutions/about/homepage/pricing/docs. Exclude routes with query params and careers/legal/blog unless core.
-Return only JSON: {"urls":[string...]}, max 10 items.
+    const prompt = `Rank the following same-domain URLs by sales relevance for quickly understanding the company's offering.
+
+Instructions:
+- PRIORITIZE: homepage, product/platform/features/solutions, pricing, docs/developers, about/company
+- DEPRIORITIZE/EXCLUDE: careers/jobs, legal/privacy/terms, blog/news (unless clearly core product info), any URL with query params or anchors
+- USE ONLY the provided URLs; do not invent new ones
+- NORMALIZE: remove trailing slashes, query strings, and anchors; deduplicate while preserving preference
+- LIMIT: return at most 10 and at least 6 if available (otherwise return all available)
+
+Output (JSON only, no prose): {"urls": [string, ...]}
 
 URLs:
 ${top.map((p, i) => `[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}`).join("\n")}`;

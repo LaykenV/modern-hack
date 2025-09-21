@@ -3,6 +3,7 @@ import { firecrawl } from "./firecrawl";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Start a Firecrawl crawl job and return the job id
 export const startCrawl = internalAction({
@@ -142,7 +143,7 @@ export const scrapeRelevantPages = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     const { onboardingFlowId, agencyProfileId, urls } = args;
-    const batchSize = 3; // Increased from 2 for better throughput
+    const batchSize = 4; // Increased from 2 for better throughput
     
     for (let i = 0; i < urls.length; i += batchSize) {
       const slice = urls.slice(i, i + batchSize);
@@ -150,6 +151,13 @@ export const scrapeRelevantPages = internalAction({
       await Promise.all(
         slice.map(async (url, index) => {
           try {
+            // Mark page as fetching before scraping
+            await ctx.runMutation(internal.onboarding.pageUtils.markPageFetching, {
+              onboardingFlowId,
+              agencyProfileId,
+              url,
+            });
+            
             const res = await firecrawl.scrape(url, {
               formats: ["markdown"],
               onlyMainContent: false, // Get full content for relevant pages
@@ -161,7 +169,7 @@ export const scrapeRelevantPages = internalAction({
             console.log(`Firecrawl response for ${url} - has markdown: ${!!response.markdown}, length: ${response.markdown?.length || 0}`);
             
             // Store markdown content directly in storage, then save to database
-            let contentRef: any = undefined;
+            let contentRef: Id<"_storage"> | undefined = undefined;
             if (response.markdown) {
               try {
                 contentRef = await ctx.storage.store(new Blob([response.markdown], { type: "text/markdown" }));
@@ -192,6 +200,11 @@ export const scrapeRelevantPages = internalAction({
             });
           } catch (error) {
             console.error(`Failed to scrape ${url}:`, error);
+            // Mark page as failed on exception
+            await ctx.runMutation(internal.onboarding.pageUtils.markPageFailed, {
+              onboardingFlowId,
+              url,
+            });
             // Continue with other URLs
           }
         })

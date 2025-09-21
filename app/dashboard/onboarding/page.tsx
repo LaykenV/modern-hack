@@ -44,6 +44,7 @@ function RedirectToHome() {
 function Content() {
   const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
+  console.log("agencyProfile", agencyProfile?.reviewedAt);
   
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({
     currentStep: 1,
@@ -59,8 +60,10 @@ function Content() {
       return;
     }
 
-    // If we have summary, coreOffer, and approvedClaims, move to step 4 (final config)
-    if (agencyProfile.summary && agencyProfile.coreOffer && agencyProfile.approvedClaims) {
+    // If reviewedAt exists, go to Step 4 (Configure)
+    // This takes precedence over onboardingFlowId to avoid bouncing back to Step 2 after review
+    if (agencyProfile.reviewedAt) {
+      console.log("reviewedAt", agencyProfile.reviewedAt);
       setOnboardingState(prev => ({
         ...prev,
         currentStep: 4,
@@ -69,9 +72,9 @@ function Content() {
       return;
     }
 
-    // If we have an onboarding flow that's completed, move to step 3 (review)
+    // If we have an onboarding flow ID and haven't reviewed yet, go to step 2 (automated flow)
+    // Let Step 2 call onCompleted() to advance to Step 3
     if (agencyProfile.onboardingFlowId) {
-      // We'll check workflow status in Step2 component and auto-advance
       setOnboardingState(prev => ({
         ...prev,
         currentStep: 2,
@@ -82,9 +85,8 @@ function Content() {
       return;
     }
 
-    // If we have an agency profile but no workflow, check if it's manual mode
+    // If manual mode (has companyName, no onboardingFlowId, no sourceUrl), go to Step 3 (Review)
     if (agencyProfile.companyName && !agencyProfile.onboardingFlowId && !agencyProfile.sourceUrl) {
-      // Manual mode - go to step 3
       setOnboardingState(prev => ({
         ...prev,
         currentStep: 3,
@@ -208,6 +210,7 @@ function Content() {
           mode={onboardingState.mode}
           initialSummary={agencyProfile?.summary}
           initialCoreOffer={agencyProfile?.coreOffer}
+          initialGuardrails={agencyProfile?.guardrails || []}
           initialClaims={agencyProfile?.approvedClaims?.map(claim => ({
             id: claim.id,
             text: claim.text,

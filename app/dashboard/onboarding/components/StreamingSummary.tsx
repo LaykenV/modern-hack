@@ -85,12 +85,13 @@ export function StreamingSummary({ onboardingFlowId, summaryThread }: StreamingS
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
           AI Summary
         </h2>
-        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+        {/*<div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
           <div className="flex items-center gap-2 text-slate-500">
             <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin"></div>
             <span className="text-sm">Waiting for content analysis to begin...</span>
           </div>
         </div>
+        */}
       </div>
     );
   }

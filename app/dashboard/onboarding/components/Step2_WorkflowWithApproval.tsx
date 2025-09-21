@@ -111,16 +111,6 @@ export function WorkflowWithApproval({ onCompleted }: WorkflowWithApprovalProps)
         </div>
       )}
 
-      {/* Loading States */}
-      {!isWorkflowComplete && (
-        <div className="text-center py-4">
-          <div className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400">
-            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm">Analysis in progress... This may take a few minutes</span>
-          </div>
-        </div>
-      )}
-
       {/* Error States */}
       {flow.status === "error" && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">

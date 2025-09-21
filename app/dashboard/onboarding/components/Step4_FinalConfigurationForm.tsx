@@ -7,7 +7,6 @@ import {
   TONE_OPTIONS, 
   TARGET_VERTICALS, 
   LEAD_QUALIFICATION_OPTIONS,
-  CORE_OFFER_EXAMPLES,
   NA_TIMEZONES, 
   DAYS
 } from "../constants/formOptions";
@@ -31,10 +30,9 @@ export function Step4FinalConfigurationForm({
   const [tone, setTone] = useState<string>("consultative");
   const [targetVertical, setTargetVertical] = useState<string>("");
   const [targetGeography, setTargetGeography] = useState<string>("");
-  const [coreOffer, setCoreOffer] = useState<string>("");
   const [leadQualificationCriteria, setLeadQualificationCriteria] = useState<string[]>([]);
   const [timeZone, setTimeZone] = useState<string>("America/Los_Angeles");
-  const [guardrails, setGuardrails] = useState<string[]>([]);
+  // Guardrails and core offer are now reviewed in Step 3; use profile values
   
   // Availability state
   const [availabilityDay, setAvailabilityDay] = useState<string>("Tue");
@@ -55,9 +53,6 @@ export function Step4FinalConfigurationForm({
       if (!targetGeography.trim()) {
         throw new Error("Please enter your target geography.");
       }
-      if (!coreOffer.trim()) {
-        throw new Error("Please describe your core offer.");
-      }
       if (leadQualificationCriteria.length === 0) {
         throw new Error("Please select at least one lead qualification criteria.");
       }
@@ -67,6 +62,11 @@ export function Step4FinalConfigurationForm({
 
       // Get approved claims from agency profile
       const approvedClaims = agencyProfile?.approvedClaims || [];
+      const guardrails = agencyProfile?.guardrails || [];
+      const coreOffer = agencyProfile?.coreOffer?.trim() || "";
+      if (!coreOffer) {
+        throw new Error("Missing core offer. Please complete Step 3.");
+      }
 
       await finalizeOnboarding({
         approvedClaims,
@@ -74,7 +74,7 @@ export function Step4FinalConfigurationForm({
         tone,
         targetVertical,
         targetGeography: targetGeography.trim(),
-        coreOffer: coreOffer.trim(),
+        coreOffer,
         leadQualificationCriteria,
         timeZone,
         availability: availabilitySlots,
@@ -128,72 +128,6 @@ export function Step4FinalConfigurationForm({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Summary of Approved Claims */}
-        {agencyProfile?.approvedClaims && agencyProfile.approvedClaims.length > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-3">
-              Your Approved Claims
-            </h2>
-            <div className="space-y-2">
-              {agencyProfile.approvedClaims.map((claim, index) => (
-                <div key={claim.id} className="text-sm text-blue-700 dark:text-blue-300">
-                  <span className="font-medium">{index + 1}.</span> {claim.text}
-                </div>
-              ))}
-            </div>
-            {guardrails.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                  Guardrails: {guardrails.length} rule{guardrails.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Guardrails Input */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Guardrails</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-            Add rules or guidelines for your AI assistant to follow when engaging with prospects.
-          </p>
-          
-          <div className="space-y-3">
-            {guardrails.map((guardrail, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={guardrail}
-                  onChange={(e) => {
-                    const updated = [...guardrails];
-                    updated[index] = e.target.value;
-                    setGuardrails(updated);
-                  }}
-                  className="flex-1 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Always be respectful and professional"
-                />
-                <button
-                  type="button"
-                  onClick={() => setGuardrails(guardrails.filter((_, i) => i !== index))}
-                  className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
-                  aria-label={`Remove guardrail ${index + 1}`}
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            
-            <button
-              type="button"
-              onClick={() => setGuardrails([...guardrails, ""])}
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors"
-            >
-              + Add Guardrail
-            </button>
-          </div>
-        </div>
 
         {/* Tone Selection */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
@@ -261,35 +195,7 @@ export function Step4FinalConfigurationForm({
             </div>
           </div>
 
-          {/* Core Offer */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Core Offer *
-            </label>
-            <textarea
-              value={coreOffer}
-              onChange={(e) => setCoreOffer(e.target.value)}
-              placeholder="Describe your main service offering..."
-              className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={3}
-              required
-            />
-            <div className="mt-2">
-              <p className="text-xs text-slate-500 mb-2">Examples:</p>
-              <div className="flex flex-wrap gap-1">
-                {CORE_OFFER_EXAMPLES.map((example, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => setCoreOffer(example)}
-                    className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-600 transition-colors"
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* Core Offer is reviewed in Step 3 and shown read-only summary above */}
         </div>
 
         {/* Lead Qualification Criteria */}

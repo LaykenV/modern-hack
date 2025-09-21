@@ -20,10 +20,11 @@
 - No claims editing here; upon `flow.status === "completed"`, advance to Step 3
 
 #### Step 3: Review & Edit Generated Content (New)
-- Editable: Summary (textarea), Core Offer (textarea), Claims (list editor: add/remove/edit `text` and `source_url`)
-- Automated mode: prefilled from `agency_profile.summary`, `agency_profile.coreOffer`, `agency_profile.approvedClaims`
+- Editable: Summary (textarea), Core Offer (textarea), Claims (list editor: add/remove/edit `text` and `source_url`), Guardrails (array input)
+- Automated mode: prefilled from `agency_profile.summary`, `agency_profile.coreOffer`, `agency_profile.approvedClaims`, `agency_profile.guardrails`
 - Manual mode: empty defaults
-- Single save action persists reviewed content, then advance to Step 4
+- Single save action persists reviewed content AND sets `reviewedAt` timestamp, then advance to Step 4
+- **Critical**: Step 4 is ONLY accessible after Step 3 save (gated by `reviewedAt` field)
 
 #### Step 4: Final Configuration
 - Tone, availability, timezone, target vertical, geography, lead qualification criteria
@@ -34,17 +35,17 @@
 ## Data Flow & Subscriptions
 
 ### Primary Reads
-- `api.agencyProfile.getForCurrentUser` → `onboardingFlowId`, `summary`, `coreOffer`, `approvedClaims`, etc.
+- `api.sellerBrain.getForCurrentUser` → `onboardingFlowId`, `summary`, `coreOffer`, `approvedClaims`, `guardrails`, `reviewedAt`, etc.
 - `api.onboarding.queries.getOnboardingFlow` → phases, status, threads, `relevantPages`, `lastEvent` (Step 2 only)
 - `api.onboarding.queries.listCrawlPages` → page grid (Step 2)
 - `api.onboarding.queries.getOverallProgress` → single progress number (Step 2)
 - `api.onboarding.summary.listSummaryMessages` → streaming summary text (Step 2)
 
 ### Writes
-- Automated kickoff: `api.agencyProfile.seedFromWebsite({ companyName, sourceUrl })`
-- Manual kickoff: `api.agencyProfile.startManualOnboarding({ companyName })` (no workflow)
-- Step 3 save: `api.agencyProfile.saveReviewedContent({ agencyProfileId, summary, coreOffer, claims })`
-- Finalize: `api.agencyProfile.finalizeOnboardingPublic({...})`
+- Automated kickoff: `api.sellerBrain.seedFromWebsite({ companyName, sourceUrl })`
+- Manual kickoff: `api.sellerBrain.startManualOnboarding({ companyName })` (no workflow)
+- Step 3 save: `api.sellerBrain.saveReviewedContentPublic({ agencyProfileId, summary, coreOffer, claims, guardrails })` (sets `reviewedAt`)
+- Finalize: `api.sellerBrain.finalizeOnboardingPublic({...})`
 
 Notes:
 - Keep heavy work server-side; Step 3 performs one idempotent save.
@@ -95,15 +96,17 @@ interface WorkflowMonitorProps {
 ```typescript
 interface ReviewAndEditGeneratedProps {
   agencyProfileId: string;
+  mode?: "manual" | "automated";
   initialSummary?: string;
   initialCoreOffer?: string;
   initialClaims?: { id?: string; text: string; source_url?: string }[];
+  initialGuardrails?: string[];
   onSaved: () => void;
 }
 ```
-- Controlled editors for Summary/Core Offer
+- Controlled editors for Summary/Core Offer/Guardrails
 - ClaimEditor: CRUD over claims, validate `text`; `source_url` optional (empty string allowed)
-- Save invokes `saveReviewedContent`
+- Save invokes `saveReviewedContentPublic` which sets `reviewedAt: Date.now()`
 - Step label: Manual shows "Step 2 of 3"; Automated shows "Step 3 of 4"
 
 #### 4) Step4_FinalConfigurationForm
@@ -115,6 +118,45 @@ interface FinalConfigurationFormProps {
 - Uses constants from `app/dashboard/onboarding/constants/formOptions.ts`
 - Calls `finalizeOnboardingPublic`
 - Step label: Manual shows "Step 3 of 3"; Automated shows "Step 4 of 4"
+
+---
+
+## Step Gating Logic
+
+The onboarding flow uses `reviewedAt` timestamp to ensure users cannot skip Step 3 after automated generation:
+
+### Step Detection Logic (in `page.tsx`)
+```typescript
+// If onboarding is completed → redirect to /dashboard
+if (agencyProfile.tone && agencyProfile.targetVertical && agencyProfile.availability) {
+  router.replace("/dashboard");
+  return;
+}
+
+// If has onboardingFlowId → go to Step 2 (automated flow)
+// Let Step 2 call onCompleted() to advance to Step 3
+if (agencyProfile.onboardingFlowId) {
+  setCurrentStep(2);
+  return;
+}
+
+// If reviewedAt exists → go to Step 4 (Configure)
+if (agencyProfile.reviewedAt) {
+  setCurrentStep(4);
+  return;
+}
+
+// If manual mode → go to Step 3 (Review)
+if (agencyProfile.companyName && !agencyProfile.onboardingFlowId && !agencyProfile.sourceUrl) {
+  setCurrentStep(3);
+}
+```
+
+### Key Security Features
+- **No Step Skipping**: Users cannot advance to Step 4 without explicitly saving in Step 3
+- **Persistent State**: Page refresh respects the `reviewedAt` gating
+- **Validation**: Step 4 validates that `coreOffer` exists (ensures Step 3 was completed)
+- **Audit Trail**: `reviewedAt` timestamp provides audit trail of when content was reviewed
 
 ---
 
@@ -143,10 +185,15 @@ interface OnboardingState {
 
 ### Transitions
 - Step 1 → Step 2: Automated + `seedFromWebsite` success
-- Step 1 → Review: Manual selected + `startManualOnboarding` success (displayed as Step 2 of 3)
-- Step 2 → Review: Workflow `status === "completed"` (displayed as Step 3 of 4)
-- Review → Final Configuration: `saveReviewedContent` success (Manual displays as Step 3 of 3; Automated as Step 4 of 4)
-- Final Configuration → Dashboard: `finalizeOnboardingPublic` success
+- Step 1 → Step 3: Manual selected + `startManualOnboarding` success (displayed as Step 2 of 3)
+- Step 2 → Step 3: Workflow `status === "completed"` (displayed as Step 3 of 4)
+- Step 3 → Step 4: `saveReviewedContentPublic` success (sets `reviewedAt`) - Manual displays as Step 3 of 3; Automated as Step 4 of 4
+- Step 4 → Dashboard: `finalizeOnboardingPublic` success
+
+### Gating Rules
+- **Step 4 Access**: ONLY accessible if `reviewedAt` exists (set by Step 3 save)
+- **Page Refresh**: Respects gating - cannot jump to Step 4 without `reviewedAt`
+- **Validation**: Step 4 requires `coreOffer` to exist (ensures Step 3 completion)
 
 ---
 
@@ -154,8 +201,8 @@ interface OnboardingState {
 
 ### Step 1: Kickoff (Manual vs Automated)
 ```typescript
-const seedWorkflow = useAction(api.agencyProfile.seedFromWebsite);
-const startManual = useMutation(api.agencyProfile.startManualOnboarding);
+const seedWorkflow = useAction(api.sellerBrain.seedFromWebsite);
+const startManual = useMutation(api.sellerBrain.startManualOnboarding);
 
 if (mode === "automated") {
   const { agencyProfileId } = await seedWorkflow({ companyName, sourceUrl });
@@ -176,16 +223,22 @@ useEffect(() => {
 
 ### Step 3: Save Reviewed Content
 ```typescript
-const saveReviewed = useMutation(api.agencyProfile.saveReviewedContent);
-await saveReviewed({ agencyProfileId, summary, coreOffer, claims });
+const saveReviewed = useMutation(api.sellerBrain.saveReviewedContentPublic);
+await saveReviewed({ agencyProfileId, summary, coreOffer, claims, guardrails });
+// This automatically sets reviewedAt: Date.now() in the backend
 onSaved();
 ```
 
 ### Step 4: Finalize
 ```typescript
-const finalize = useMutation(api.agencyProfile.finalizeOnboardingPublic);
+const finalize = useMutation(api.sellerBrain.finalizeOnboardingPublic);
+// Step 4 reads coreOffer and guardrails from agencyProfile (set in Step 3)
+const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
+const coreOffer = agencyProfile?.coreOffer;
+const guardrails = agencyProfile?.guardrails || [];
+
 await finalize({
-  approvedClaims: claims,
+  approvedClaims: agencyProfile?.approvedClaims || [],
   guardrails,
   tone,
   timeZone,
@@ -219,7 +272,10 @@ onComplete();
 ## Success Criteria
 - Smooth 4-step progression with Manual/Automated branching.
 - Accurate phase display including `coreOffer`.
-- Users can edit and save Summary/Core Offer/Claims in Step 3.
-- Finalization works with saved reviewed content.
+- Users can edit and save Summary/Core Offer/Claims/Guardrails in Step 3.
+- **Step 4 gating**: Users cannot skip Step 3 - must explicitly review and save content.
+- **Persistent gating**: Page refresh respects `reviewedAt` and doesn't allow Step 4 bypass.
+- Finalization works with saved reviewed content from agency profile.
+- Step 4 validates required fields exist (ensures Step 3 completion).
 
 

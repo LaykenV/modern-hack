@@ -5,6 +5,6 @@ import { components } from "./_generated/api";
 // Export the workflow manager with enhanced configuration
 export const workflow = new WorkflowManager(components.workflow, {
   workpoolOptions: { 
-    maxParallelism: 2 
+    maxParallelism: 4 
   }
 });

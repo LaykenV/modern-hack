@@ -86,7 +86,84 @@ export const upsertPageData = internalMutation({
   },
 });
 
-// Note: Legacy async storage functions removed - storage now happens synchronously in scraping actions
+/**
+ * Mark a page as fetching before scraping
+ */
+export const markPageFetching = internalMutation({
+  args: {
+    onboardingFlowId: v.id("onboarding_flow"),
+    agencyProfileId: v.id("agency_profile"),
+    url: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { onboardingFlowId, agencyProfileId, url } = args;
+    
+    // Validate flow exists
+    const flow = await ctx.db.get(onboardingFlowId);
+    if (!flow) throw new Error("Flow not found");
+    
+    const normalizedUrl = normalizeUrl(url);
+    
+    // Check for existing page
+    const existing = await ctx.db
+      .query("crawl_pages")
+      .withIndex("by_flow_and_url", (q) => 
+        q.eq("onboardingFlowId", onboardingFlowId).eq("url", normalizedUrl)
+      )
+      .unique();
+    
+    if (!existing) {
+      // Insert new page with fetching status
+      await ctx.db.insert("crawl_pages", {
+        onboardingFlowId,
+        agencyProfileId,
+        url: normalizedUrl,
+        status: PageStatus.fetching,
+        // Don't touch contentRef - will be set later
+      });
+    } else {
+      // Update existing page to fetching status
+      await ctx.db.patch(existing._id, {
+        status: PageStatus.fetching,
+      });
+    }
+    
+    return null;
+  },
+});
+
+/**
+ * Mark a page as failed
+ */
+export const markPageFailed = internalMutation({
+  args: {
+    onboardingFlowId: v.id("onboarding_flow"),
+    url: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { onboardingFlowId, url } = args;
+    
+    const normalizedUrl = normalizeUrl(url);
+    
+    // Find existing page
+    const existing = await ctx.db
+      .query("crawl_pages")
+      .withIndex("by_flow_and_url", (q) => 
+        q.eq("onboardingFlowId", onboardingFlowId).eq("url", normalizedUrl)
+      )
+      .unique();
+    
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        status: PageStatus.failed,
+      });
+    }
+    
+    return null;
+  },
+});
 
 /**
  * Batch upsert pages from crawl results

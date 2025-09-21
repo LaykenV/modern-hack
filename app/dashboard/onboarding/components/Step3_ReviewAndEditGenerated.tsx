@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { GuardrailsInput } from "./GuardrailsInput";
 
 interface ClaimDraft {
   id?: string;
@@ -17,6 +18,7 @@ interface ReviewAndEditGeneratedProps {
   initialSummary?: string;
   initialCoreOffer?: string;
   initialClaims?: ClaimDraft[];
+  initialGuardrails?: string[];
   onSaved: () => void;
 }
 
@@ -26,6 +28,7 @@ export function ReviewAndEditGenerated({
   initialSummary = "",
   initialCoreOffer = "",
   initialClaims = [],
+  initialGuardrails = [],
   onSaved 
 }: ReviewAndEditGeneratedProps) {
   const saveReviewed = useMutation(api.sellerBrain.saveReviewedContentPublic);
@@ -37,6 +40,7 @@ export function ReviewAndEditGenerated({
   const [summary, setSummary] = useState(initialSummary);
   const [coreOffer, setCoreOffer] = useState(initialCoreOffer);
   const [claims, setClaims] = useState<ClaimDraft[]>(initialClaims);
+  const [guardrails, setGuardrails] = useState<string[]>(initialGuardrails);
   
   // New claim form state
   const [newClaimText, setNewClaimText] = useState("");
@@ -68,6 +72,7 @@ export function ReviewAndEditGenerated({
         summary: summary.trim(),
         coreOffer: coreOffer.trim(),
         claims: formattedClaims,
+        guardrails,
       });
 
       onSaved();
@@ -153,6 +158,15 @@ export function ReviewAndEditGenerated({
           />
         </div>
 
+        {/* Guardrails Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">Guardrails</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            Add rules or guidelines for your AI assistant to follow when engaging with prospects.
+          </p>
+          <GuardrailsInput guardrails={guardrails} onGuardrailsChange={setGuardrails} />
+        </div>
+
         {/* Claims Section */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4">Business Claims</h2>
@@ -196,18 +210,20 @@ export function ReviewAndEditGenerated({
                       />
                     </div>
                     
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                        Source URL (optional)
-                      </label>
-                      <input
-                        type="url"
-                        value={claim.source_url || ""}
-                        onChange={(e) => handleEditClaim(index, "source_url", e.target.value)}
-                        placeholder="https://example.com/source"
-                        className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
+                    {mode !== "manual" && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Source URL (optional)
+                        </label>
+                        <input
+                          type="url"
+                          value={claim.source_url || ""}
+                          onChange={(e) => handleEditClaim(index, "source_url", e.target.value)}
+                          placeholder="https://example.com/source"
+                          className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -234,18 +250,20 @@ export function ReviewAndEditGenerated({
                 />
               </div>
               
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Source URL (optional)
-                </label>
-                <input
-                  type="url"
-                  value={newClaimSourceUrl}
-                  onChange={(e) => setNewClaimSourceUrl(e.target.value)}
-                  placeholder="https://example.com/case-study"
-                  className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              {mode !== "manual" && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Source URL (optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={newClaimSourceUrl}
+                    onChange={(e) => setNewClaimSourceUrl(e.target.value)}
+                    placeholder="https://example.com/case-study"
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
               
               <button
                 type="button"

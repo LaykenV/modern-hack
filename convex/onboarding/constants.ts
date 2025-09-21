@@ -45,10 +45,10 @@ export const PageStatus = {
 // Phase weight constants for standardized progress calculation
 export const PHASE_WEIGHTS = {
   crawl: 0.30,     // Heaviest phase - discovery + bulk fetch
-  filter: 0.10,    // Quick AI filtering
-  scrape: 0.25,    // High-fidelity scraping
-  summary: 0.15,   // AI summary generation
-  coreOffer: 0.10, // Core offer generation
+  filter: 0.05,    // Quick AI filtering
+  scrape: 0.45,    // High-fidelity scraping
+  summary: 0.5,   // AI summary generation
+  coreOffer: 0.05, // Core offer generation
   claims: 0.05,    // Claims generation
   verify: 0.05,    // Claims verification
 } as const;

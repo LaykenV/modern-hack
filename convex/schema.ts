@@ -39,6 +39,7 @@ export default defineSchema({
     targetGeography: v.optional(v.string()),
     coreOffer: v.optional(v.string()),
     leadQualificationCriteria: v.optional(v.array(v.string())),
+    reviewedAt: v.optional(v.number()),
   }).index("by_userId", ["userId"]),
 
   // Client opportunities - leads found via Google Places

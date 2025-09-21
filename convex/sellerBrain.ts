@@ -44,6 +44,7 @@ export const getForCurrentUser = query({
       targetGeography: v.optional(v.string()),
       coreOffer: v.optional(v.string()),
       leadQualificationCriteria: v.optional(v.array(v.string())),
+      reviewedAt: v.optional(v.number()),
     }),
   ),
   handler: async (ctx) => {
@@ -74,6 +75,7 @@ export const getForCurrentUser = query({
       targetGeography: existing.targetGeography ?? undefined,
       coreOffer: existing.coreOffer ?? undefined,
       leadQualificationCriteria: existing.leadQualificationCriteria ?? undefined,
+      reviewedAt: existing.reviewedAt ?? undefined,
     };
   },
 });
@@ -299,6 +301,7 @@ export const saveReviewedContentPublic = mutation({
     summary: v.string(),
     coreOffer: v.string(),
     claims: ClaimsValidator,
+    guardrails: v.array(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -319,6 +322,7 @@ export const saveReviewedContentInternal = internalMutation({
     summary: v.string(),
     coreOffer: v.string(),
     claims: ClaimsValidator,
+    guardrails: v.array(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -328,6 +332,8 @@ export const saveReviewedContentInternal = internalMutation({
       summary: args.summary,
       coreOffer: args.coreOffer,
       approvedClaims: args.claims,
+      guardrails: args.guardrails,
+      reviewedAt: Date.now(),
     });
     return null;
   },

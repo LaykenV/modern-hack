@@ -52,16 +52,23 @@ export const generateCoreOffer = internalAction({
     }
     
     const contextContent = contentLines.join("\n\n");
-    const prompt = `Based on the provided content about ${companyName} (${sourceUrl}), create a concise 1-2 sentence "Core Offer" that clearly describes:
-1. What service/product the agency provides
-2. Who their target audience is
+    const prompt = `Task: Write a crisp Core Offer for ${companyName} (${sourceUrl}) using only the sources below.
 
-Focus on the main value proposition and target market. Be specific and actionable.
+Format:
+- 2–4 sentences, active voice, <= 75 words total
+
+Content:
+- Who they help (audience) + primary outcome/value + what they do (service/product)
+
+Constraints:
+- No fluff or superlatives; avoid generic claims
+- No numbers/metrics unless stated verbatim in the sources
+- If audience is unclear, keep it generic (e.g., "businesses") without inventing specifics
 
 Content sources:
 ${contextContent}
 
-Return only the core offer text, no additional formatting or explanation.`;
+Return the core offer text only (no quotes or preface).`;
     
     const result = await atlasAgentGroq.generateText(
       ctx,

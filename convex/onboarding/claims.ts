@@ -83,7 +83,20 @@ export const generateClaims = internalAction({
   results.sort((a, b) => a.i - b.i).forEach((r) => lines.push(r.line));
 
   const contextLines = lines.join("\n\n");
-  const prompt = `You are generating factual, verifiable product/company claims based strictly on the provided sources.\n\nRules:\n- Only write claims that are directly supported by the sources.\n- Keep each claim short (<= 180 characters) and specific.\n- Output only JSON array, no extra text.\n- Each claim must include text and source_url (one of the provided sources).\n- 3 to 5 claims total.\n\nSources:\n${contextLines}\n\nOutput format:\n[{"text": "...", "source_url": "..."}]`;
+  const prompt = `Generate factual, verifiable claims strictly from the sources below.
+
+Rules:
+- Only include claims directly supported by the sources; do not infer
+- 3 to 5 claims total; each <= 160 characters; neutral third-person (no "we/our")
+- No dates/metrics unless present verbatim in the source
+- Each claim must include exactly one source_url chosen from the provided list (use the exact URL string shown)
+- If insufficient support, return an empty array []
+
+Output (JSON only, no prose):
+[{"text": "...", "source_url": "..."}]
+
+Sources:
+${contextLines}`;
 
   const result = await atlasAgentGroq.generateText(ctx, { threadId: claimThread }, { prompt });
   const raw = (result.text ?? "").trim();
@@ -189,7 +202,22 @@ export const verifyClaims = internalAction({
   for (const { c, n } of work) {
     const snippet = snippets[n] ?? "";
 
-    const prompt = `Given the SOURCE TEXT (truncated) and a CLAIM, decide if the claim is strongly supported.\nReturn JSON only: {"accepted": boolean, "reason": string, "matched": string}\n\nCLAIM: ${c.text}\nSOURCE_URL: ${n}\nSOURCE TEXT:\n${snippet}`;
+    const prompt = `Decide if the CLAIM is strongly supported by the SOURCE TEXT.
+
+Acceptance criteria:
+- All key facts are present verbatim or as an unambiguous paraphrase in SOURCE TEXT
+- Numbers/metrics and named entities must match exactly
+- If SOURCE TEXT is empty or ambiguous, reject
+
+Return JSON only:
+{"accepted": boolean, "reason": string, "matched": string}
+
+Where "reason" briefly explains acceptance/rejection, and "matched" is the minimal supporting snippet (empty if rejected).
+
+CLAIM: ${c.text}
+SOURCE_URL: ${n}
+SOURCE TEXT:
+${snippet}`;
 
     let ok = false;
     try {
