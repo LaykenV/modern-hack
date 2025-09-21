@@ -7,17 +7,17 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { InitialSetupForm } from "./components/Step1_InitialSetupForm";
 import { WorkflowWithApproval } from "./components/Step2_WorkflowWithApproval";
-import { FinalConfigurationForm } from "./components/Step3_FinalConfigurationForm";
-import { Claim } from "./components/ClaimsApproval";
+import { ReviewAndEditGenerated } from "./components/Step3_ReviewAndEditGenerated";
+import { Step4FinalConfigurationForm } from "./components/Step4_FinalConfigurationForm";
 
-type OnboardingStep = 1 | 2 | 3;
+type OnboardingStep = 1 | 2 | 3 | 4;
+type Mode = "manual" | "automated";
 
 interface OnboardingState {
   currentStep: OnboardingStep;
+  mode?: Mode;
   agencyProfileId?: Id<"agency_profile">;
   onboardingFlowId?: Id<"onboarding_flow">;
-  approvedClaims?: Claim[];
-  guardrails?: string[];
 }
 
 export default function OnboardingPage() {
@@ -59,31 +59,72 @@ function Content() {
       return;
     }
 
-    // If we have an onboarding flow, move to step 2
+    // If we have summary, coreOffer, and approvedClaims, move to step 4 (final config)
+    if (agencyProfile.summary && agencyProfile.coreOffer && agencyProfile.approvedClaims) {
+      setOnboardingState(prev => ({
+        ...prev,
+        currentStep: 4,
+        agencyProfileId: agencyProfile.agencyProfileId as Id<"agency_profile">,
+      }));
+      return;
+    }
+
+    // If we have an onboarding flow that's completed, move to step 3 (review)
     if (agencyProfile.onboardingFlowId) {
+      // We'll check workflow status in Step2 component and auto-advance
       setOnboardingState(prev => ({
         ...prev,
         currentStep: 2,
-        // We'll get the agencyProfileId from the workflow component
+        mode: "automated",
         onboardingFlowId: agencyProfile.onboardingFlowId,
+        agencyProfileId: agencyProfile.agencyProfileId as Id<"agency_profile">,
+      }));
+      return;
+    }
+
+    // If we have an agency profile but no workflow, check if it's manual mode
+    if (agencyProfile.companyName && !agencyProfile.onboardingFlowId && !agencyProfile.sourceUrl) {
+      // Manual mode - go to step 3
+      setOnboardingState(prev => ({
+        ...prev,
+        currentStep: 3,
+        mode: "manual",
+        agencyProfileId: agencyProfile.agencyProfileId as Id<"agency_profile">,
       }));
     }
   }, [agencyProfile, router]);
 
-  const handleWorkflowStarted = (agencyProfileId: string) => {
-    setOnboardingState(prev => ({
-      ...prev,
-      currentStep: 2,
-      agencyProfileId: agencyProfileId as Id<"agency_profile">,
-    }));
+  const handleStarted = (params: { mode: Mode; agencyProfileId: string; onboardingFlowId?: string }) => {
+    if (params.mode === "automated") {
+      setOnboardingState(prev => ({
+        ...prev,
+        currentStep: 2,
+        mode: "automated",
+        agencyProfileId: params.agencyProfileId as Id<"agency_profile">,
+        onboardingFlowId: params.onboardingFlowId as Id<"onboarding_flow">,
+      }));
+    } else {
+      // Manual mode - skip to step 3
+      setOnboardingState(prev => ({
+        ...prev,
+        currentStep: 3,
+        mode: "manual",
+        agencyProfileId: params.agencyProfileId as Id<"agency_profile">,
+      }));
+    }
   };
 
-  const handleClaimsApproved = (approvedClaims: Claim[], guardrails: string[]) => {
+  const handleWorkflowCompleted = () => {
     setOnboardingState(prev => ({
       ...prev,
       currentStep: 3,
-      approvedClaims,
-      guardrails,
+    }));
+  };
+
+  const handleContentReviewed = () => {
+    setOnboardingState(prev => ({
+      ...prev,
+      currentStep: 4,
     }));
   };
 
@@ -92,61 +133,93 @@ function Content() {
   };
 
   // Step indicator component
-  const StepIndicator = () => (
-    <div className="flex items-center justify-center mb-8">
-      <div className="flex items-center space-x-4">
-        {[1, 2, 3].map((step) => (
-          <div key={step} className="flex items-center">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step < onboardingState.currentStep
-                  ? 'bg-green-500 text-white'
-                  : step === onboardingState.currentStep
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-slate-300 text-slate-600'
-              }`}
-            >
-              {step < onboardingState.currentStep ? (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                step
+  const StepIndicator = () => {
+    const isManual = onboardingState.mode === "manual";
+    // Define steps to render with actual and display numbers
+    const steps = isManual
+      ? [
+          { actual: 1 as OnboardingStep, display: 1, label: "Setup" },
+          { actual: 3 as OnboardingStep, display: 2, label: "Review" },
+          { actual: 4 as OnboardingStep, display: 3, label: "Configure" },
+        ]
+      : [
+          { actual: 1 as OnboardingStep, display: 1, label: "Setup" },
+          { actual: 2 as OnboardingStep, display: 2, label: "Analysis" },
+          { actual: 3 as OnboardingStep, display: 3, label: "Review" },
+          { actual: 4 as OnboardingStep, display: 4, label: "Configure" },
+        ];
+
+    return (
+      <div className="flex items-center justify-center mb-8">
+        <div className="flex items-center space-x-4">
+          {steps.map((s, index) => (
+            <div key={s.actual} className="flex items-center">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                  s.actual < onboardingState.currentStep
+                    ? 'bg-green-500 text-white'
+                    : s.actual === onboardingState.currentStep
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-slate-300 text-slate-600'
+                }`}
+              >
+                {s.actual < onboardingState.currentStep ? (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  s.display
+                )}
+              </div>
+              <div className="ml-2 text-xs text-slate-600 dark:text-slate-400">
+                {s.label}
+              </div>
+              {index < steps.length - 1 && (
+                <div
+                  className={`w-12 h-0.5 ml-2 ${
+                    s.actual < onboardingState.currentStep ? 'bg-green-500' : 'bg-slate-300'
+                  }`}
+                />
               )}
             </div>
-            {step < 3 && (
-              <div
-                className={`w-12 h-0.5 ml-2 ${
-                  step < onboardingState.currentStep ? 'bg-green-500' : 'bg-slate-300'
-                }`}
-              />
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-7xl mx-auto">
       <StepIndicator />
       
       {onboardingState.currentStep === 1 && (
-        <InitialSetupForm onWorkflowStarted={handleWorkflowStarted} />
+        <InitialSetupForm onStarted={handleStarted} />
       )}
 
-      {onboardingState.currentStep === 2 && (
+      {onboardingState.currentStep === 2 && onboardingState.mode === "automated" && (
         <WorkflowWithApproval
-          onClaimsApproved={handleClaimsApproved}
+          onCompleted={handleWorkflowCompleted}
         />
       )}
 
-      {onboardingState.currentStep === 3 && 
-       onboardingState.approvedClaims && 
-       onboardingState.guardrails && (
-        <FinalConfigurationForm
-          approvedClaims={onboardingState.approvedClaims}
-          guardrails={onboardingState.guardrails}
+      {onboardingState.currentStep === 3 && onboardingState.agencyProfileId && (
+        <ReviewAndEditGenerated
+          agencyProfileId={onboardingState.agencyProfileId}
+          mode={onboardingState.mode}
+          initialSummary={agencyProfile?.summary}
+          initialCoreOffer={agencyProfile?.coreOffer}
+          initialClaims={agencyProfile?.approvedClaims?.map(claim => ({
+            id: claim.id,
+            text: claim.text,
+            source_url: claim.source_url,
+          })) || []}
+          onSaved={handleContentReviewed}
+        />
+      )}
+
+      {onboardingState.currentStep === 4 && (
+        <Step4FinalConfigurationForm
+          mode={onboardingState.mode}
           onComplete={handleOnboardingComplete}
         />
       )}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface Phase {
-  name: "crawl" | "filter" | "scrape" | "summary" | "claims" | "verify";
+  name: "crawl" | "filter" | "scrape" | "summary" | "claims" | "coreOffer" | "verify";
   status: "pending" | "running" | "complete" | "error";
   progress: number; // 0-1
   errorMessage?: string;
@@ -22,6 +22,7 @@ const PHASE_LABELS = {
   scrape: "Extracting Data",
   summary: "Generating Summary",
   claims: "Creating Claims",
+  coreOffer: "Generating Core Offer",
   verify: "Verifying Claims"
 } as const;
 
@@ -31,6 +32,7 @@ const PHASE_DESCRIPTIONS = {
   scrape: "Extracting detailed content from relevant pages", 
   summary: "AI is generating a comprehensive business summary",
   claims: "Creating factual claims about your business",
+  coreOffer: "Generating a core offer for your business",
   verify: "Verifying claims against source content"
 } as const;
 

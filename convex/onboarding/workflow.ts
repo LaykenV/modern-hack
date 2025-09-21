@@ -171,74 +171,112 @@ export const onboardingWorkflow = workflow.define({
       throw new Error(`Scrape phase failed: ${String(e)}`);
     }
 
-    // Smart agent streaming summary after scraping
+    // Parallel generation phase - Summary, Core Offer, and Claims
     try {
-      await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
-        onboardingFlowId,
-        phaseName: "summary",
-        status: "running",
-        current: 0,
-        total: 1,
-        subPhaseProgress: 0.1,
-        eventMessage: "Generating summary"
-      });
-      await step.runAction(internal.onboarding.summary.streamSummary, { 
-        onboardingFlowId, 
-        smartThreadId: threads.smartThreadId, 
-        companyName: args.companyName, 
-        sourceUrl: args.sourceUrl, 
-        contextUrls: relevant 
-      }, { retry: true });
-      await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
-        onboardingFlowId,
-        phaseName: "summary",
-        current: 0,
-        total: 1,
-        subPhaseProgress: 0.7,
-      });
-      const { summary } = await step.runAction(internal.onboarding.summary.finalizeSummary, { 
-        smartThreadId: threads.smartThreadId 
-      }, { retry: true });
-      await step.runMutation(internal.onboarding.summary.saveSummaryAndSeed, { 
-        agencyProfileId: args.agencyProfileId, 
-        onboardingFlowId, 
-        summary 
-      });
-      await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
-        onboardingFlowId,
-        phaseName: "summary",
-        status: "complete",
-        current: 1,
-        total: 1,
-        eventMessage: "Summary completed"
-      });
-    } catch (e) {
-      await step.runMutation(internal.onboarding.statusUtils.recordFlowError, { onboardingFlowId, phase: "summary", error: String(e) });
-      throw new Error(`Summary phase failed: ${String(e)}`);
-    }
+      // Mark all three phases as running
+      await Promise.all([
+        step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+          onboardingFlowId,
+          phaseName: "summary",
+          status: "running",
+          current: 0,
+          total: 1,
+          subPhaseProgress: 0.1,
+          eventMessage: "Generating summary"
+        }),
+        step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+          onboardingFlowId,
+          phaseName: "coreOffer",
+          status: "running",
+          current: 0,
+          total: 1,
+          subPhaseProgress: 0.1,
+          eventMessage: "Generating core offer"
+        }),
+        step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+          onboardingFlowId,
+          phaseName: "claims",
+          status: "running",
+          current: 0,
+          total: 1,
+          subPhaseProgress: 0.1,
+          eventMessage: "Generating claims"
+        })
+      ]);
 
-    // Claims generation phase
-    try {
-      await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
-        onboardingFlowId,
-        phaseName: "claims",
-        status: "running",
-        current: 0,
-        total: 1,
-        subPhaseProgress: 0.2,
-        eventMessage: "Generating claims"
-      });
-      const candidates = await step.runAction(internal.onboarding.claims.generateClaims, { onboardingFlowId }, { retry: true });
-      await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
-        onboardingFlowId,
-        phaseName: "claims",
-        status: "complete",
-        current: 1,
-        total: 1,
-        eventMessage: "Claims generated"
-      });
-      
-      // Verification phase
+      // Run all three generations in parallel
+      const [summaryResult, coreOfferResult, claimsResult] = await Promise.all([
+        step.runAction(internal.onboarding.summary.streamSummary, { 
+          onboardingFlowId, 
+          summaryThread: threads.summaryThread, 
+          companyName: args.companyName, 
+          sourceUrl: args.sourceUrl, 
+          contextUrls: relevant 
+        }, { retry: true }),
+        step.runAction(internal.onboarding.offer.generateCoreOffer, { 
+          onboardingFlowId, 
+          coreOfferThread: threads.coreOfferThread, 
+          companyName: args.companyName, 
+          sourceUrl: args.sourceUrl, 
+          contextUrls: relevant 
+        }, { retry: true }),
+        step.runAction(internal.onboarding.claims.generateClaims, { onboardingFlowId }, { retry: true })
+      ]);
+
+      // Finalization group - run in parallel where safe
+      const [finalizedSummary] = await Promise.all([
+        // Summary finalization
+        step.runAction(internal.onboarding.summary.finalizeSummary, { 
+          summaryThread: threads.summaryThread 
+        }, { retry: true }),
+        // Core offer is already finalized from generation
+        Promise.resolve(coreOfferResult)
+      ]);
+
+      // Save results and mark phases complete
+      await Promise.all([
+        // Save summary
+        step.runMutation(internal.onboarding.summary.saveSummaryAndSeed, { 
+          agencyProfileId: args.agencyProfileId, 
+          onboardingFlowId, 
+          summary: finalizedSummary.summary 
+        }).then(() => 
+          step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+            onboardingFlowId,
+            phaseName: "summary",
+            status: "complete",
+            current: 1,
+            total: 1,
+            eventMessage: "Summary completed"
+          })
+        ),
+        // Save core offer
+        step.runMutation(internal.onboarding.offer.saveCoreOffer, { 
+          agencyProfileId: args.agencyProfileId, 
+          coreOffer: coreOfferResult.coreOffer 
+        }).then(() =>
+          step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+            onboardingFlowId,
+            phaseName: "coreOffer",
+            status: "complete",
+            current: 1,
+            total: 1,
+            eventMessage: "Core offer completed"
+          })
+        ),
+        // Mark claims generation complete (verification happens next)
+        step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
+          onboardingFlowId,
+          phaseName: "claims",
+          status: "complete",
+          current: 1,
+          total: 1,
+          eventMessage: "Claims generated"
+        })
+      ]);
+
+      // Claims verification phase (sequential to avoid thread contention)
+      const candidates = claimsResult;
       await step.runMutation(internal.onboarding.statusUtils.updatePhaseStatusWithProgress, {
         onboardingFlowId,
         phaseName: "verify",
@@ -257,12 +295,17 @@ export const onboardingWorkflow = workflow.define({
         total: candidates.length,
         eventMessage: "Claims verified"
       });
+
     } catch (e) {
       // Determine which phase failed based on message
       const msg = String(e ?? "");
-      const phase = msg.includes("verify") ? "verify" : "claims";
-      await step.runMutation(internal.onboarding.statusUtils.recordFlowError, { onboardingFlowId, phase, error: msg });
-      throw new Error(`Claims/Verify phase failed: ${msg}`);
+      let phase = "summary"; // default
+      if (msg.includes("core offer") || msg.includes("coreOffer")) phase = "coreOffer";
+      else if (msg.includes("claims")) phase = "claims";
+      else if (msg.includes("verify")) phase = "verify";
+      
+      await step.runMutation(internal.onboarding.statusUtils.recordFlowError, { onboardingFlowId, phase: phase as "crawl" | "filter" | "scrape" | "summary" | "coreOffer" | "claims" | "verify", error: msg });
+      throw new Error(`Generation/Verification phase failed: ${msg}`);
     }
 
     await step.runMutation(internal.onboarding.statusUtils.completeFlow, { onboardingFlowId });

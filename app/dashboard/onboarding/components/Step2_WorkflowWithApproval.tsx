@@ -1,24 +1,19 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { OverallProgress } from "./OverallProgress";
 import { PhaseTimeline } from "./PhaseTimeline";
 import { PageDiscoveryGrid } from "./PageDiscoveryGrid";
 import { StreamingSummary } from "./StreamingSummary";
-import { ClaimsApproval, Claim } from "./ClaimsApproval";
-import { GuardrailsInput } from "./GuardrailsInput";
 import { EventLog } from "./EventLog";
 
 interface WorkflowWithApprovalProps {
-  onClaimsApproved: (approvedClaims: Claim[], guardrails: string[]) => void;
+  onCompleted: () => void;
 }
 
-export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalProps) {
-  const [guardrails, setGuardrails] = useState<string[]>([]);
-  const [approvedClaims, setApprovedClaims] = useState<Claim[]>([]);
-  const [hasApprovedClaims, setHasApprovedClaims] = useState(false);
+export function WorkflowWithApproval({ onCompleted }: WorkflowWithApprovalProps) {
 
   // Get seller brain data to find onboarding flow ID
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
@@ -30,31 +25,15 @@ export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalP
     onboardingFlowId ? { onboardingFlowId } : "skip"
   );
 
-  // Extract claims from seller brain when available
-  useEffect(() => {
-    if (sellerBrain?.approvedClaims && sellerBrain.approvedClaims.length > 0) {
-      setApprovedClaims(sellerBrain.approvedClaims);
-    }
-  }, [sellerBrain?.approvedClaims]);
-
-  const handleClaimsApproval = (selectedClaims: Claim[]) => {
-    setApprovedClaims(selectedClaims);
-    setHasApprovedClaims(true);
-    onClaimsApproved(selectedClaims, guardrails);
-  };
-
-  // Check if workflow is complete and claims are ready
+  // Check if workflow is complete
   const isWorkflowComplete = flow?.status === "completed";
-  const claimsPhase = flow?.phases.find((p: { name: string; status: string }) => p.name === "claims");
-  const isClaimsPhaseComplete = claimsPhase?.status === "complete";
-  const verifyPhase = flow?.phases.find((p: { name: string; status: string }) => p.name === "verify");
-  const isVerifyPhaseComplete = verifyPhase?.status === "complete";
   
-  // Show claims approval when claims are generated and verified
-  const showClaimsApproval = isClaimsPhaseComplete && isVerifyPhaseComplete && approvedClaims.length > 0;
-  
-  // Can proceed when workflow is complete AND user has approved claims
-  const canProceedToStep3 = isWorkflowComplete && hasApprovedClaims && guardrails.length >= 0;
+  // Auto-advance to step 3 when workflow is complete
+  useEffect(() => {
+    if (isWorkflowComplete) {
+      onCompleted();
+    }
+  }, [isWorkflowComplete, onCompleted]);
 
   if (!onboardingFlowId || !flow) {
     return (
@@ -73,7 +52,7 @@ export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalP
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">Analyzing Your Website</h1>
         <p className="text-sm text-slate-500">
-          Step 2 of 3: We&apos;re analyzing your website to understand your business
+          Step 2 of 4: We&apos;re analyzing your website to understand your business
         </p>
       </div>
 
@@ -98,14 +77,6 @@ export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalP
             </h2>
             <EventLog lastEvent={flow.lastEvent} />
           </div>
-
-          {/* Guardrails Input */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-            <GuardrailsInput 
-              guardrails={guardrails}
-              onGuardrailsChange={setGuardrails}
-            />
-          </div>
         </div>
 
         {/* Right Column - Content Views */}
@@ -114,7 +85,7 @@ export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalP
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
             <StreamingSummary 
               onboardingFlowId={onboardingFlowId}
-              smartThreadId={flow.smartThreadId}
+              summaryThread={flow.summaryThread}
             />
           </div>
 
@@ -125,28 +96,17 @@ export function WorkflowWithApproval({ onClaimsApproved }: WorkflowWithApprovalP
         </div>
       </div>
 
-      {/* Claims Approval Section */}
-      {showClaimsApproval && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <ClaimsApproval
-            claims={approvedClaims}
-            onApproval={handleClaimsApproval}
-            isVisible={true}
-          />
-        </div>
-      )}
-
-      {/* Continue Button */}
-      {canProceedToStep3 && (
+      {/* Completion Status */}
+      {isWorkflowComplete && (
         <div className="text-center pt-4">
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
             <p className="text-green-800 dark:text-green-200 text-sm">
-              <strong>Analysis Complete!</strong> Your website has been analyzed and claims have been generated. 
-              You can now proceed to configure your AI assistant.
+              <strong>Analysis Complete!</strong> Your website has been analyzed and content has been generated. 
+              You can now review and edit the generated content.
             </p>
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-            Ready to continue with final configuration
+            Proceeding to content review...
           </p>
         </div>
       )}

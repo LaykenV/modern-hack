@@ -20,6 +20,7 @@ export const getForCurrentUser = query({
   returns: v.union(
     v.null(),
     v.object({
+      agencyProfileId: v.id("agency_profile"),
       userId: v.string(),
       companyName: v.string(),
       sourceUrl: v.string(),
@@ -57,6 +58,7 @@ export const getForCurrentUser = query({
     if (!existing) return null;
 
     return {
+      agencyProfileId: existing._id,
       userId: existing.userId,
       companyName: existing.companyName,
       sourceUrl: existing.sourceUrl,
@@ -255,6 +257,77 @@ export const finalizeOnboardingPublic = mutation({
     await ctx.runMutation(internal.sellerBrain.finalizeOnboarding, {
       ...args,
       userId: user._id,
+    });
+    return null;
+  },
+});
+
+export const startManualOnboarding = mutation({
+  args: { companyName: v.string() },
+  returns: v.object({ agencyProfileId: v.id("agency_profile") }),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+    
+    // Upsert agency_profile without starting a workflow
+    const existing = await ctx.db
+      .query("agency_profile")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        companyName: args.companyName,
+        sourceUrl: existing.sourceUrl ?? "",
+        onboardingFlowId: undefined,
+      });
+      return { agencyProfileId: existing._id };
+    }
+    
+    const id = await ctx.db.insert("agency_profile", {
+      userId: user._id,
+      companyName: args.companyName,
+      sourceUrl: "",
+    });
+    return { agencyProfileId: id };
+  },
+});
+
+export const saveReviewedContentPublic = mutation({
+  args: {
+    agencyProfileId: v.id("agency_profile"),
+    summary: v.string(),
+    coreOffer: v.string(),
+    claims: ClaimsValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+    await ctx.runMutation(internal.sellerBrain.saveReviewedContentInternal, {
+      ...args,
+      userId: user._id,
+    });
+    return null;
+  },
+});
+
+export const saveReviewedContentInternal = internalMutation({
+  args: {
+    userId: v.string(),
+    agencyProfileId: v.id("agency_profile"),
+    summary: v.string(),
+    coreOffer: v.string(),
+    claims: ClaimsValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get(args.agencyProfileId);
+    if (!profile || profile.userId !== args.userId) throw new Error("Not found");
+    await ctx.db.patch(args.agencyProfileId, {
+      summary: args.summary,
+      coreOffer: args.coreOffer,
+      approvedClaims: args.claims,
     });
     return null;
   },

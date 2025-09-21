@@ -26,12 +26,12 @@
   - Overall lifecycle: `status: "idle" | "running" | "error" | "completed"`.
   - **Workflow Status Tracking**: `workflowStatus?: "running" | "completed" | "failed" | "cancelled"` (tracks workflow completion state).
   - **Unified Phase Tracking**: `phases: Array<{ name, status, progress, errorMessage?, startedAt?, completedAt?, duration? }>`
-    - `name`: `"crawl" | "filter" | "scrape" | "summary" | "claims" | "verify"`
+    - `name`: `"crawl" | "filter" | "scrape" | "summary" | "coreOffer" | "claims" | "verify"`
     - `status`: `"pending" | "running" | "complete" | "error"`
     - `progress`: number (0-1)
     - `duration`: number (milliseconds) - automatically calculated when phases complete
   - **Dynamic Counts**: Computed from `crawl_pages` status (no stored count fields).
-  - Threads: `fastThreadId`, `smartThreadId` (for agent streams).
+  - **Three Dedicated Threads**: `summaryThread`, `coreOfferThread`, `claimThread` (for agent streams).
   - Results: `relevantPages: string[]` (final filtered list used for scraping).
   - **Embedded Events**: `lastEvent?: { type, message, timestamp }` (replaces separate events table)
 
@@ -69,7 +69,7 @@ Steps (high level) ✅ **SIMPLIFIED**:
 1) Initialize
    - Create `onboarding_flow` with `status="running"`, initialize `phases` array with all phases as `"pending"`.
    - **Authentication Flow**: `userId` passed from authenticated `seedFromWebsite` action to all internal mutations.
-   - Create threads: `fastThreadId` and `smartThreadId` (via `@convex-dev/agent`).
+   - Create three dedicated threads: `summaryThread`, `coreOfferThread`, and `claimThread` (via `@convex-dev/agent`).
    - Link `agency_profile.onboardingFlowId`.
    - **Store workflow ID** for tracking and monitoring.
    - Set `lastEvent: { type: "onboarding.started", message: "Onboarding started", timestamp }`.
@@ -108,20 +108,32 @@ Steps (high level) ✅ **SIMPLIFIED**:
    - Store `contentRef` for each page, mark `scraped` or `failed`.
    - **Modular Status Update**: `statusUtils.updatePhaseStatus("scrape", "complete", 1.0, eventMessage: "Scraping completed")`.
 
-5) Smart agent — streaming summary
-   - **Modular Status Update**: `statusUtils.updatePhaseStatus("summary", "running", 0.1, eventMessage: "Generating summary")`.
-   - Curate context: prioritize homepage + product/docs + about; **smart content truncation** via `contentUtils.truncateContent()`.
-   - Use `@convex-dev/agent` with `saveStreamDeltas: true` on `smartThreadId` to stream summary text.
-   - On completion, persist final summary into `agency_profile.summary`.
-   - **Modular Status Update**: `statusUtils.updatePhaseStatus("summary", "complete", 1.0, eventMessage: "Summary completed")`.
+5) **Parallel Generation Phase** — Summary, Core Offer, and Claims ✅ **ENHANCED WITH CORE OFFER**
+   - **Modular Status Update**: Mark `summary`, `coreOffer`, and `claims` phases as `"running"` with initial progress.
+   - **Parallel Execution**: Run three generations simultaneously using `Promise.all`:
+     
+     a) **Summary Generation** (streaming on `summaryThread`):
+        - Curate context: prioritize homepage + product/docs + about; **smart content truncation** via `contentUtils.truncateContent()`.
+        - Use `@convex-dev/agent` with `saveStreamDeltas: true` on `summaryThread` to stream summary text.
+        - **Modular Status Update**: `statusUtils.updatePhaseStatus("summary", "complete", 1.0, eventMessage: "Summary completed")`.
+     
+     b) **Core Offer Generation** (non-streaming on `coreOfferThread`):
+        - Load up to ~8 scraped sources with **smart content truncation** (~3000-4000 chars per source).
+        - Prompt agent on `coreOfferThread` to produce concise 1-2 sentence "Core Offer" targeting what the agency provides and to whom.
+        - **Modular Status Update**: `statusUtils.updatePhaseStatus("coreOffer", "complete", 1.0, eventMessage: "Core offer generated")`.
+     
+     c) **Claims Generation** (on `claimThread`):
+        - Generate 3–5 structured claims: `{ text, source_url }`, each mapped to one crawled page. Do not fabricate; omit if unsupported.
+        - **Enhanced content processing**: Use `contentUtils.truncateContent()` (4000 chars) for context preparation.
+        - **Modular Status Update**: `statusUtils.updatePhaseStatus("claims", "complete", 1.0, eventMessage: "Claims generated")`.
 
-6) Smart agent — claims generation (parallel with summary or after)
-   - **Modular Status Update**: `statusUtils.updatePhaseStatus("claims", "running", 0.2, eventMessage: "Generating claims")`.
-   - Generate 3–5 structured claims: `{ text, source_url }`, each mapped to one crawled page. Do not fabricate; omit if unsupported.
-   - **Enhanced content processing**: Use `contentUtils.truncateContent()` (4000 chars) for context preparation.
-   - **Modular Status Update**: `statusUtils.updatePhaseStatus("claims", "complete", 1.0, eventMessage: "Claims generated")`.
+6) **Finalization Phase** — Save Results and Verify Claims
+   - **Parallel Finalization**: Run finalization steps in parallel where safe:
+     - **Summary**: Finalize summary from `summaryThread` → save to `agency_profile.summary`
+     - **Core Offer**: Save core offer to `agency_profile.coreOffer`
+     - **Claims Verification**: Use `claimThread` for verification (batched or sequential to avoid thread contention)
 
-7) Fast agent — claims verification
+7) Claims verification (on `claimThread`)
    - **Modular Status Update**: `statusUtils.updatePhaseStatus("verify", "running", 0.2, eventMessage: "Verifying claims")`.
    - For each candidate claim, load the `source_url` page text from storage with **smart truncation** via `contentUtils.truncateContent()` (6000 chars).
    - **Streamlined verification**: Individual claim logging removed, workflow handles overall phase tracking.
@@ -134,6 +146,7 @@ Steps (high level) ✅ **SIMPLIFIED**:
    - **Modular completion**: `statusUtils.completeFlow()` sets all phases to "complete" with 100% progress and calculated durations.
    - Set `onboarding_flow.status="completed"` and `workflowStatus="completed"`.
    - Set final `lastEvent: { type: "onboarding.completed", message: "Onboarding completed successfully", timestamp }`.
+   - **Final Results**: `agency_profile` now contains `summary`, `coreOffer`, and `approvedClaims`.
 
 Error handling & retries ✅ **PRODUCTION-READY**:
 - **Proper Workflow Failures**: Workflows now throw errors instead of returning `null`, making failures immediately visible.
@@ -165,36 +178,51 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 - **No Redundant Scraping**: Each page scraped exactly once (discovery finds URLs → filter selects relevant → scrape gets content).
 - Early summary: optionally begin when thresholds reached (e.g., ≥50% progress or ≥10 pages scraped) to improve perceived speed.
 
-### Agents and prompting strategy ✅ **UPDATED WITH PROPER THREAD CONTEXT**
-- **Fast agent** (filtering & verifier) - Uses `fastThreadId` (Groq):
+### Agents and prompting strategy ✅ **UPDATED WITH THREE DEDICATED THREADS**
+- **Filter Agent** (filtering) - Uses `fastThreadId` (Groq):
   - **Thread Context**: All calls use `{ threadId: flow.fastThreadId }` for conversation history
   - Filtering prompt: "Rank site URLs for sales relevance. Prefer product/docs/pricing/about. Exclude careers/legal/blog unless core. Return top 10–20 with reasons."
-  - Verifier prompt: "Given a claim and the full text from its source URL, determine if the claim is strongly supported verbatim. If weak/unrelated/violates guardrails, reject with reason and matched snippet."
-- **Smart agent** (summary & claims) - Uses `smartThreadId` (GPT-4):
-  - **Thread Context**: All calls use `{ threadId: flow.smartThreadId }` for conversation history
-  - Summary: concise company profile with inline citations `[n]` mapped to `source_url` list; obey guardrails.
-  - Claims: 3–5 statements, each must include exactly one `source_url` that directly supports it; omit unsupported claims.
+  
+- **Summary Agent** (streaming summary) - Uses `summaryThread` (GPT-4):
+  - **Thread Context**: All calls use `{ threadId: flow.summaryThread }` for conversation history
+  - Summary prompt: concise company profile with inline citations `[n]` mapped to `source_url` list; obey guardrails.
+  - **Streaming**: Uses `@convex-dev/agent` with `saveStreamDeltas: true` for real-time UI updates.
+  
+- **Core Offer Agent** (core offer generation) - Uses `coreOfferThread` (GPT-4):
+  - **Thread Context**: All calls use `{ threadId: flow.coreOfferThread }` for conversation history
+  - Core offer prompt: "Produce a concise 1-2 sentence 'Core Offer' targeting what the agency provides and to whom."
+  - **Non-streaming**: Single response generation for immediate saving.
+  
+- **Claims Agent** (generation & verification) - Uses `claimThread` (GPT-4):
+  - **Thread Context**: All calls use `{ threadId: flow.claimThread }` for conversation history
+  - Generation prompt: 3–5 statements, each must include exactly one `source_url` that directly supports it; omit unsupported claims.
+  - Verification prompt: "Given a claim and the full text from its source URL, determine if the claim is strongly supported verbatim. If weak/unrelated/violates guardrails, reject with reason and matched snippet."
+  - **Thread Safety**: Verification runs sequentially or batched to avoid concurrent requests to same thread.
 
-### UI updates (onboarding wizard) ✅ **SIMPLIFIED**
+### UI updates (onboarding wizard) ✅ **ENHANCED WITH CORE OFFER**
 - Data subscriptions
-  - `agency_profile.getForCurrentUser` to read `onboardingFlowId`, and later `summary`, `approvedClaims`.
+  - `agency_profile.getForCurrentUser` to read `onboardingFlowId`, and later `summary`, `coreOffer`, and `approvedClaims`.
   - **Single Source**: `onboarding_flow.get` for overall status, **unified `phases` array**, threads, `relevantPages`, and **`lastEvent`**.
   - **Optimized Progress**: `getOverallProgress` query returns single number (0-1) for smooth progress bars.
   - `crawl_pages.listByFlow` (paginated) for the pages grid with per-URL status.
   - ~~`onboarding_events.listByFlow`~~ (**REMOVED** - use `lastEvent` from main flow document).
-  - `useThreadMessages` (from `@convex-dev/agent/react`) with `smartThreadId` and `{ stream: true }` for live summary text; use `useSmoothText` for nicer streaming.
+  - `useThreadMessages` (from `@convex-dev/agent/react`) with `summaryThread` and `{ stream: true }` for live summary text; use `useSmoothText` for nicer streaming.
 - Panels & UX
-  - **Simplified Progress Display**: Single `phases` array drives all progress bars - map over phases to show individual progress.
+  - **Enhanced Progress Display**: Single `phases` array drives all progress bars - map over phases to show individual progress including new `coreOffer` phase.
   - Pages panel: **Only relevant pages appear** (filtered before database save); status chips (Queued, Scraped, Failed); progress bar and counts.
-  - **Simplified Timeline**: Show `lastEvent` for current status + derive phase history from `phases` array (startedAt/completedAt timestamps).
-  - Summary panel: streaming text as generated by smart agent.
-  - Claims panel: show generation, then verification states per claim; final list with sources.
+  - **Enhanced Timeline**: Show `lastEvent` for current status + derive phase history from `phases` array (startedAt/completedAt timestamps) including core offer generation.
+  - **Summary panel**: streaming text as generated by summary agent on `summaryThread`.
+  - **Core Offer panel**: display generated core offer from `agency_profile.coreOffer` after completion (lightweight display).
+  - **Claims panel**: show generation, then verification states per claim; final list with sources.
   - **Improved UX**: Cleaner progress feedback with single source of truth; better error state handling with unified error messages.
   - **Optimized Data Display**: Users only see relevant pages (~10-15) instead of all discovered pages (~40-80) for cleaner UI.
-  - Disable "Finish" until minimum viable content is ready (e.g., summary done + ≥1 verified claim), or let users continue while background finalization proceeds.
+  - **Parallel Generation Feedback**: Show simultaneous progress for summary, core offer, and claims generation phases.
+  - Disable "Finish" until minimum viable content is ready (e.g., summary done + core offer generated + ≥1 verified claim), or let users continue while background finalization proceeds.
 
-### Performance & safety considerations ✅ **PRODUCTION-READY & FULLY OPTIMIZED**
-- Concurrency: cap parallel operations to 2 workers (reduced for hackathon demo stability); batch if needed.
+### Performance & safety considerations ✅ **ENHANCED WITH PARALLEL GENERATION**
+- **Parallel Generation**: Three simultaneous generations (Summary, Core Offer, Claims) with dedicated threads to avoid contention.
+- **Thread Safety**: No concurrent requests to same thread - verification runs sequentially or batched on `claimThread`.
+- **Concurrency Management**: Cap parallel operations to 3 generation workers + 2 scraping workers for optimal performance.
 - **Modular Content Processing**: `contentUtils.ts` handles smart truncation, URL normalization, and deduplication.
 - **Consolidated Page Operations**: `pageUtils.ts` provides unified, efficient upsert logic eliminating code duplication.
 - **Centralized Status Management**: `statusUtils.ts` handles all phase transitions with automatic duration calculation.
@@ -204,14 +232,15 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 - **Memory-Efficient Discovery**: Discovered pages kept in workflow memory during filtering, not persisted until filtered.
 - **Proper Error Propagation**: Workflows fail properly with meaningful error messages and completion handlers.
 - **Configurable Timeouts**: 5-minute crawl timeout (reduced for hackathon demo reliability) with proper error handling prevents infinite waits.
-- Storage: large content in `_storage`; pass references between steps; avoid exceeding document size limits.
-- **Workflow resilience**: Workflow ID tracking with completion handlers enables monitoring, debugging, and lifecycle management.
+- **Storage Optimization**: Large content in `_storage`; pass references between steps; avoid exceeding document size limits.
+- **Workflow Resilience**: Workflow ID tracking with completion handlers enables monitoring, debugging, and lifecycle management.
 - **Database Efficiency**: ~85% reduction in database operations via filter-before-save, consolidated upserts, dynamic counts, and eliminated unused fields.
 - **Query Performance**: Strategic compound indexes (`by_flow_and_status`, `by_workflowId`) optimize all operations.
-- **Type Safety**: Strict typing prevents runtime errors with phase names and status values.
+- **Type Safety**: Strict typing prevents runtime errors with phase names and status values including new `coreOffer` phase.
 - **Clean Architecture**: Removed unused code and consolidated duplicate logic for maintainability.
-- **Progress Optimization**: Single `getOverallProgress` query provides efficient UI progress updates.
-- Resumability: workflow can recover across restarts; polling step continues from `crawlJobId` and known URLs.
+- **Progress Optimization**: Single `getOverallProgress` query provides efficient UI progress updates across all phases.
+- **Agent Rate Limiting**: Three dedicated threads prevent rate limit conflicts between different generation tasks.
+- **Resumability**: Workflow can recover across restarts; polling step continues from `crawlJobId` and known URLs.
 
 ### Milestones (implementation order) ✅ **PRODUCTION-READY & FULLY OPTIMIZED**
 1) ✅ Schema: Enhanced with `workflowStatus` tracking, `duration` fields, and optimized indexes.
@@ -235,21 +264,25 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 19) ✅ **AGENT INTEGRATION FIX**: **DECEMBER 2024** - Resolved "Specify userId or threadId" error by properly passing thread context to all agent calls.
 20) ✅ **FILTER-BEFORE-SAVE OPTIMIZATION**: **DECEMBER 2024** - Only relevant pages saved to database after filtering, eliminating storage of irrelevant discovered pages.
 
-### Architecture Simplification ✅ **PRODUCTION-READY & FULLY OPTIMIZED**
-- **Modular Architecture**: Split into `contentUtils.ts`, `statusUtils.ts`, and `pageUtils.ts` for better separation of concerns
+### Architecture Simplification ✅ **ENHANCED WITH PARALLEL GENERATION MODEL**
+- **Modular Architecture**: Split into `contentUtils.ts`, `statusUtils.ts`, `pageUtils.ts`, and new `offer.ts` for better separation of concerns
+- **Three-Thread Model**: Dedicated threads (`summaryThread`, `coreOfferThread`, `claimThread`) replace two-thread model for better parallelization
+- **Parallel Generation Architecture**: Summary (streaming), Core Offer (non-streaming), and Claims (generation) run simultaneously post-scrape
+- **Thread Safety Design**: No concurrent requests to same thread - verification runs sequentially or batched on `claimThread`
 - **Consolidated Operations**: Unified page upsert logic eliminates code duplication and improves maintainability
 - **Proper Error Handling**: Workflows throw errors with completion handlers instead of silent failures
-- **Enhanced Schema**: Added `workflowStatus`, `duration` tracking, and `by_workflowId` index for better monitoring
-- **Dead Code Elimination**: Removed unused fields, functions, and deprecated utilities for cleaner codebase
+- **Enhanced Schema**: Added `coreOffer` phase, three thread fields, `workflowStatus`, `duration` tracking, and `by_workflowId` index
+- **Dead Code Elimination**: Removed unused `fastThreadId`/`smartThreadId` fields and deprecated utilities for cleaner codebase
 - **Filter-Before-Save Architecture**: Discovery phase keeps pages in memory, filter phase selects relevant ones, only filtered pages saved to database
 - **Optimized Database Access**: Index-backed workflow completion eliminates table scans
 - **Dynamic Count Computation**: On-demand counts reduce storage overhead and database writes
-- **Progress Optimization**: Single `getOverallProgress` query provides efficient UI updates
+- **Progress Optimization**: Single `getOverallProgress` query provides efficient UI updates across all phases including `coreOffer`
 - **Configurable Operations**: Replaced hard-coded timeouts with configurable constants
-- **Type Safety**: All utilities properly typed with Context7-validated workflow handlers
+- **Type Safety**: All utilities properly typed with Context7-validated workflow handlers including new phase types
 - **Database Optimization**: ~85% reduction in database operations via filter-before-save, consolidated upserts and eliminated redundant fields
 - **Query Optimization**: Strategic compound indexes (`by_flow_and_status`, `by_workflowId`) optimize all operations
-- **Production Ready**: All linting errors resolved, optimized architecture, comprehensive monitoring
+- **Agent Optimization**: Three dedicated threads prevent rate limit conflicts and enable true parallelization
+- **Production Ready**: All linting errors resolved, optimized architecture, comprehensive monitoring, parallel generation model
 
 ### What stays the same
 - The second onboarding form step (guardrails, tone, ICP, availability) remains as-is: a simple mutation updating `agency_profile` fields after the seeding workflow completes.
@@ -350,7 +383,33 @@ The onboarding workflow was failing with "Specify userId or threadId" error when
 - **Thread Context**: Proper conversation history for better AI performance
 - **Architecture**: Clean separation between fast agent (filtering/verification) and smart agent (summary/claims)
 
-### Current Implementation Status - ENTERPRISE OPTIMIZED + JOURNAL SIZE FIXED + AGENT INTEGRATION + FILTER-BEFORE-SAVE
+## 🎯 **CORE OFFER GENERATION - JANUARY 2025** ✅ **IMPLEMENTED**
+
+### New Core Offer Phase
+The onboarding workflow now includes a dedicated **Core Offer** generation phase that runs in parallel with Summary and Claims generation:
+
+**Purpose**: Generate a concise 1-2 sentence "Core Offer" that captures what the agency provides and to whom they provide it.
+
+**Implementation**:
+- **Dedicated Thread**: Uses `coreOfferThread` for isolated agent conversations
+- **Non-Streaming**: Single response generation for immediate saving to `agency_profile.coreOffer`
+- **Context Loading**: Loads up to ~8 scraped sources with smart content truncation (~3000-4000 chars per source)
+- **Parallel Execution**: Runs simultaneously with Summary (streaming) and Claims (generation) for optimal performance
+
+**Architecture Changes**:
+- **Schema**: Added `coreOffer` phase to `phases` array and `coreOfferThread` field to `onboarding_flow`
+- **Three-Thread Model**: Replaced `fastThreadId`/`smartThreadId` with `summaryThread`, `coreOfferThread`, `claimThread`
+- **New Module**: `convex/onboarding/offer.ts` handles generation and saving logic
+- **Workflow**: Parallel generation group uses `Promise.all` for Summary, Core Offer, and Claims
+- **UI**: Enhanced progress display and optional lightweight core offer display after completion
+
+**Benefits**:
+- **Performance**: True parallelization with dedicated threads prevents rate limit conflicts
+- **User Experience**: Faster completion through simultaneous generation of all content types
+- **Data Quality**: Focused agent prompts for each content type improve output quality
+- **Thread Safety**: No concurrent requests to same thread eliminates race conditions
+
+### Current Implementation Status - ENTERPRISE OPTIMIZED + JOURNAL SIZE FIXED + AGENT INTEGRATION + FILTER-BEFORE-SAVE + PARALLEL GENERATION
 - ✅ **Schema**: Enhanced with `workflowStatus`, `duration` tracking, and `by_workflowId` index for optimal performance
 - ✅ **Error Handling**: Production-grade with proper workflow failures and optimized completion handlers
 - ✅ **Authentication**: Better Auth integration with proper userId passing to internal mutations and workflow contexts
@@ -372,7 +431,11 @@ The onboarding workflow was failing with "Specify userId or threadId" error when
 - ✅ **FILTER-BEFORE-SAVE**: **DECEMBER 2024 OPTIMIZATION** - Only relevant pages saved to database after filtering (65-75% storage reduction)
 - ✅ **DEAD CODE REMOVAL**: Eliminated unused functions (`getCrawlStatusAndStorePages`, `listDiscoveredUrls`, `listFlowPages`) for cleaner codebase
 - ✅ **AUTHENTICATION FIX**: **DECEMBER 2024 FIX** - Resolved "Unauthenticated at getAuthUser" error by creating internal queries for workflow contexts
-- ✅ **Documentation**: Fully updated to reflect all optimization implementations including journal size fix, agent integration, filter-before-save optimization, and authentication fix
+- ✅ **PARALLEL GENERATION**: **JANUARY 2025 UPGRADE** - Added Core Offer generation with three-thread model for true parallelization
+- ✅ **THREE-THREAD MODEL**: **JANUARY 2025 UPGRADE** - Replaced `fastThreadId`/`smartThreadId` with dedicated `summaryThread`, `coreOfferThread`, `claimThread`
+- ✅ **CORE OFFER MODULE**: **JANUARY 2025 UPGRADE** - New `offer.ts` module handles Core Offer generation and saving to `agency_profile.coreOffer`
+- ✅ **ENHANCED UI**: **JANUARY 2025 UPGRADE** - Updated progress display and streaming to support parallel generation and core offer display
+- ✅ **Documentation**: Fully updated to reflect all implementations including parallel generation, three-thread model, and core offer phase
 
 ## 🔐 **AUTHENTICATION FIX - DECEMBER 2024** ✅ **IMPLEMENTED**
 

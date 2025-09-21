@@ -19,6 +19,7 @@ export const PhaseNames = {
   filter: "filter",
   scrape: "scrape",
   summary: "summary",
+  coreOffer: "coreOffer",
   claims: "claims",
   verify: "verify",
 } as const;
@@ -29,6 +30,7 @@ export const createInitialPhases = () => [
   { name: PhaseNames.filter, status: PhaseStatus.pending, progress: 0 },
   { name: PhaseNames.scrape, status: PhaseStatus.pending, progress: 0 },
   { name: PhaseNames.summary, status: PhaseStatus.pending, progress: 0 },
+  { name: PhaseNames.coreOffer, status: PhaseStatus.pending, progress: 0 },
   { name: PhaseNames.claims, status: PhaseStatus.pending, progress: 0 },
   { name: PhaseNames.verify, status: PhaseStatus.pending, progress: 0 },
 ];
@@ -42,12 +44,13 @@ export const PageStatus = {
 
 // Phase weight constants for standardized progress calculation
 export const PHASE_WEIGHTS = {
-  crawl: 0.35,    // Heaviest phase - discovery + bulk fetch
-  filter: 0.10,   // Quick AI filtering
-  scrape: 0.25,   // High-fidelity scraping
-  summary: 0.20,  // AI summary generation
-  claims: 0.05,   // Claims generation
-  verify: 0.05,   // Claims verification
+  crawl: 0.30,     // Heaviest phase - discovery + bulk fetch
+  filter: 0.10,    // Quick AI filtering
+  scrape: 0.25,    // High-fidelity scraping
+  summary: 0.15,   // AI summary generation
+  coreOffer: 0.10, // Core offer generation
+  claims: 0.05,    // Claims generation
+  verify: 0.05,    // Claims verification
 } as const;
 
 export type PhaseName = keyof typeof PHASE_WEIGHTS;

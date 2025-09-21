@@ -1,9 +1,8 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { Claim } from "./ClaimsApproval";
 import { 
   TONE_OPTIONS, 
   TARGET_VERTICALS, 
@@ -13,18 +12,17 @@ import {
   DAYS
 } from "../constants/formOptions";
 
-interface FinalConfigurationFormProps {
-  approvedClaims: Claim[];
-  guardrails: string[];
+interface Step4FinalConfigurationFormProps {
+  mode?: "manual" | "automated";
   onComplete: () => void;
 }
 
-export function FinalConfigurationForm({ 
-  approvedClaims, 
-  guardrails, 
+export function Step4FinalConfigurationForm({ 
+  mode = "automated",
   onComplete 
-}: FinalConfigurationFormProps) {
+}: Step4FinalConfigurationFormProps) {
   const finalizeOnboarding = useMutation(api.sellerBrain.finalizeOnboardingPublic);
+  const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +34,7 @@ export function FinalConfigurationForm({
   const [coreOffer, setCoreOffer] = useState<string>("");
   const [leadQualificationCriteria, setLeadQualificationCriteria] = useState<string[]>([]);
   const [timeZone, setTimeZone] = useState<string>("America/Los_Angeles");
+  const [guardrails, setGuardrails] = useState<string[]>([]);
   
   // Availability state
   const [availabilityDay, setAvailabilityDay] = useState<string>("Tue");
@@ -65,6 +64,9 @@ export function FinalConfigurationForm({
       if (availabilitySlots.length === 0) {
         throw new Error("Please add at least one availability slot.");
       }
+
+      // Get approved claims from agency profile
+      const approvedClaims = agencyProfile?.approvedClaims || [];
 
       await finalizeOnboarding({
         approvedClaims,
@@ -115,7 +117,7 @@ export function FinalConfigurationForm({
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold mb-2">Final Configuration</h1>
         <p className="text-sm text-slate-500">
-          Step 3 of 3: Configure your AI assistant&apos;s personality and target market
+          {mode === "manual" ? "Step 3 of 3" : "Step 4 of 4"}: Configure your AI assistant&apos;s personality and target market
         </p>
       </div>
 
@@ -127,24 +129,70 @@ export function FinalConfigurationForm({
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Summary of Approved Claims */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-3">
-            Your Approved Claims
-          </h2>
-          <div className="space-y-2">
-            {approvedClaims.map((claim, index) => (
-              <div key={claim.id} className="text-sm text-blue-700 dark:text-blue-300">
-                <span className="font-medium">{index + 1}.</span> {claim.text}
+        {agencyProfile?.approvedClaims && agencyProfile.approvedClaims.length > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-3">
+              Your Approved Claims
+            </h2>
+            <div className="space-y-2">
+              {agencyProfile.approvedClaims.map((claim, index) => (
+                <div key={claim.id} className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">{index + 1}.</span> {claim.text}
+                </div>
+              ))}
+            </div>
+            {guardrails.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                  Guardrails: {guardrails.length} rule{guardrails.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Guardrails Input */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">Guardrails</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            Add rules or guidelines for your AI assistant to follow when engaging with prospects.
+          </p>
+          
+          <div className="space-y-3">
+            {guardrails.map((guardrail, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={guardrail}
+                  onChange={(e) => {
+                    const updated = [...guardrails];
+                    updated[index] = e.target.value;
+                    setGuardrails(updated);
+                  }}
+                  className="flex-1 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g., Always be respectful and professional"
+                />
+                <button
+                  type="button"
+                  onClick={() => setGuardrails(guardrails.filter((_, i) => i !== index))}
+                  className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                  aria-label={`Remove guardrail ${index + 1}`}
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
             ))}
+            
+            <button
+              type="button"
+              onClick={() => setGuardrails([...guardrails, ""])}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors"
+            >
+              + Add Guardrail
+            </button>
           </div>
-          {guardrails.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                Guardrails: {guardrails.length} rule{guardrails.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Tone Selection */}

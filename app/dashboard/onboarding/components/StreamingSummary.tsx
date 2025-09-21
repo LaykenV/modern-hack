@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 
 interface StreamingSummaryProps {
   onboardingFlowId: Id<"onboarding_flow">;
-  smartThreadId?: string;
+  summaryThread?: string;
 }
 
 // Simple smooth text hook for streaming display
@@ -39,14 +39,14 @@ function useSmoothText(text: string, speed: number = 50) {
   return displayText;
 }
 
-export function StreamingSummary({ onboardingFlowId, smartThreadId }: StreamingSummaryProps) {
+export function StreamingSummary({ onboardingFlowId, summaryThread }: StreamingSummaryProps) {
   const flow = useQuery(api.onboarding.queries.getOnboardingFlow, {
     onboardingFlowId
   });
 
   // Always call the hook; pass a dummy threadId when absent to keep call order stable
-  const effectiveThreadId = smartThreadId ?? "";
-  const shouldStream = Boolean(smartThreadId);
+  const effectiveThreadId = summaryThread ?? "";
+  const shouldStream = Boolean(summaryThread);
   const messages = useThreadMessages(
     api.onboarding.summary.listSummaryMessages,
     { onboardingFlowId, threadId: effectiveThreadId },

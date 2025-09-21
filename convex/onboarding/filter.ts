@@ -17,7 +17,7 @@ export const filterRelevantPages = internalAction({
     // Get the onboarding flow to access the fastThreadId (using internal query)
     const flow = await ctx.runQuery(internal.onboarding.queries.getOnboardingFlowInternal, { onboardingFlowId });
     if (!flow) throw new Error("Onboarding flow not found");
-    if (!flow.fastThreadId) throw new Error("Fast thread not initialized");
+    if (!flow.coreOfferThread) throw new Error("Core offer thread not initialized");
     
     // First deduplicate the input pages
     const deduplicatedPages = pages.filter((page, index, arr) => 
@@ -31,7 +31,7 @@ Return only JSON: {"urls":[string...]}, max 10 items.
 URLs:
 ${top.map((p, i) => `[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}`).join("\n")}`;
 
-    const res = await atlasAgentGroq.generateText(ctx, { threadId: flow.fastThreadId }, { prompt });
+    const res = await atlasAgentGroq.generateText(ctx, { threadId: flow.coreOfferThread }, { prompt });
     let urls: Array<string> = [];
     try {
       const parsed = JSON.parse(res.text ?? "{}");

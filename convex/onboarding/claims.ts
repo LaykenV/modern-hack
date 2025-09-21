@@ -9,7 +9,7 @@ import type { Id } from "../_generated/dataModel";
 export const loadClaimsContext = internalQuery({
   args: { onboardingFlowId: v.id("onboarding_flow") },
   returns: v.object({
-    smartThreadId: v.string(),
+    claimThread: v.string(),
     pages: v.array(
       v.object({ url: v.string(), contentRef: v.optional(v.id("_storage")) }),
     ),
@@ -17,7 +17,7 @@ export const loadClaimsContext = internalQuery({
   handler: async (ctx, args) => {
     const { onboardingFlowId } = args;
     const flow = await ctx.db.get(onboardingFlowId);
-    if (!flow || !flow.smartThreadId) throw new Error("Flow not found");
+    if (!flow || !flow.claimThread) throw new Error("Flow not found");
     const relevant: Array<string> = (flow.relevantPages ?? []) as Array<string>;
     const top = relevant.slice(0, 8);
     const pages: Array<{ url: string; contentRef?: Id<"_storage"> }> = [];
@@ -29,7 +29,7 @@ export const loadClaimsContext = internalQuery({
         .unique();
       pages.push({ url: n, contentRef: row?.contentRef ?? undefined });
     }
-    return { smartThreadId: flow.smartThreadId, pages };
+    return { claimThread: flow.claimThread, pages };
   },
 });
 
@@ -41,7 +41,7 @@ export const generateClaims = internalAction({
   ),
   handler: async (ctx, args) => {
     const { onboardingFlowId } = args;
-    const { smartThreadId, pages } = await ctx.runQuery(internal.onboarding.claims.loadClaimsContext, { onboardingFlowId });
+    const { claimThread, pages } = await ctx.runQuery(internal.onboarding.claims.loadClaimsContext, { onboardingFlowId });
     const lines: Array<string> = [];
 
     // Limit pages to prevent memory issues during hackathon demo
@@ -85,7 +85,7 @@ export const generateClaims = internalAction({
   const contextLines = lines.join("\n\n");
   const prompt = `You are generating factual, verifiable product/company claims based strictly on the provided sources.\n\nRules:\n- Only write claims that are directly supported by the sources.\n- Keep each claim short (<= 180 characters) and specific.\n- Output only JSON array, no extra text.\n- Each claim must include text and source_url (one of the provided sources).\n- 3 to 5 claims total.\n\nSources:\n${contextLines}\n\nOutput format:\n[{"text": "...", "source_url": "..."}]`;
 
-  const result = await atlasAgentGroq.generateText(ctx, { threadId: smartThreadId }, { prompt });
+  const result = await atlasAgentGroq.generateText(ctx, { threadId: claimThread }, { prompt });
   const raw = (result.text ?? "").trim();
   let claims: Array<{ text: string; source_url: string }> = [];
   try {
@@ -140,10 +140,10 @@ export const verifyClaims = internalAction({
   handler: async (ctx, args) => {
     const { onboardingFlowId, candidates } = args;
     
-    // Get the onboarding flow to access the fastThreadId (using internal query)
+    // Get the onboarding flow to access the claimThread (using internal query)
     const flow = await ctx.runQuery(internal.onboarding.queries.getOnboardingFlowInternal, { onboardingFlowId });
     if (!flow) throw new Error("Onboarding flow not found");
-    if (!flow.fastThreadId) throw new Error("Fast thread not initialized");
+    if (!flow.claimThread) throw new Error("Claim thread not initialized");
     
     // At this point, flow is guaranteed to be non-null
     
@@ -185,31 +185,25 @@ export const verifyClaims = internalAction({
   }
   await Promise.all(Array.from({ length: Math.min(limit, work.length) }).map(() => loader()));
 
-  let vi = 0;
-  async function verifier() {
-    while (true) {
-      const i = vi++;
-      if (i >= work.length) break;
-      const { c, n } = work[i];
-      const snippet = snippets[n] ?? "";
+  // Sequential verification to avoid concurrent requests to the same thread
+  for (const { c, n } of work) {
+    const snippet = snippets[n] ?? "";
 
-      const prompt = `Given the SOURCE TEXT (truncated) and a CLAIM, decide if the claim is strongly supported.\nReturn JSON only: {"accepted": boolean, "reason": string, "matched": string}\n\nCLAIM: ${c.text}\nSOURCE_URL: ${n}\nSOURCE TEXT:\n${snippet}`;
+    const prompt = `Given the SOURCE TEXT (truncated) and a CLAIM, decide if the claim is strongly supported.\nReturn JSON only: {"accepted": boolean, "reason": string, "matched": string}\n\nCLAIM: ${c.text}\nSOURCE_URL: ${n}\nSOURCE TEXT:\n${snippet}`;
 
-      let ok = false;
-      try {
-        const res = await atlasAgentGroq.generateText(ctx, { threadId: flow!.fastThreadId }, { prompt });
-        const parsed = JSON.parse(res.text ?? "{}");
-        ok = !!parsed.accepted;
-        // Individual claim verification logging is now handled by the workflow
-      } catch (e) {
-        console.warn("Claim verification JSON parse failed:", e);
-        // Conservative fallback - reject claim if parsing fails
-        ok = false;
-      }
-      if (ok) accepted.push({ id: c.id, text: c.text, source_url: n });
+    let ok = false;
+    try {
+      const res = await atlasAgentGroq.generateText(ctx, { threadId: flow!.claimThread }, { prompt });
+      const parsed = JSON.parse(res.text ?? "{}");
+      ok = !!parsed.accepted;
+      // Individual claim verification logging is now handled by the workflow
+    } catch (e) {
+      console.warn("Claim verification JSON parse failed:", e);
+      // Conservative fallback - reject claim if parsing fails
+      ok = false;
     }
+    if (ok) accepted.push({ id: c.id, text: c.text, source_url: n });
   }
-  await Promise.all(Array.from({ length: Math.min(limit, work.length) }).map(() => verifier()));
 
     await ctx.runMutation(internal.onboarding.claims.finishVerifyClaims, { onboardingFlowId, accepted });
     return accepted;

@@ -127,6 +127,7 @@ export default defineSchema({
         v.literal("filter"),
         v.literal("scrape"),
         v.literal("summary"),
+        v.literal("coreOffer"),
         v.literal("claims"),
         v.literal("verify"),
       ),
@@ -143,9 +144,10 @@ export default defineSchema({
       duration: v.optional(v.number()), // completedAt - startedAt in milliseconds
     })),
     // Count fields removed - computed dynamically from crawl_pages
-    // AI threads
-    fastThreadId: v.optional(v.string()),
-    smartThreadId: v.optional(v.string()),
+    // AI threads - three dedicated threads for parallel processing
+    summaryThread: v.optional(v.string()),
+    coreOfferThread: v.optional(v.string()),
+    claimThread: v.optional(v.string()),
     relevantPages: v.optional(v.array(v.string())),
     // Key events embedded (replacing events table)
     lastEvent: v.optional(v.object({

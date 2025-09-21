@@ -20,6 +20,7 @@ import type * as onboarding_contentUtils from "../onboarding/contentUtils.js";
 import type * as onboarding_crawl from "../onboarding/crawl.js";
 import type * as onboarding_filter from "../onboarding/filter.js";
 import type * as onboarding_init from "../onboarding/init.js";
+import type * as onboarding_offer from "../onboarding/offer.js";
 import type * as onboarding_pageUtils from "../onboarding/pageUtils.js";
 import type * as onboarding_queries from "../onboarding/queries.js";
 import type * as onboarding_scrape from "../onboarding/scrape.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   "onboarding/crawl": typeof onboarding_crawl;
   "onboarding/filter": typeof onboarding_filter;
   "onboarding/init": typeof onboarding_init;
+  "onboarding/offer": typeof onboarding_offer;
   "onboarding/pageUtils": typeof onboarding_pageUtils;
   "onboarding/queries": typeof onboarding_queries;
   "onboarding/scrape": typeof onboarding_scrape;

@@ -17,8 +17,8 @@ test it
 //claims only getting urls as context so they suck
 claims and guardrails need their own step
 //onboarding only uses fast agent?
-claims and summary need to happen in parallel
-also return 'core offer' 
+//claims and summary need to happen in parallel
+//also return 'core offer' 
 //dashboard and onboarding redirecting
 //update seller brain and final step form
 

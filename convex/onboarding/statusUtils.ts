@@ -60,6 +60,7 @@ export const recordFlowError = internalMutation({
       v.literal("filter"), 
       v.literal("scrape"),
       v.literal("summary"),
+      v.literal("coreOffer"),
       v.literal("claims"),
       v.literal("verify")
     ), 
@@ -110,6 +111,7 @@ export const updatePhaseStatusWithProgress = internalMutation({
       v.literal("filter"),
       v.literal("scrape"),
       v.literal("summary"),
+      v.literal("coreOffer"),
       v.literal("claims"),
       v.literal("verify")
     ),

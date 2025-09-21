@@ -24,14 +24,14 @@ export const markSummaryStreamingStarted = internalMutation({
 export const streamSummary = internalAction({
   args: { 
     onboardingFlowId: v.id("onboarding_flow"), 
-    smartThreadId: v.string(), 
+    summaryThread: v.string(), 
     companyName: v.string(), 
     sourceUrl: v.string(), 
     contextUrls: v.array(v.string()) 
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { onboardingFlowId, smartThreadId, companyName, sourceUrl, contextUrls } = args;
+    const { onboardingFlowId, summaryThread, companyName, sourceUrl, contextUrls } = args;
     await ctx.runMutation(internal.onboarding.summary.markSummaryStreamingStarted, { onboardingFlowId });
     
     // Load actual content from storage instead of just URLs
@@ -74,7 +74,7 @@ export const streamSummary = internalAction({
     
     await atlasAgentGroq.streamText(
       ctx,
-      { threadId: smartThreadId },
+      { threadId: summaryThread },
       { prompt },
       { saveStreamDeltas: true },
     );
@@ -83,12 +83,12 @@ export const streamSummary = internalAction({
 });
 
 export const finalizeSummary = internalAction({
-  args: { smartThreadId: v.string() },
+  args: { summaryThread: v.string() },
   returns: v.object({ summary: v.string() }),
   handler: async (ctx, args) => {
-  const { smartThreadId } = args;
+  const { summaryThread } = args;
     const messages = await listMessages(ctx, components.agent, {
-      threadId: smartThreadId,
+      threadId: summaryThread,
       excludeToolMessages: true,
       paginationOpts: { cursor: null, numItems: 50 },
     });
@@ -174,7 +174,7 @@ export const listSummaryMessages = query({
     if (!flow || !user || flow.userId !== user._id) throw new Error("Forbidden");
 
     // If thread isn't ready yet or doesn't match, return empty results for the UI hook
-    if (!args.threadId || !flow.smartThreadId || flow.smartThreadId !== args.threadId) {
+    if (!args.threadId || !flow.summaryThread || flow.summaryThread !== args.threadId) {
       const emptyStreams: SyncStreamsReturnValue = { kind: "deltas", deltas: [] };
       return {
         page: [],

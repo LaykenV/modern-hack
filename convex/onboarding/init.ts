@@ -25,8 +25,9 @@ export const initOnboarding = internalMutation({
       status: "running",
       phases: createInitialPhases(),
       // Count fields removed - computed dynamically from crawl_pages
-      fastThreadId: undefined,
-      smartThreadId: undefined,
+      summaryThread: undefined,
+      coreOfferThread: undefined,
+      claimThread: undefined,
       relevantPages: [],
     });
     
@@ -47,25 +48,28 @@ export const initOnboarding = internalMutation({
 
 export const createThreads = internalAction({
   args: { onboardingFlowId: v.id("onboarding_flow") },
-  returns: v.object({ fastThreadId: v.string(), smartThreadId: v.string() }),
+  returns: v.object({ summaryThread: v.string(), coreOfferThread: v.string(), claimThread: v.string() }),
   handler: async (ctx) => {
-    const fastThreadId = await createThread(ctx, components.agent);
-    const smartThreadId = await createThread(ctx, components.agent);
-    return { fastThreadId, smartThreadId };
+    const summaryThread = await createThread(ctx, components.agent);
+    const coreOfferThread = await createThread(ctx, components.agent);
+    const claimThread = await createThread(ctx, components.agent);
+    return { summaryThread, coreOfferThread, claimThread };
   },
 });
 
 export const setThreads = internalMutation({
   args: {
     onboardingFlowId: v.id("onboarding_flow"),
-    fastThreadId: v.string(),
-    smartThreadId: v.string(),
+    summaryThread: v.string(),
+    coreOfferThread: v.string(),
+    claimThread: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.onboardingFlowId, {
-      fastThreadId: args.fastThreadId,
-      smartThreadId: args.smartThreadId,
+      summaryThread: args.summaryThread,
+      coreOfferThread: args.coreOfferThread,
+      claimThread: args.claimThread,
     });
     return null;
   },
