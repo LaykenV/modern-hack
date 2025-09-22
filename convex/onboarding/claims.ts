@@ -139,7 +139,6 @@ export const finishVerifyClaims = internalMutation({
     const flow = await ctx.db.get(onboardingFlowId);
     if (!flow) return null;
     await ctx.db.patch(flow.agencyProfileId, { approvedClaims: accepted }); 
-    // Phase status updates are now handled by the workflow
     return null;
   },
 });

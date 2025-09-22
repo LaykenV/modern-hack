@@ -10,7 +10,6 @@ export const markCrawlStarted = internalMutation({
     const flow = await ctx.db.get(onboardingFlowId);
   if (!flow) throw new Error("Flow not found");
   await ctx.db.patch(onboardingFlowId, { crawlJobId });
-  // Event tracking now handled by updatePhaseStatus in workflow
     return null;
   },
 });

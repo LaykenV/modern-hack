@@ -39,30 +39,6 @@ export const startCrawl = internalAction({
   },
 });
 
-// Scrape a single URL with high-fidelity markdown
-export const scrapeUrl = internalAction({
-  args: { url: v.string() },
-  returns: v.object({
-    url: v.string(),
-    title: v.optional(v.string()),
-    markdown: v.optional(v.string()),
-    statusCode: v.optional(v.number()),
-  }),
-  handler: async (ctx, { url }) => {
-    const res = await firecrawl.scrape(url, {
-      formats: ["markdown"],
-      onlyMainContent: false,
-      maxAge: 0,
-    });
-    const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
-    return {
-      url: response.metadata?.sourceURL ?? response.metadata?.url ?? url,
-      title: response.metadata?.title ?? undefined,
-      markdown: response.markdown ?? undefined,
-      statusCode: response.metadata?.statusCode ?? undefined,
-    };
-  },
-});
 
 // Get the current status and latest page batch for a Firecrawl crawl job
 export const getCrawlStatus = internalAction({

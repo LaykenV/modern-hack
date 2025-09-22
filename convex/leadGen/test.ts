@@ -12,14 +12,12 @@ const FIELD_MASK = [
   "places.rating",
   "places.userRatingCount",
   "places.formattedAddress",
-  "nextPageToken",
 ];
 
 export const searchPlacesText = action({
   args: {
     textQuery: v.string() ?? "roofers in San Francisco",
-    maxResultCount: v.optional(v.number()) ?? 100,
-    pageToken: v.optional(v.string()) ?? undefined,
+    maxResultCount: v.optional(v.number()) ?? 20,
   },
   returns: v.object({
     places: v.array(
@@ -33,7 +31,6 @@ export const searchPlacesText = action({
         address: v.optional(v.string()),
       })
     ),
-    nextPageToken: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     const placesClient = new PlacesClient({
@@ -43,40 +40,41 @@ export const searchPlacesText = action({
     const request: {
       textQuery: string;
       maxResultCount: number;
-      pageToken?: string;
     } = {
       textQuery: args.textQuery,
-      maxResultCount: args.maxResultCount ?? 100,
-      pageToken: args.pageToken,
+      maxResultCount: Math.min(args.maxResultCount ?? 20, 20),
     };
 
+    // Note: Field mask doesn't work with this Node.js client library,
+    // but Google bills based on fields used in code, not fields returned
     const options = {
       otherArgs: {
         headers: {
           "X-Goog-FieldMask": FIELD_MASK.join(","),
         },
       },
-    } as const;
+    };
+
+    console.log('Request:', JSON.stringify(request, null, 2));
 
     const rawResponse = await placesClient.searchText(request, options);
     const [searchResponse] = rawResponse;
-    console.log(searchResponse.places?.length);
-    console.log(searchResponse);
+    console.log(`Received ${searchResponse.places?.length} places`);
     const response: unknown = Array.isArray(rawResponse) ? rawResponse[0] : rawResponse;
 
     type ApiPlace = {
       id?: string;
-      displayName?: { text?: string } | string;
+      displayName?: { text?: string; languageCode?: string };
       websiteUri?: string;
       internationalPhoneNumber?: string;
       rating?: number;
       userRatingCount?: number;
       formattedAddress?: string;
     };
-    const respObj = (response as { places?: Array<ApiPlace>; nextPageToken?: string }) ?? {};
+    const respObj = (response as { places?: Array<ApiPlace>; }) ?? {};
     const places = (respObj.places ?? []).map((p: ApiPlace) => {
-      const displayName = p?.displayName;
-      const name = typeof displayName === "object" ? displayName?.text ?? "" : displayName ?? "";
+      // Handle the nested displayName structure
+      const name = p?.displayName?.text ?? "";
       return {
         id: p?.id ?? "",
         name,
@@ -87,10 +85,9 @@ export const searchPlacesText = action({
         address: p?.formattedAddress ?? undefined,
       };
     });
-
+    console.log(places)
     return {
       places,
-      nextPageToken: respObj?.nextPageToken ?? undefined,
     };
   },
 });

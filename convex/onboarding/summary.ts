@@ -1,6 +1,5 @@
 import { internalMutation, internalAction, query } from "../_generated/server";
 import { v } from "convex/values";
-// Phase status updates are now handled by the workflow
 import { atlasAgentGroq } from "../agent";
 import { authComponent } from "../auth";
 import { components } from "../_generated/api";
@@ -8,18 +7,6 @@ import { listMessages, syncStreams, extractText, vStreamArgs, type SyncStreamsRe
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "../_generated/api";
 import { normalizeUrl, truncateContent } from "./contentUtils";
-
-export const markSummaryStreamingStarted = internalMutation({
-  args: { onboardingFlowId: v.id("onboarding_flow") },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const { onboardingFlowId } = args;
-    const flow = await ctx.db.get(onboardingFlowId);
-    if (!flow) throw new Error("Flow not found");
-    // Phase status updates are now handled by the workflow
-      return null;
-  },
-});
 
 export const streamSummary = internalAction({
   args: { 
@@ -32,7 +19,6 @@ export const streamSummary = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     const { onboardingFlowId, summaryThread, companyName, sourceUrl, contextUrls } = args;
-    await ctx.runMutation(internal.onboarding.summary.markSummaryStreamingStarted, { onboardingFlowId });
     
     // Load actual content from storage instead of just URLs
     const contentLines: Array<string> = [];
@@ -163,7 +149,6 @@ export const saveSummaryAndSeed = internalMutation({
       summary,
       pagesList: finalPagesList,
     });
-    // Phase status updates are now handled by the workflow
     return null;
   },
 });

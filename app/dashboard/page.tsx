@@ -2,12 +2,13 @@
 
 import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
 import { CreditMeter } from "@/components/CreditMeter";
 import Link from "next/link";
+import { Id } from "@/convex/_generated/dataModel";
 
 export default function DashboardPage() {
   return (
@@ -35,8 +36,26 @@ function DashboardContent() {
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
   const router = useRouter();
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
-  const testLeadGen = useAction(api.leadGen.test.searchPlacesText);
+  const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
+  
+  // State for lead generation
+  const [currentJobId, setCurrentJobId] = useState<Id<"lead_gen_flow"> | null>(null);
+  const [numLeads, setNumLeads] = useState(5);
+  const [targetVertical, setTargetVertical] = useState("");
+  const [targetGeography, setTargetGeography] = useState("");
+  
+  // Query for lead gen job status
+  const leadGenJob = useQuery(
+    api.marketing.getLeadGenJob, 
+    currentJobId ? { jobId: currentJobId } : "skip"
+  );
+  
+  // Query for lead gen jobs history  
+  const leadGenJobs = useQuery(
+    api.marketing.listLeadGenJobsByAgency,
+    sellerBrain?.agencyProfileId ? { agencyId: sellerBrain.agencyProfileId } : "skip"
+  );
 
   useEffect(() => {
     if (user && (!sellerBrain || (onboardingStatus !== "completed" && onboardingStatus !== null))) {
@@ -68,15 +87,6 @@ function DashboardContent() {
           }}
         >
           Test Autumn Meter
-        </button>
-        <button
-          className="border border-slate-300 dark:border-slate-700 text-sm px-4 py-2 rounded-md ml-2"
-          onClick={async () => {
-            const res = await testLeadGen({ textQuery: "roofers in San Francisco" });
-            alert(JSON.stringify(res));
-          }}
-        >
-          Test Lead Gen
         </button>
         <Link href="/dashboard/subscription">Subscription</Link>
       </div>
@@ -186,6 +196,195 @@ function DashboardContent() {
           </div>
         </div>
       )}
+      
+      {/* Lead Generation Workflow Section */}
+      <div className="mt-8 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+        <h2 className="text-xl font-semibold mb-3">Lead Generation Workflow</h2>
+        
+        {/* Start Workflow Form */}
+        <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded">
+          <h3 className="text-lg font-medium mb-3">Start New Lead Generation</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Number of Leads (1-20)</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={numLeads}
+                onChange={(e) => setNumLeads(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Target Vertical (optional)</label>
+              <input
+                type="text"
+                value={targetVertical}
+                onChange={(e) => setTargetVertical(e.target.value)}
+                placeholder="e.g., roofers, dentists"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Target Geography (optional)</label>
+              <input
+                type="text"
+                value={targetGeography}
+                onChange={(e) => setTargetGeography(e.target.value)}
+                placeholder="e.g., San Francisco, CA"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md"
+              />
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              try {
+                const result = await startLeadGenWorkflow({
+                  numLeads,
+                  targetVertical: targetVertical || undefined,
+                  targetGeography: targetGeography || undefined,
+                });
+                setCurrentJobId(result.jobId);
+                alert(`Lead generation started! Job ID: ${result.jobId}`);
+              } catch (err) {
+                console.error("Failed to start lead generation:", err);
+                alert("Failed to start lead generation. Check console for details.");
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+          >
+            Start Lead Generation
+          </button>
+        </div>
+
+        {/* Current Job Status */}
+        {leadGenJob && (
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded">
+            <h3 className="text-lg font-medium mb-3">Current Job Status</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p><strong>Job ID:</strong> {leadGenJob._id}</p>
+                <p><strong>Status:</strong> {leadGenJob.status}</p>
+                <p><strong>Workflow Status:</strong> {leadGenJob.workflowStatus || "N/A"}</p>
+                <p><strong>Leads Requested:</strong> {leadGenJob.numLeadsRequested}</p>
+                <p><strong>Leads Fetched:</strong> {leadGenJob.numLeadsFetched}</p>
+              </div>
+              <div>
+                <p><strong>Target Vertical:</strong> {leadGenJob.campaign.targetVertical}</p>
+                <p><strong>Target Geography:</strong> {leadGenJob.campaign.targetGeography}</p>
+                {leadGenJob.lastEvent && (
+                  <div className="mt-2">
+                    <p><strong>Last Event:</strong></p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {leadGenJob.lastEvent.message} ({new Date(leadGenJob.lastEvent.timestamp).toLocaleString()})
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Phase Progress */}
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Phase Progress:</h4>
+              <div className="space-y-2">
+                {leadGenJob.phases.map((phase) => (
+                  <div key={phase.name} className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      phase.status === "complete" ? "bg-green-500" :
+                      phase.status === "running" ? "bg-blue-500" :
+                      phase.status === "error" ? "bg-red-500" :
+                      "bg-gray-300"
+                    }`} />
+                    <span className="capitalize">{phase.name.replace("_", " ")}</span>
+                    <span className="text-sm text-slate-500">({Math.round(phase.progress * 100)}%)</span>
+                    {phase.status === "running" && <span className="text-blue-600">Running...</span>}
+                    {phase.status === "error" && phase.errorMessage && (
+                      <span className="text-red-600 text-sm">Error: {phase.errorMessage}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Places Snapshot */}
+            {leadGenJob.placesSnapshot && leadGenJob.placesSnapshot.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium mb-2">Places Found ({leadGenJob.placesSnapshot.length}):</h4>
+                <div className="max-h-60 overflow-y-auto">
+                  <div className="grid grid-cols-1 gap-2">
+                    {leadGenJob.placesSnapshot.map((place) => (
+                      <div key={place.id} className="p-2 bg-white dark:bg-slate-800 rounded border">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">{place.name}</p>
+                            {place.address && <p className="text-sm text-slate-600">{place.address}</p>}
+                            {place.phone && <p className="text-sm">📞 {place.phone}</p>}
+                            {place.website && (
+                              <p className="text-sm">
+                                🌐 <a href={place.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                  {place.website}
+                                </a>
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {place.rating && (
+                              <p className="text-sm">⭐ {place.rating}</p>
+                            )}
+                            {place.reviews && (
+                              <p className="text-sm text-slate-500">({place.reviews} reviews)</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Job History */}
+        {leadGenJobs && leadGenJobs.length > 0 && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded">
+            <h3 className="text-lg font-medium mb-3">Recent Jobs</h3>
+            <div className="space-y-2">
+              {leadGenJobs.slice(0, 5).map((job) => (
+                <div 
+                  key={job._id} 
+                  className={`p-3 rounded border cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                    currentJobId === job._id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-slate-200 dark:border-slate-700"
+                  }`}
+                  onClick={() => setCurrentJobId(job._id)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium">
+                        {job.campaign.targetVertical} in {job.campaign.targetGeography}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {job.numLeadsFetched}/{job.numLeadsRequested} leads • {job.status}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-slate-500">
+                        {new Date(job._creationTime).toLocaleDateString()}
+                      </p>
+                      {job.lastEvent && (
+                        <p className="text-xs text-slate-400">
+                          {job.lastEvent.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

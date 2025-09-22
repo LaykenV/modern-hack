@@ -55,9 +55,11 @@ export default defineSchema({
     reviews_count: v.optional(v.number()),
     source: v.string(), // "google_places"
     fit_reason: v.optional(v.string()),
-    status: v.string(), // e.g., "SOURCED", "AUDITING", "READY", "CONTACTED"
+    status: v.string(), // e.g., "SOURCED", "SCRAPING", "DATA_READY", "AUDITING", "READY", "CONTACTED"
 
-    // --- NEW & ENHANCED FIELDS ---
+    // For lead generation workflow tracking
+    leadGenFlowId: v.optional(v.id("lead_gen_flow")), // Link to parent run
+    
     // For campaign tracking & filtering (Point 5)
     targetVertical: v.string(), 
     targetGeography: v.string(), 
@@ -71,7 +73,9 @@ export default defineSchema({
   .index("by_agency", ["agencyId"])
   .index("by_place_id", ["place_id"])
   // New index for campaign-based filtering
-  .index("by_agency_and_campaign", ["agencyId", "targetVertical", "targetGeography"]),
+  .index("by_agency_and_campaign", ["agencyId", "targetVertical", "targetGeography"])
+  // New index for lead generation flow tracking
+  .index("by_leadGenFlow", ["leadGenFlowId"]),
 
   // Audit dossier - detailed analysis of each opportunity
   audit_dossier: defineTable({
@@ -99,11 +103,76 @@ export default defineSchema({
     ),
   }).index("by_opportunity", ["opportunityId"]),
 
+  // Lead generation flow - parent run document (analogous to onboarding_flow)
+  lead_gen_flow: defineTable({
+    userId: v.string(),
+    agencyId: v.id("agency_profile"),
+    numLeadsRequested: v.number(),
+    numLeadsFetched: v.number(),
+    campaign: v.object({
+      targetVertical: v.string(),
+      targetGeography: v.string(),
+    }),
+    status: v.union(
+      v.literal("idle"),
+      v.literal("running"), 
+      v.literal("error"),
+      v.literal("completed"),
+    ),
+    workflowStatus: v.optional(v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"), 
+      v.literal("cancelled")
+    )),
+    workflowId: v.optional(v.string()),
+    phases: v.array(v.object({
+      name: v.union(
+        v.literal("source"),
+        v.literal("filter_rank"),
+        v.literal("persist_leads"),
+        v.literal("scrape_content"),
+        v.literal("generate_dossier"),
+        v.literal("finalize_rank"),
+      ),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("running"),
+        v.literal("complete"),
+        v.literal("error"),
+      ),
+      progress: v.number(), // 0-1
+      errorMessage: v.optional(v.string()),
+      startedAt: v.optional(v.number()),
+      completedAt: v.optional(v.number()),
+      duration: v.optional(v.number()), // completedAt - startedAt in milliseconds
+    })),
+    // Key events embedded
+    lastEvent: v.optional(v.object({
+      type: v.string(),
+      message: v.string(),
+      timestamp: v.number(),
+    })),
+    // Minimal fields for UI preview (≤20 places)
+    placesSnapshot: v.optional(v.array(v.object({
+      id: v.string(),
+      name: v.string(),
+      website: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      rating: v.optional(v.number()),
+      reviews: v.optional(v.number()),
+      address: v.optional(v.string()),
+    }))),
+  })
+  .index("by_userId", ["userId"])
+  .index("by_agencyId", ["agencyId"]),
+
   // --- NEW TABLE ---
   // To track the state of a deep audit on a client opportunity (Point 4)
   audit_jobs: defineTable({
     opportunityId: v.id("client_opportunities"),
     agencyId: v.id("agency_profile"),
+    leadGenFlowId: v.optional(v.id("lead_gen_flow")), // Link to parent run for aggregation
     targetUrl: v.string(),
     status: v.union(v.literal("queued"), v.literal("running"), v.literal("error"), v.literal("completed")),
     phases: v.array(v.object({ // Mirrors your onboarding_flow for consistency
@@ -118,7 +187,8 @@ export default defineSchema({
     dossierId: v.optional(v.id("audit_dossier")), // The final output
   })
   .index("by_opportunity", ["opportunityId"])
-  .index("by_agency", ["agencyId"]),
+  .index("by_agency", ["agencyId"])
+  .index("by_leadGenFlow", ["leadGenFlowId"]),
 
   // Call records
   calls: defineTable({

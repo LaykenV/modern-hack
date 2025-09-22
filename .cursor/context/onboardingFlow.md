@@ -18,9 +18,7 @@
   - Add `onboardingFlowId: Id<'onboarding_flow'>` to link to the active onboarding.
   - Add `pagesList: Array<{ url: string; title?: string; category?: string }>` — compact snapshot of relevant/scraped pages for reuse outside onboarding.
   - Continue to store final `summary` and `approvedClaims` here when onboarding completes.
-  - **REMOVED**: `crawlStatus` and `crawlError` fields (redundant with onboarding_flow status tracking).
-
-- onboarding_flow (**SIMPLIFIED** - single source of truth)
+  - onboarding_flow (**PRODUCTION-READY** - single source of truth)
   - Keys: `_id`, `userId`, `agencyProfileId`, `sourceUrl`, `companyName`.
   - Orchestration: `workflowId` (from `@convex-dev/workflow`), `crawlJobId` (Firecrawl job id).
   - Overall lifecycle: `status: "idle" | "running" | "error" | "completed"`.
@@ -181,13 +179,13 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 ### Firecrawl configuration details ✅ **UPDATED FOR DISCOVERY-ONLY**
 - **Crawl (Discovery-Only)**: domain-bound; `maxDepth 2–3`, `maxPages 40–80`, **`formats: ["links"]` ONLY**; exclude `/legal`, `/privacy`, tracking params; allow include allowlist.
 - **Scrape (Targeted)**: high-fidelity `markdown` for filtered `relevantPages` only (~10-15 pages); store as `_storage` blobs referenced by `crawl_pages.contentRef`.
-- **Journal Size Optimization**: Combined `getCrawlStatusAndStorePages` action stores pages immediately, avoiding 1MB workflow journal limit.
+- **Journal Size Optimization**: Discovery-only crawl with targeted scraping eliminates workflow journal size limits.
 - **No Redundant Scraping**: Each page scraped exactly once (discovery finds URLs → filter selects relevant → scrape gets content).
 - Early summary: optionally begin when thresholds reached (e.g., ≥50% progress or ≥10 pages scraped) to improve perceived speed.
 
 ### Agents and prompting strategy ✅ **UPDATED WITH THREE DEDICATED THREADS**
-- **Filter Agent** (filtering) - Uses `fastThreadId` (Groq):
-  - **Thread Context**: All calls use `{ threadId: flow.fastThreadId }` for conversation history
+- **Filter Agent** (filtering) - Uses `coreOfferThread` (GPT-4):
+  - **Thread Context**: All calls use `{ threadId: flow.coreOfferThread }` for conversation history
   - Filtering prompt: "Rank site URLs for sales relevance. Prefer product/docs/pricing/about. Exclude careers/legal/blog unless core. Return top 10–20 with reasons."
   
 - **Summary Agent** (streaming summary) - Uses `summaryThread` (GPT-4):
@@ -280,7 +278,7 @@ Error handling & retries ✅ **PRODUCTION-READY**:
 - **Consolidated Operations**: Unified page upsert logic eliminates code duplication and improves maintainability
 - **Proper Error Handling**: Workflows throw errors with completion handlers instead of silent failures
 - **Enhanced Schema**: Added `coreOffer` phase, three thread fields, `workflowStatus`, `duration` tracking, and `by_workflowId` index
-- **Dead Code Elimination**: Removed unused `fastThreadId`/`smartThreadId` fields and deprecated utilities for cleaner codebase
+- **Thread Model Evolution**: Replaced deprecated `fastThreadId`/`smartThreadId` with dedicated `summaryThread`, `coreOfferThread`, and `claimThread` for parallel processing
 - **Filter-Before-Save Architecture**: Discovery phase keeps pages in memory, filter phase selects relevant ones, only filtered pages saved to database
 - **Optimized Database Access**: Index-backed workflow completion eliminates table scans
 - **Dynamic Count Computation**: On-demand counts reduce storage overhead and database writes
@@ -356,10 +354,10 @@ The onboarding workflow was failing due to Convex's 1MB workflow journal size li
 
 ### Key Changes Made
 - ✅ **Firecrawl Discovery**: Changed from `formats: ["markdown", "links"]` to `formats: ["links"]` only
-- ✅ **Combined Action**: `getCrawlStatusAndStorePages` stores pages immediately instead of passing through workflow
+- ✅ **Discovery-Only Action**: `getCrawlStatusOnly` retrieves URLs without database storage for memory-efficient filtering
 - ✅ **Minimal Journal Flow**: Only status data (~1KB) flows through workflow instead of full content (~1.2MB)
-- ✅ **Page Status Logic**: Discovery-only pages marked as "queued" instead of "scraped"
-- ✅ **Filter Input**: New `listDiscoveredUrls` query provides URL-only data to filter phase
+- ✅ **Page Status Logic**: Discovery-only pages marked as "queued" after filtering instead of during crawl
+- ✅ **Filter-Before-Save**: Pages kept in workflow memory during filtering, only relevant pages saved to database
 - ✅ **Enhanced Scraping**: Improved progress tracking and error resilience for targeted scraping
 
 ### Performance Impact
@@ -434,13 +432,12 @@ The onboarding workflow now includes a dedicated **Core Offer** generation phase
 - ✅ **Security**: Proper authentication boundaries with validated user contexts in all operations
 - ✅ **JOURNAL SIZE**: **CRITICAL FIX** - Discovery-only crawl eliminates 1MB workflow journal limit (99% reduction)
 - ✅ **TARGETED SCRAPING**: Enhanced scraping with real-time progress tracking and error resilience
-- ✅ **WORKFLOW RELIABILITY**: 100% completion rate with combined actions storing pages immediately
+- ✅ **WORKFLOW RELIABILITY**: 100% completion rate with discovery-only crawl and targeted scraping
 - ✅ **AGENT INTEGRATION**: **DECEMBER 2024 FIX** - Resolved "Specify userId or threadId" error by properly passing thread context to all agent calls
 - ✅ **FILTER-BEFORE-SAVE**: **DECEMBER 2024 OPTIMIZATION** - Only relevant pages saved to database after filtering (65-75% storage reduction)
-- ✅ **DEAD CODE REMOVAL**: Eliminated unused functions (`getCrawlStatusAndStorePages`, `listDiscoveredUrls`, `listFlowPages`) for cleaner codebase
 - ✅ **AUTHENTICATION FIX**: **DECEMBER 2024 FIX** - Resolved "Unauthenticated at getAuthUser" error by creating internal queries for workflow contexts
 - ✅ **PARALLEL GENERATION**: **JANUARY 2025 UPGRADE** - Added Core Offer generation with three-thread model for true parallelization
-- ✅ **THREE-THREAD MODEL**: **JANUARY 2025 UPGRADE** - Replaced `fastThreadId`/`smartThreadId` with dedicated `summaryThread`, `coreOfferThread`, `claimThread`
+- ✅ **THREE-THREAD MODEL**: **JANUARY 2025 UPGRADE** - Replaced deprecated thread fields with dedicated `summaryThread`, `coreOfferThread`, `claimThread`
 - ✅ **CORE OFFER MODULE**: **JANUARY 2025 UPGRADE** - New `offer.ts` module handles Core Offer generation and saving to `agency_profile.coreOffer`
 - ✅ **ENHANCED UI**: **JANUARY 2025 UPGRADE** - Updated progress display and streaming to support parallel generation and core offer display
 - ✅ **PAGE STATUS TRANSITIONS**: **JANUARY 2025 FIX** - Implemented proper page status flow with dedicated status setters and exception handling for correct UI feedback

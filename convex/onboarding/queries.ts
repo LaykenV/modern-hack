@@ -4,7 +4,6 @@ import { authComponent } from "../auth";
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "../_generated/api";
 import { calculateOverallProgress } from "./statusUtils";
-// EventTypes no longer needed with simplified event model
 
 // Internal: Get onboarding flow without auth (for workflow use)
 export const getOnboardingFlowInternal = internalQuery({

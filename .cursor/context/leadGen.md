@@ -1,3 +1,21 @@
+## Lead Generation Workflow — Architecture Update (Parent Run + Per-Opportunity)
+
+- Parent run document: `lead_gen_flow` (analogous to `onboarding_flow`) tracks the full pipeline phases and emits UI-friendly events.
+- Per-opportunity: `client_opportunities` holds row-level lifecycle (`SOURCED` → `SCRAPING` → `DATA_READY` → `AUDITING` → `READY`; skip `SCRAPING` when no website). Each opportunity links back to the run via `leadGenFlowId` and retains campaign fields.
+- Deep audit: reuse `audit_jobs` per selected opportunity; optionally include `leadGenFlowId` for aggregation.
+- UI pattern: subscribe to the parent run for the phase timeline and counts; subscribe to `client_opportunities` by `leadGenFlowId` for the table.
+
+### Workflow phases (parent)
+- `source` → `filter_rank` → `persist_leads` → `scrape_content` → `generate_dossier` → `finalize_rank`.
+- Progress comes from phase weights plus dynamic counts over `client_opportunities` scoped by `leadGenFlowId`.
+
+### Step 1 (to implement first)
+- Public action `marketing.startLeadGenWorkflow({ numLeads, targetVertical?, targetGeography? })` starts a `lead_gen_flow` using `workflow.start` with `{ onComplete: internal.marketing.handleLeadGenWorkflowComplete, context: { leadGenFlowId } }`, stores `workflowId`, and returns `{ jobId }`.
+- Phase `source`: build `textQuery = "{targetVertical} in {targetGeography}"`, call an internal action reusing the existing Places implementation; clamp to ≤20; dedupe by Google id or canonical domain (drop if either duplicates); save `placesSnapshot` and `numLeadsFetched`; mark phase complete and emit `lastEvent`.
+- Resilience: retries with exponential backoff; phase error + lastEvent on failure; onComplete handler updates `workflowStatus` ("completed" | "failed" | "cancelled"); no writes to `client_opportunities` yet (defer to `persist_leads`).
+
+---
+
 ## Atlas Outbound — Lead Pipeline v2 Integration Plan
 
 This plan details the architecture for an intelligent lead sourcing, scoring, and auditing pipeline. It builds upon the completed onboarding flow by adding sophisticated qualification logic, campaign tracking, and a reusable deep-audit workflow.

@@ -5,7 +5,7 @@
 
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-import { PHASE_WEIGHTS, type PhaseName } from "./constants";
+import { PHASE_WEIGHTS, EventTypes, type PhaseName } from "./constants";
 
 /**
  * Calculate standardized progress for a specific phase (unweighted 0-1)
@@ -210,7 +210,7 @@ export const completeFlow = internalMutation({
       status: "completed",
       phases,
       lastEvent: {
-        type: "onboarding.completed",
+        type: EventTypes.OnboardingCompleted,
         message: "Onboarding completed successfully",
         timestamp: Date.now(),
       },

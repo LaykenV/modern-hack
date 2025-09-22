@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, internalMutation, action, mutation } from "./_generated/server";
+import { query, internalMutation, internalQuery, action, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { authComponent } from "./auth";
@@ -60,6 +60,71 @@ export const getForCurrentUser = query({
 
     return {
       agencyProfileId: existing._id,
+      userId: existing.userId,
+      companyName: existing.companyName,
+      sourceUrl: existing.sourceUrl,
+      onboardingFlowId: existing.onboardingFlowId ?? undefined,
+      pagesList: existing.pagesList ?? undefined,
+      summary: existing.summary ?? undefined,
+      approvedClaims: existing.approvedClaims ?? undefined,
+      guardrails: existing.guardrails ?? undefined,
+      tone: existing.tone ?? undefined,
+      timeZone: existing.timeZone ?? undefined,
+      availability: existing.availability ?? undefined,
+      targetVertical: existing.targetVertical ?? undefined,
+      targetGeography: existing.targetGeography ?? undefined,
+      coreOffer: existing.coreOffer ?? undefined,
+      leadQualificationCriteria: existing.leadQualificationCriteria ?? undefined,
+      reviewedAt: existing.reviewedAt ?? undefined,
+    };
+  },
+});
+
+/**
+ * Internal query to get agency profile by userId (for use in workflows)
+ */
+export const getByUserId = internalQuery({
+  args: { userId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("agency_profile"),
+      userId: v.string(),
+      companyName: v.string(),
+      sourceUrl: v.string(),
+      onboardingFlowId: v.optional(v.id("onboarding_flow")),
+      pagesList: v.optional(
+        v.array(
+          v.object({
+            url: v.string(),
+            title: v.optional(v.string()),
+            category: v.optional(v.string()),
+          }),
+        ),
+      ),
+      summary: v.optional(v.string()),
+      approvedClaims: v.optional(ClaimsValidator),
+      guardrails: v.optional(v.array(v.string())),
+      tone: v.optional(v.string()),
+      timeZone: v.optional(v.string()),
+      availability: v.optional(v.array(v.string())),
+      targetVertical: v.optional(v.string()),
+      targetGeography: v.optional(v.string()),
+      coreOffer: v.optional(v.string()),
+      leadQualificationCriteria: v.optional(v.array(v.string())),
+      reviewedAt: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("agency_profile")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (!existing) return null;
+
+    return {
+      _id: existing._id,
       userId: existing.userId,
       companyName: existing.companyName,
       sourceUrl: existing.sourceUrl,

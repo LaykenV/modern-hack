@@ -2,7 +2,6 @@ import { internalAction, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { atlasAgentGroq } from "../agent";
 import { internal } from "../_generated/api";
-// Events are now handled by the workflow's updatePhaseStatus
 import { deduplicateUrls } from "./contentUtils";
 
 export const filterRelevantPages = internalAction({
@@ -14,7 +13,7 @@ export const filterRelevantPages = internalAction({
   handler: async (ctx, args) => {
     const { pages, onboardingFlowId } = args;
     
-    // Get the onboarding flow to access the fastThreadId (using internal query)
+    // Get the onboarding flow to access the coreOfferThread (using internal query)
     const flow = await ctx.runQuery(internal.onboarding.queries.getOnboardingFlowInternal, { onboardingFlowId });
     if (!flow) throw new Error("Onboarding flow not found");
     if (!flow.coreOfferThread) throw new Error("Core offer thread not initialized");
@@ -79,7 +78,6 @@ export const setRelevantPages = internalMutation({
   const flow = await ctx.db.get(onboardingFlowId);
   if (!flow) throw new Error("Flow not found");
   await ctx.db.patch(onboardingFlowId, { relevantPages });
-  // Phase status updates are now handled by the workflow
     return null;
   },
 });

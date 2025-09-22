@@ -1,6 +1,5 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-// Phase status updates are now handled by the workflow
 import { internal } from "../_generated/api";
 import { normalizeUrl } from "./contentUtils";
 

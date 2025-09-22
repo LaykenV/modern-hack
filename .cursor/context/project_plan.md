@@ -83,6 +83,19 @@
 - **Follow-up Email**: On call outcome, render template → Send via Resend.
 - **Credit Management**: Check allowance before each billable step; debit on completion.
 
+## Lead Generation run model (update)
+- Introduce a parent run document `lead_gen_flow` (mirrors `onboarding_flow`) to track phases and emit UI-friendly events.
+- Per-opportunity lifecycle remains on `client_opportunities`, linked by `leadGenFlowId` with campaign fields preserved.
+- Reuse `audit_jobs` per selected opportunity; optionally add `leadGenFlowId` for aggregation.
+- UI subscribes to the parent run for the phase timeline (e.g., "Searching for businesses", "Filtering and ranking", "Scraping", "Creating client profiles") and to `client_opportunities` filtered by `leadGenFlowId` for row-level chips (e.g., `SOURCED`, `SCRAPING`, `DATA_READY`, `AUDITING`, `READY`).
+
+### New workflow phases
+- `source` → `filter_rank` → `persist_leads` → `scrape_content` → `generate_dossier` → `finalize_rank`.
+- Step 1 now: Google Places fetch stores a minimal `placesSnapshot` (≤20) and `numLeadsFetched`, with retries and clear error events.
+
+### Leads List (tweak)
+- The table is filtered by `leadGenFlowId` for a given run and sorted by `qualificationScore`. Status chips reflect per-opportunity lifecycle. Campaign filters still supported by `targetVertical` and `targetGeography`.
+
 ## Enhanced UI specifics that sell the MVP
 - The multi-step onboarding wizard feels tailored and intelligent, making the agency user feel understood.
 - **Ranked "Client Opportunities" list**: Sorted by `qualificationScore` (highest first) with **multiple dynamic badges** from `signals[]` (e.g., red "NO WEBSITE" + yellow "LOW RATING" badges) - the central "Aha!" moment.

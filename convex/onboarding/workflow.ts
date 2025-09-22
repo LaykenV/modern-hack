@@ -205,6 +205,7 @@ export const onboardingWorkflow = workflow.define({
       ]);
 
       // Run all three generations in parallel
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const [summaryResult, coreOfferResult, claimsResult] = await Promise.all([
         step.runAction(internal.onboarding.summary.streamSummary, { 
           onboardingFlowId, 
