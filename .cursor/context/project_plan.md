@@ -65,26 +65,29 @@
 - **Verifier**: "For each talking point, confirm its `approved_claim_id` strongly supports the statement about solving the client's problem. If weak, reject the point."
 - **Q&A**: "Only answer with snippets whose cosine similarity ≥ threshold; otherwise respond with 'That's a great question for the strategy session, which I can book for you now.'"
 
-## Minimal data model (Convex)
+## Enhanced data model (Convex)
 - `agency_profile`: `userId`, `companyName`, `sourceUrl`, `approvedClaims[{id, text, source_url}]`, `guardrails[]`, `tone`, `timeZone`, `availability[]`, `targetVertical`, `targetGeography`, `coreOffer`, `leadQualificationCriteria[]`.
-- `client_opportunities`: `id`, `agencyId` (fk to `agency_profile`), `name`, `domain?`, `phone`, `place_id`, `address`, `city`, `rating`, `reviews_count`, `source="google_places"`, `fit_reason`, `status`.
-- `audit_dossier`: `opportunityId`, `summary`, `identified_gaps[{key, value, source_url}]`, `talking_points[{text, approved_claim_id, source_url}]`.
+- `client_opportunities`: `id`, `agencyId` (fk to `agency_profile`), `name`, `domain?`, `phone`, `place_id`, `address`, `city`, `rating`, `reviews_count`, `source="google_places"`, `fit_reason`, `status`, **`targetVertical`**, **`targetGeography`**, **`qualificationScore`**, **`signals[]`** (for campaign tracking, intelligent ranking, and UI badges).
+- `audit_dossier`: `opportunityId`, **`auditJobId?`** (links to audit job), `summary`, `identified_gaps[{key, value, source_url}]`, `talking_points[{text, approved_claim_id, source_url}]`.
+- **`audit_jobs`**: `opportunityId`, `agencyId`, `targetUrl`, `status` (queued/running/error/completed), `phases[{name, status}]` (map_urls, filter_urls, scrape_content, generate_dossier), `dossierId?` (tracks deep audit workflow state).
 - `calls`: `id`, `opportunityId`, `agencyId`, `transcript[]`, `outcome`, `meeting_time`.
 - `emails`: `id`, `opportunityId`, `subject`, `html`, `status`.
 - `events` (timeline): `id`, `agencyId`, `type`, `refId`, `message`.
 - `usage`: `agencyId`, `plan`, `credits`, `counters{...}`.
 
-## Pipelines (jobs)
+## Enhanced pipelines (jobs)
 - **Onboarding**: Firecrawl agency site → Extract claims → Agency owner approves claims & completes the offer/client profile form.
-- **Lead Qualification**: Places search by `targetVertical`+`targetGeography` → Get details for each → Filter/rank against `leadQualificationCriteria` → Synthesize a powerful `fit_reason`.
-- **Client Audit**: For each opportunity, collect Places facts → If website exists, crawl and analyze for pain points (e.g., mobile-friendliness, slow speed) → Store results in `audit_dossier`.
+- **Enhanced Lead Qualification**: Places search by `targetVertical`+`targetGeography` → **Hard filter** (require phone) → **Signal detection** (missing website, weak web presence, low ratings) → **Dynamic scoring** based on agency's `leadQualificationCriteria` → Store with `qualificationScore` and `signals[]` → **Queue top-scoring leads** for deep audit.
+- **Deep Client Audit** (via `audit_jobs`): Create audit job → **Map URLs** (crawl discovery) → **Filter URLs** (AI-selected relevant pages) → **Scrape content** → **Generate dossier** (confirm signals, identify gaps) → Link to `audit_dossier` → Update opportunity status to "READY".
 - **Outreach Call**: Start Vapi with the dynamic system prompt → Stream transcript → On outcome, generate ICS & log.
 - **Follow-up Email**: On call outcome, render template → Send via Resend.
-- **Credit Management**: Check allowance before each billable step; debit on completion.f
+- **Credit Management**: Check allowance before each billable step; debit on completion.
 
-## UI specifics that sell the MVP
+## Enhanced UI specifics that sell the MVP
 - The multi-step onboarding wizard feels tailored and intelligent, making the agency user feel understood.
-- The "Client Opportunities" list with color-coded badges for the `fit_reason` (e.g., a red "NO WEBSITE" badge) is the central "Aha!" moment.
+- **Ranked "Client Opportunities" list**: Sorted by `qualificationScore` (highest first) with **multiple dynamic badges** from `signals[]` (e.g., red "NO WEBSITE" + yellow "LOW RATING" badges) - the central "Aha!" moment.
+- **Campaign filtering**: Dropdowns to filter opportunities by historical `targetVertical` and `targetGeography` for managing multiple campaigns.
+- **Transparent audit progress**: Real-time phase tracking from `audit_jobs` table shows "AUDITING: Scraping Content..." status.
 - The "Client Opportunity Report" view, which clearly lays out "Identified Gaps" and how the agency's "Proof Points" (claims) solve them.
 - "Trust Mode: Case Studies Cited" badges reinforce the core value prop.
 
@@ -103,7 +106,7 @@
 ## 3-minute demo script
 1) **Setup (0:00-0:30)**: "Hi, I'm the founder of a small web dev agency. My biggest problem is finding time for sales. So I built Atlas. Let me show you how it works."
 2) **Onboarding (0:30-1:15)**: Sign in. Paste your agency's URL. "Atlas reads my site and pulls out my case studies." Approve a claim like "Increased leads 40% for Bay Area Roofers." Quickly fill out the core service ("Websites for contractors") and ideal client profile (Roofers in SF with "No Website").
-3) **Lead Gen (1:15-1:45)**: Click "Find Clients." A list appears. "In seconds, Atlas found three roofers in SF that don't have a website. This `fit_reason` column is pure gold. Let's call this one."
+3) **Lead Gen (1:15-1:45)**: Click "Find Clients." A ranked list appears. "In seconds, Atlas found and scored roofers in SF. Look at this - they're ranked by qualification score, and you can see multiple pain points at a glance. This one has a 95/100 score with 'NO WEBSITE' and 'LOW RATING' badges. Let's call this one."
 4) **The Call (1:45-2:30)**: Click call. A live transcript pops up. We hear the AI: *"Hi, I'm calling from GrowthLocal. I found you on Google but noticed you don't have a website, and I know how important that is for getting new projects. We actually helped another local company, Bay Area Roofers, increase their leads by 40% after we built their new site. Would you have 15 minutes next week for a quick chat about it?"* ... The call gets booked.
 5) **Closing (2:30-3:00)**: "Boom. A qualified discovery call is booked. The follow-up email with the case study is already sent. The entire process was automated, trusted, and took less than 3 minutes. That's Atlas, the outbound platform for agencies."
 

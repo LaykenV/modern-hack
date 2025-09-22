@@ -47,7 +47,7 @@ export default defineSchema({
     agencyId: v.id("agency_profile"),
     name: v.string(),
     domain: v.optional(v.string()),
-    phone: v.optional(v.string()),
+    phone: v.optional(v.string()), // Kept optional in schema, but will be required by our filter logic
     place_id: v.string(),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
@@ -55,12 +55,29 @@ export default defineSchema({
     reviews_count: v.optional(v.number()),
     source: v.string(), // "google_places"
     fit_reason: v.optional(v.string()),
-    status: v.optional(v.string()),
-  }).index("by_agency", ["agencyId"]).index("by_place_id", ["place_id"]),
+    status: v.string(), // e.g., "SOURCED", "AUDITING", "READY", "CONTACTED"
+
+    // --- NEW & ENHANCED FIELDS ---
+    // For campaign tracking & filtering (Point 5)
+    targetVertical: v.string(), 
+    targetGeography: v.string(), 
+    
+    // For intelligent ranking (Point 3)
+    qualificationScore: v.number(), // The calculated score (e.g., 85/100)
+
+    // For detailed UI badges & reasoning (Points 1 & 3)
+    signals: v.array(v.string()), // Stores raw signals like "MISSING_WEBSITE", "WEAK_WEB_PRESENCE"
+  })
+  .index("by_agency", ["agencyId"])
+  .index("by_place_id", ["place_id"])
+  // New index for campaign-based filtering
+  .index("by_agency_and_campaign", ["agencyId", "targetVertical", "targetGeography"]),
 
   // Audit dossier - detailed analysis of each opportunity
   audit_dossier: defineTable({
     opportunityId: v.id("client_opportunities"),
+    // --- NEW FIELD ---
+    auditJobId: v.optional(v.id("audit_jobs")), // Link to the job that generated this dossier
     summary: v.optional(v.string()),
     identified_gaps: v.optional(
       v.array(
@@ -81,6 +98,27 @@ export default defineSchema({
       ),
     ),
   }).index("by_opportunity", ["opportunityId"]),
+
+  // --- NEW TABLE ---
+  // To track the state of a deep audit on a client opportunity (Point 4)
+  audit_jobs: defineTable({
+    opportunityId: v.id("client_opportunities"),
+    agencyId: v.id("agency_profile"),
+    targetUrl: v.string(),
+    status: v.union(v.literal("queued"), v.literal("running"), v.literal("error"), v.literal("completed")),
+    phases: v.array(v.object({ // Mirrors your onboarding_flow for consistency
+      name: v.union(
+        v.literal("map_urls"),
+        v.literal("filter_urls"),
+        v.literal("scrape_content"),
+        v.literal("generate_dossier"),
+      ),
+      status: v.union(v.literal("pending"), v.literal("running"), v.literal("complete"), v.literal("error")),
+    })),
+    dossierId: v.optional(v.id("audit_dossier")), // The final output
+  })
+  .index("by_opportunity", ["opportunityId"])
+  .index("by_agency", ["agencyId"]),
 
   // Call records
   calls: defineTable({
