@@ -35,6 +35,7 @@ function DashboardContent() {
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
   const router = useRouter();
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
+  const testLeadGen = useAction(api.leadGen.test.searchPlacesText);
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
 
   useEffect(() => {
@@ -67,6 +68,15 @@ function DashboardContent() {
           }}
         >
           Test Autumn Meter
+        </button>
+        <button
+          className="border border-slate-300 dark:border-slate-700 text-sm px-4 py-2 rounded-md ml-2"
+          onClick={async () => {
+            const res = await testLeadGen({ textQuery: "roofers in San Francisco" });
+            alert(JSON.stringify(res));
+          }}
+        >
+          Test Lead Gen
         </button>
         <Link href="/dashboard/subscription">Subscription</Link>
       </div>

@@ -27,15 +27,17 @@ test it
 
 //update prompts in workflow for agency
 
-simplify - remove streaming for summary
-remove loading at bottom
-page not switching to fetching
-recenter docs
+//remove loading at bottom
+//page not switching to fetching
 
 ------
 
 
 set up lead gen firecrawl / google api
+figure out pagination for 20+ and field mask
+set up real google api file 
+workflow and scraping func
+build dossier and fit reason 
 
 
 research + dossier firecrawl + talking points

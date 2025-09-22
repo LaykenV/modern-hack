@@ -17,6 +17,7 @@
     "@convex-dev/agent": "^0.2.8",
     "@convex-dev/better-auth": "^0.8.3",
     "@convex-dev/workflow": "^0.2.6",
+    "@googlemaps/places": "^2.1.0",
     "@mendable/firecrawl-js": "^4.3.5",
     "@useautumn/convex": "^0.0.10",
     "autumn-js": "^0.1.35",

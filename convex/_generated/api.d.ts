@@ -14,6 +14,7 @@ import type * as autumn from "../autumn.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as firecrawlActions from "../firecrawlActions.js";
 import type * as http from "../http.js";
+import type * as leadGen_test from "../leadGen/test.js";
 import type * as onboarding_claims from "../onboarding/claims.js";
 import type * as onboarding_constants from "../onboarding/constants.js";
 import type * as onboarding_contentUtils from "../onboarding/contentUtils.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   firecrawl: typeof firecrawl;
   firecrawlActions: typeof firecrawlActions;
   http: typeof http;
+  "leadGen/test": typeof leadGen_test;
   "onboarding/claims": typeof onboarding_claims;
   "onboarding/constants": typeof onboarding_constants;
   "onboarding/contentUtils": typeof onboarding_contentUtils;
