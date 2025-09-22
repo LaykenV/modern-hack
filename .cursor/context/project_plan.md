@@ -80,7 +80,7 @@
 - **Client Audit**: For each opportunity, collect Places facts → If website exists, crawl and analyze for pain points (e.g., mobile-friendliness, slow speed) → Store results in `audit_dossier`.
 - **Outreach Call**: Start Vapi with the dynamic system prompt → Stream transcript → On outcome, generate ICS & log.
 - **Follow-up Email**: On call outcome, render template → Send via Resend.
-- **Credit Management**: Check allowance before each billable step; debit on completion.
+- **Credit Management**: Check allowance before each billable step; debit on completion.f
 
 ## UI specifics that sell the MVP
 - The multi-step onboarding wizard feels tailored and intelligent, making the agency user feel understood.

@@ -36,7 +36,11 @@ recenter docs
 
 
 set up lead gen firecrawl / google api
+
+
 research + dossier firecrawl + talking points
+
+
 vapi integration to call with dossier
 resend emails
 
