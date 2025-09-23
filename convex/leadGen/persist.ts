@@ -3,7 +3,7 @@
  * Saves filtered leads as client_opportunities with deduplication
  */
 
-import { internalMutation } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { canonicalDomain } from "./signals";
 
@@ -40,7 +40,7 @@ export const persistClientOpportunities = internalMutation({
     const { leadGenFlowId, agencyProfileId, campaign, leads } = args;
     
     let created = 0;
-    let updated = 0;
+    const updated = 0;
     let skipped = 0;
 
     console.log(`[Lead Gen Persist] Persisting ${leads.length} leads for flow ${leadGenFlowId}`);
@@ -67,9 +67,8 @@ export const persistClientOpportunities = internalMutation({
         if (domain) {
           existingByDomain = await ctx.db
             .query("client_opportunities")
-            .withIndex("by_agency", (q) => q.eq("agencyId", agencyProfileId))
-            .filter((q) => q.eq(q.field("domain"), domain))
-            .first();
+            .withIndex("by_agency_and_domain", (q) => q.eq("agencyId", agencyProfileId).eq("domain", domain))
+            .unique();
         }
 
         if (existingByDomain) {
@@ -118,7 +117,7 @@ export const persistClientOpportunities = internalMutation({
 /**
  * Get count of client opportunities for a lead gen flow
  */
-export const getOpportunityCountByFlow = internalMutation({
+export const getOpportunityCountByFlow = internalQuery({
   args: {
     leadGenFlowId: v.id("lead_gen_flow"),
   },

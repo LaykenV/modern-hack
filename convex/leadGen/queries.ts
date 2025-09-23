@@ -255,3 +255,33 @@ export const getAuditJobsByFlow = internalQuery({
     }));
   },
 });
+
+/**
+ * Get audit job by ID (internal)
+ */
+export const getAuditJobById = internalQuery({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("audit_jobs"),
+      opportunityId: v.id("client_opportunities"),
+      agencyId: v.id("agency_profile"),
+      leadGenFlowId: v.optional(v.id("lead_gen_flow")),
+      targetUrl: v.string(),
+      status: v.string(),
+      phases: v.array(v.object({
+        name: v.string(),
+        status: v.string(),
+      })),
+      dossierId: v.optional(v.id("audit_dossier")),
+      analysisThread: v.optional(v.string()),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.auditJobId);
+  },
+});
+

@@ -32,7 +32,7 @@ export const finalizeLeadGenWorkflow = internalAction({
       });
 
       // Get final counts for summary
-      const opportunityCounts = await ctx.runMutation(internal.leadGen.persist.getOpportunityCountByFlow, {
+      const opportunityCounts = await ctx.runQuery(internal.leadGen.persist.getOpportunityCountByFlow, {
         leadGenFlowId,
       });
 

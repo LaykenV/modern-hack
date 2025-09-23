@@ -3,9 +3,11 @@
  * Queues audit jobs for client opportunities with websites
  */
 
-import { internalAction } from "../_generated/server";
+import { internalAction, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
+import { components } from "../_generated/api";
+import { createThread } from "@convex-dev/agent";
 
 /**
  * Queue audit jobs for opportunities with websites
@@ -46,12 +48,16 @@ export const queueAuditsForWebsites = internalAction({
           continue;
         }
 
-        // Create audit job
+        // Create analysis thread for this audit job (upgrade plan requirement)
+        const analysisThread = await createThread(ctx, components.agent);
+
+        // Create audit job with analysis thread
         const auditJobId = await ctx.runMutation(internal.leadGen.audit.insertAuditJob, {
           opportunityId: opportunity._id,
           agencyId: agencyProfileId,
           leadGenFlowId,
           targetUrl: opportunity.domain ? `https://${opportunity.domain}` : "",
+          analysisThread, // Pass the thread to be stored
         });
 
         // Update opportunity status to AUDITING

@@ -7,6 +7,8 @@ import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { atlasAgentGroq } from "../agent";
+import type { GenericActionCtx } from "convex/server";
+import type { Id, DataModel } from "../_generated/dataModel";
 
 /**
  * Initialize audit job phases
@@ -41,6 +43,7 @@ export const insertAuditJob = internalMutation({
     agencyId: v.id("agency_profile"),
     leadGenFlowId: v.id("lead_gen_flow"),
     targetUrl: v.string(),
+    analysisThread: v.optional(v.string()), // Thread for AI analysis context
   },
   returns: v.id("audit_jobs"),
   handler: async (ctx, args) => {
@@ -52,6 +55,7 @@ export const insertAuditJob = internalMutation({
       status: "queued",
       phases: initializeAuditPhases(),
       dossierId: undefined,
+      analysisThread: args.analysisThread, // Store the analysis thread
     });
 
     return auditJobId;
@@ -138,6 +142,10 @@ export const createAuditDossier = internalMutation({
       approved_claim_id: v.string(),
       source_url: v.optional(v.string()),
     })),
+    sources: v.optional(v.array(v.object({
+      url: v.string(),
+      title: v.optional(v.string()),
+    }))),
   },
   returns: v.id("audit_dossier"),
   handler: async (ctx, args) => {
@@ -147,6 +155,7 @@ export const createAuditDossier = internalMutation({
       summary: args.summary,
       identified_gaps: args.identifiedGaps,
       talking_points: args.talkingPoints,
+      sources: args.sources,
     });
 
     // Link dossier to audit job
@@ -175,6 +184,53 @@ export const saveFitReason = internalMutation({
   },
 });
 
+/**
+ * Save scraped page with storage reference (upgrade plan requirement)
+ */
+export const saveScrapedPageWithStorage = internalMutation({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+    opportunityId: v.id("client_opportunities"),
+    url: v.string(),
+    title: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
+    contentRef: v.id("_storage"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { auditJobId, opportunityId, url, title, httpStatus, contentRef } = args;
+    
+    // Check for existing page and upsert
+    const existing = await ctx.db
+      .query("audit_scraped_pages")
+      .withIndex("by_auditJobId_and_url", (q) => 
+        q.eq("auditJobId", auditJobId).eq("url", url)
+      )
+      .unique();
+    
+    if (existing) {
+      // Update existing page
+      await ctx.db.patch(existing._id, {
+        title: title ?? existing.title,
+        httpStatus: httpStatus ?? existing.httpStatus,
+        contentRef,
+      });
+    } else {
+      // Insert new page
+      await ctx.db.insert("audit_scraped_pages", {
+        auditJobId,
+        opportunityId,
+        url,
+        title,
+        httpStatus,
+        contentRef,
+      });
+    }
+    
+    return null;
+  },
+});
+
 
 /**
  * Filter relevant URLs using AI agent (similar to onboarding pattern)
@@ -187,13 +243,26 @@ export const filterRelevantUrls = internalAction({
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
-    const { pages, agencyId } = args;
+    const { auditJobId, pages, agencyId } = args;
+    
+    // Get audit job to access analysisThread
+    const auditJob = await ctx.runQuery(internal.leadGen.queries.getAuditJobById, { 
+      auditJobId 
+    });
+    if (!auditJob) throw new Error("Audit job not found");
     
     // Get agency profile to understand the context
     const agency = await ctx.runQuery(internal.leadGen.queries.getAgencyProfileInternal, { 
       agencyId 
     });
     if (!agency) throw new Error("Agency profile not found");
+    
+    // Get lead gen flow for userId fallback
+    const leadGenFlow = auditJob.leadGenFlowId 
+      ? await ctx.runQuery(internal.leadGen.queries.getLeadGenFlowInternal, { 
+          leadGenFlowId: auditJob.leadGenFlowId 
+        })
+      : null;
 
     // Deduplicate pages
     const deduplicatedPages = pages.filter((page, index, arr) => 
@@ -220,8 +289,14 @@ URLs:
 ${top.map((p, i) => `[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}`).join("\n")}`;
 
     try {
-      // Use a simple agent call without thread context for filtering
-      const res = await atlasAgentGroq.generateText(ctx, {}, { prompt });
+      // Use thread context for filtering with userId fallback (upgrade plan requirement)
+      const threadContext = auditJob.analysisThread 
+        ? { threadId: auditJob.analysisThread }
+        : leadGenFlow?.userId 
+        ? { userId: leadGenFlow.userId }
+        : {};
+      
+      const res = await atlasAgentGroq.generateText(ctx, threadContext, { prompt });
       const parsed = JSON.parse(res.text ?? "{}");
       let urls: Array<string> = Array.isArray(parsed.urls) ? parsed.urls.slice(0, 4) : [];
       
@@ -269,41 +344,69 @@ ${top.map((p, i) => `[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}`).jo
 
 
 /**
- * Generate dossier and fit reason using AI agent
+ * Helper function to generate dossier and fit reason
  */
-export const generateDossierAndFitReason = internalAction({
+async function generateDossierAndFitReasonHelper(
+  ctx: GenericActionCtx<DataModel>,
   args: {
-    auditJobId: v.id("audit_jobs"),
-    opportunityId: v.id("client_opportunities"),
-    agencyId: v.id("agency_profile"),
-    scrapedContent: v.array(v.object({
-      url: v.string(),
-      title: v.optional(v.string()),
-      content: v.string(),
-    })),
-  },
-  returns: v.object({
-    dossierId: v.id("audit_dossier"),
-    fitReason: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    const { opportunityId, agencyId, scrapedContent } = args;
+    auditJobId: Id<"audit_jobs">;
+    opportunityId: Id<"client_opportunities">;
+    agencyId: Id<"agency_profile">;
+    scrapedPages: Array<{
+      url: string;
+      title?: string;
+      contentRef?: Id<"_storage">;
+    }>;
+  }
+): Promise<{ dossierId: Id<"audit_dossier">; fitReason: string }> {
+    const { auditJobId, opportunityId, agencyId, scrapedPages } = args;
+    
+    // Get audit job to access analysisThread
+    const auditJob = await ctx.runQuery(internal.leadGen.queries.getAuditJobById, { 
+      auditJobId 
+    });
+    if (!auditJob) throw new Error("Audit job not found");
+    
+    // Get lead gen flow for userId fallback
+    const leadGenFlow = auditJob.leadGenFlowId 
+      ? await ctx.runQuery(internal.leadGen.queries.getLeadGenFlowInternal, { 
+          leadGenFlowId: auditJob.leadGenFlowId 
+        })
+      : null;
     
     // Get opportunity and agency details
-    const opportunity: any = await ctx.runQuery(internal.leadGen.queries.getOpportunityById, {
+    const opportunity = await ctx.runQuery(internal.leadGen.queries.getOpportunityById, {
       opportunityId,
     });
     if (!opportunity) throw new Error("Opportunity not found");
     
-    const agency: any = await ctx.runQuery(internal.leadGen.queries.getAgencyProfileInternal, {
+    const agency = await ctx.runQuery(internal.leadGen.queries.getAgencyProfileInternal, {
       agencyId,
     });
     if (!agency) throw new Error("Agency profile not found");
 
-    // Prepare context for AI analysis
-    const contextContent = scrapedContent.map(page => 
-      `URL: ${page.url}\nTitle: ${page.title || 'N/A'}\nContent:\n${page.content}\n\n---\n\n`
-    ).join('');
+    // Load and prepare context from storage references (upgrade plan requirement)
+    const contextLines: Array<string> = [];
+    const pagesWithContent = scrapedPages.filter(page => page.contentRef);
+    
+    for (const page of pagesWithContent.slice(0, 8)) { // Limit to prevent memory issues
+      try {
+        if (page.contentRef) {
+          const blob = await ctx.storage.get(page.contentRef);
+          if (blob) {
+            const text = await blob.text();
+            // Truncate content for analysis (similar to onboarding pattern)
+            const truncated = text.slice(0, 4000);
+            contextLines.push(`URL: ${page.url}\nTitle: ${page.title || 'N/A'}\nContent:\n${truncated}\n\n---\n\n`);
+          }
+        }
+      } catch (error) {
+        console.error(`[Audit Dossier] Failed to load content for ${page.url}:`, error);
+        contextLines.push(`URL: ${page.url}\nTitle: ${page.title || 'N/A'}\nContent: [Content loading failed]\n\n---\n\n`);
+      }
+    }
+    
+    const contextContent = contextLines.join('');
 
     // Generate comprehensive dossier
     const dossierPrompt = `Analyze this potential client's website and create a detailed sales dossier.
@@ -342,7 +445,14 @@ Format as JSON:
 }`;
 
     try {
-      const dossierRes = await atlasAgentGroq.generateText(ctx, {}, { prompt: dossierPrompt });
+      // Use thread context with userId fallback (upgrade plan requirement)
+      const threadContext: { threadId?: string; userId?: string } = auditJob.analysisThread 
+        ? { threadId: auditJob.analysisThread }
+        : leadGenFlow?.userId 
+        ? { userId: leadGenFlow.userId }
+        : {};
+      
+      const dossierRes = await atlasAgentGroq.generateText(ctx, threadContext, { prompt: dossierPrompt });
       const dossierData = JSON.parse(dossierRes.text ?? "{}");
       
       // Generate fit reason separately for brevity
@@ -359,11 +469,11 @@ Context: ${dossierData.summary || 'Business analysis not available'}
 
 Fit Reason:`;
 
-      const fitRes = await atlasAgentGroq.generateText(ctx, {}, { prompt: fitPrompt });
-      const fitReason = (fitRes.text || '').trim().slice(0, 150);
+      const fitRes = await atlasAgentGroq.generateText(ctx, threadContext, { prompt: fitPrompt });
+      const fitReason: string = (fitRes.text || '').trim().slice(0, 150);
 
-      // Create dossier in database
-      const dossierId: any = await ctx.runMutation(internal.leadGen.audit.createAuditDossier, {
+      // Create dossier in database (upgrade plan: compact with optional sources)
+      const dossierId = await ctx.runMutation(internal.leadGen.audit.createAuditDossier, {
         opportunityId,
         auditJobId: args.auditJobId,
         summary: dossierData.summary || 'Analysis completed',
@@ -372,6 +482,11 @@ Fit Reason:`;
           text: typeof tp === 'string' ? tp : (tp.text || ''),
           approved_claim_id: `generated_${index}`, // Link to agency claims if available
           source_url: typeof tp === 'string' ? undefined : tp.source_url,
+        })),
+        // Optional sources list for display (no embedded content)
+        sources: pagesWithContent.map(page => ({
+          url: page.url,
+          title: page.title,
         })),
       });
 
@@ -393,9 +508,9 @@ Fit Reason:`;
       
       // Fallback: create minimal dossier
       const fallbackSummary: string = `${opportunity.name} is a ${opportunity.targetVertical} business in ${opportunity.targetGeography}. Qualification signals: ${opportunity.signals.join(', ')}.`;
-      const fallbackFitReason = `${opportunity.name} shows ${opportunity.signals.length} qualification signals indicating potential for our services.`;
+      const fallbackFitReason: string = `${opportunity.name} shows ${opportunity.signals.length} qualification signals indicating potential for our services.`;
       
-      const dossierId: any = await ctx.runMutation(internal.leadGen.audit.createAuditDossier, {
+      const dossierId = await ctx.runMutation(internal.leadGen.audit.createAuditDossier, {
         opportunityId,
         auditJobId: args.auditJobId,
         summary: fallbackSummary,
@@ -403,16 +518,20 @@ Fit Reason:`;
           {
             key: "Website Analysis",
             value: "Detailed analysis requires manual review",
-            source_url: scrapedContent[0]?.url,
+            source_url: pagesWithContent[0]?.url,
           }
         ],
         talkingPoints: [
           {
             text: `Discuss ${opportunity.targetVertical} challenges and our solutions`,
             approved_claim_id: "fallback_1",
-            source_url: scrapedContent[0]?.url,
+            source_url: pagesWithContent[0]?.url,
           }
         ],
+        sources: pagesWithContent.map(page => ({
+          url: page.url,
+          title: page.title,
+        })),
       });
 
       await ctx.runMutation(internal.leadGen.audit.saveFitReason, {
@@ -425,6 +544,28 @@ Fit Reason:`;
         fitReason: fallbackFitReason,
       };
     }
+}
+
+/**
+ * Generate dossier and fit reason using AI agent
+ */
+export const generateDossierAndFitReason = internalAction({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+    opportunityId: v.id("client_opportunities"),
+    agencyId: v.id("agency_profile"),
+    scrapedPages: v.array(v.object({
+      url: v.string(),
+      title: v.optional(v.string()),
+      contentRef: v.optional(v.id("_storage")),
+    })),
+  },
+  returns: v.object({
+    dossierId: v.id("audit_dossier"),
+    fitReason: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    return await generateDossierAndFitReasonHelper(ctx, args);
   },
 });
 
@@ -537,8 +678,9 @@ export const runAuditAction = internalAction({
         status: "running",
       });
 
-      const scrapedContent = await ctx.runAction(internal.firecrawlActions.scrapeAuditUrls, {
+      const scrapedPages = await ctx.runAction(internal.firecrawlActions.scrapeAuditUrls, {
         auditJobId: args.auditJobId,
+        opportunityId: args.opportunityId,
         urls: relevantUrls,
       });
 
@@ -548,7 +690,7 @@ export const runAuditAction = internalAction({
         status: "complete",
       });
 
-      console.log(`[Audit Action] Phase 3 complete: scraped ${scrapedContent.length} pages`);
+      console.log(`[Audit Action] Phase 3 complete: scraped ${scrapedPages.length} pages`);
 
       // Phase 4: Generate Dossier
       console.log(`[Audit Action] Phase 4: Generate Dossier`);
@@ -559,11 +701,11 @@ export const runAuditAction = internalAction({
         status: "running",
       });
 
-      const dossierResult = await ctx.runAction(internal.leadGen.audit.generateDossierAndFitReason, {
+      const dossierResult = await generateDossierAndFitReasonHelper(ctx, {
         auditJobId: args.auditJobId,
         opportunityId: args.opportunityId,
         agencyId: args.agencyId,
-        scrapedContent,
+        scrapedPages,
       });
 
       await ctx.runMutation(internal.leadGen.audit.updateAuditPhaseStatus, {

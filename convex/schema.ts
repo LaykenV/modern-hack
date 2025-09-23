@@ -75,7 +75,10 @@ export default defineSchema({
   // New index for campaign-based filtering
   .index("by_agency_and_campaign", ["agencyId", "targetVertical", "targetGeography"])
   // New index for lead generation flow tracking
-  .index("by_leadGenFlow", ["leadGenFlowId"]),
+  .index("by_leadGenFlow", ["leadGenFlowId"]) 
+  // New indexes for domain lookups without filters
+  .index("by_agency_and_domain", ["agencyId", "domain"]) 
+  .index("by_leadGenFlow_and_domain", ["leadGenFlowId", "domain"]),
 
   // Audit dossier - detailed analysis of each opportunity
   audit_dossier: defineTable({
@@ -98,6 +101,15 @@ export default defineSchema({
           text: v.string(),
           approved_claim_id: v.string(),
           source_url: v.optional(v.string()),
+        }),
+      ),
+    ),
+    // Optional sources list for display (upgrade plan requirement)
+    sources: v.optional(
+      v.array(
+        v.object({
+          url: v.string(),
+          title: v.optional(v.string()),
         }),
       ),
     ),
@@ -185,10 +197,26 @@ export default defineSchema({
       status: v.union(v.literal("pending"), v.literal("running"), v.literal("complete"), v.literal("error")),
     })),
     dossierId: v.optional(v.id("audit_dossier")), // The final output
+    // Thread/user context for AI calls (upgrade plan requirement)
+    analysisThread: v.optional(v.string()), // Dedicated thread per audit job
   })
   .index("by_opportunity", ["opportunityId"])
   .index("by_agency", ["agencyId"])
   .index("by_leadGenFlow", ["leadGenFlowId"]),
+
+  // --- NEW TABLE ---
+  // Scraped pages with storage references (upgrade plan requirement)
+  audit_scraped_pages: defineTable({
+    auditJobId: v.id("audit_jobs"),
+    opportunityId: v.id("client_opportunities"),
+    url: v.string(),
+    title: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
+    contentRef: v.optional(v.id("_storage")), // Reference to stored markdown content
+  })
+  .index("by_auditJobId", ["auditJobId"])
+  .index("by_opportunityId", ["opportunityId"])
+  .index("by_auditJobId_and_url", ["auditJobId", "url"]),
 
   // Call records
   calls: defineTable({

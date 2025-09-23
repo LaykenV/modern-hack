@@ -16,13 +16,16 @@ export const startCrawl = internalAction({
       allowSubdomains: false,
       crawlEntireDomain: false,
       includePaths: [
-        "^/(product|platform|features|solutions|use-cases)(/|$)",
-        "^/(pricing)(/|$)",
-        "^/(about|company)(/|$)",
+        "^/$",
+        "^/(home|index)(/|$)",
+        "^/(product|platform|features|solutions|services|service)(/|$)",
+        "^/(pricing|plans)(/|$)",
+        "^/(about|company|team)(/|$)",
         "^/(docs|documentation|developers)(/|$)",
-        "^/(customers|case-studies)(/|$)",
+        "^/(customers|case-studies|testimonials)(/|$)",
         "^/(security|trust|compliance)(/|$)",
         "^/(resources)(/|$)",
+        "^/(contact)(/|$)",
       ],
       excludePaths: [
         "^/(privacy|legal|terms|tos|cookies|gdpr|dpa)(/|$)",
@@ -200,18 +203,19 @@ export const scrapeRelevantPages = internalAction({
 export const scrapeAuditUrls = internalAction({
   args: {
     auditJobId: v.id("audit_jobs"),
+    opportunityId: v.id("client_opportunities"),
     urls: v.array(v.string()),
   },
   returns: v.array(v.object({
     url: v.string(),
     title: v.optional(v.string()),
-    content: v.string(),
+    contentRef: v.optional(v.id("_storage")),
   })),
   handler: async (ctx, args) => {
-    const { urls } = args;
-    const scrapedContent: Array<{ url: string; title?: string; content: string }> = [];
+    const { auditJobId, opportunityId, urls } = args;
+    const scrapedPages: Array<{ url: string; title?: string; contentRef?: Id<"_storage"> }> = [];
     
-    console.log(`[Audit Scrape] Starting to scrape ${urls.length} URLs`);
+    console.log(`[Audit Scrape] Starting to scrape ${urls.length} URLs with storage`);
     
     // Use Firecrawl to scrape all URLs in parallel with batch size of 4
     const batchSize = 4;
@@ -221,23 +225,45 @@ export const scrapeAuditUrls = internalAction({
       
       const batchResults = await Promise.allSettled(
         batch.map(async (url) => {
-          const res = await firecrawl.scrape(url, {
-            formats: ["markdown"],
-            onlyMainContent: false,
-            maxAge: 0,
-          });
-          
-          // Parse response
-          const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
-          
-          if (response.markdown) {
-            return {
-              url: response.metadata?.sourceURL || url,
-              title: response.metadata?.title,
-              content: response.markdown.slice(0, 8000), // Truncate for processing
-            };
-          } else {
-            throw new Error(`No content found for ${url}`);
+          try {
+            const res = await firecrawl.scrape(url, {
+              formats: ["markdown"],
+              onlyMainContent: false,
+              maxAge: 0,
+            });
+            
+            // Parse response
+            const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
+            
+            if (response.markdown) {
+              // Store markdown content in _storage as Blob
+              const contentBlob = new Blob([response.markdown], { type: "text/markdown" });
+              const contentRef = await ctx.storage.store(contentBlob);
+              
+              // Save page with storage reference (batch-safe upsert)
+              await ctx.runMutation(internal.leadGen.audit.saveScrapedPageWithStorage, {
+                auditJobId,
+                opportunityId,
+                url: response.metadata?.sourceURL || url,
+                title: response.metadata?.title,
+                httpStatus: response.metadata?.statusCode,
+                contentRef,
+              });
+              
+              return {
+                url: response.metadata?.sourceURL || url,
+                title: response.metadata?.title,
+                contentRef,
+              };
+            } else {
+              console.warn(`[Audit Scrape] No content found for ${url}`);
+              // Don't return anything for failed scrapes - they won't be added to the array
+              return null;
+            }
+          } catch (error) {
+            console.error(`[Audit Scrape] Error scraping ${url}:`, error);
+            // Don't return anything for failed scrapes - they won't be added to the array
+            return null;
           }
         })
       );
@@ -245,22 +271,25 @@ export const scrapeAuditUrls = internalAction({
       // Process batch results
       batchResults.forEach((result, index) => {
         const url = batch[index];
-        if (result.status === 'fulfilled') {
-          scrapedContent.push(result.value);
-          console.log(`[Audit Scrape] Successfully scraped ${url}`);
+        if (result.status === 'fulfilled' && result.value !== null) {
+          scrapedPages.push(result.value);
+          if (result.value.contentRef) {
+            console.log(`[Audit Scrape] Successfully scraped and stored ${url}`);
+          }
         } else {
-          console.error(`[Audit Scrape] Failed to scrape ${url}:`, result.reason);
+          console.error(`[Audit Scrape] Failed to process ${url}:`, result.status === 'rejected' ? result.reason : 'No content');
         }
       });
       
-      // Small delay between batches
+      // Small delay between batches to avoid overwhelming storage
       if (i + batchSize < urls.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
     
-    console.log(`[Audit Scrape] Completed: ${scrapedContent.length}/${urls.length} URLs scraped successfully`);
-    return scrapedContent;
+    const successCount = scrapedPages.filter(p => p.contentRef).length;
+    console.log(`[Audit Scrape] Completed: ${successCount}/${urls.length} URLs scraped and stored successfully`);
+    return scrapedPages;
   },
 });
 
