@@ -1,44 +1,22 @@
-## Lead Gen Upgrade Plan (Scoped)
+# Lead Gen Workflow Upgrade Plan
 
-Scope: Implement only (1) thread/user context with analysisThread and (2) storage persistence with contentRef. Remove retry/backoff and status validator changes from this plan.
+## Goals
+- Adjust displayed phase names in the frontend for clarity without touching backend schema.
+- Rebalance overall progress so dossier work accounts for ~80% of the bar.
 
-### 1) Threads and userId context (analysisThread only)
-- Purpose: Ensure all AI calls in audits have reliable context like onboarding by using a per‑audit thread, with userId fallback.
-- Data model
-  - `audit_jobs.analysisThread?: string` — dedicated thread per audit job.
-  - `lead_gen_flow.userId: string` — already present or ensure available to pass as fallback context.
-- Initialization
-  - When queueing audits (in `leadGen/auditInit.ts`): create an agent thread for each new `audit_jobs` row and persist it to `analysisThread`.
-  - Ensure `lead_gen_flow.userId` is set at flow creation (used as fallback when thread is missing).
-- Context propagation
-  - `leadGen/workflow.ts` → pass `userId` into `runAuditAction` args.
-  - `leadGen/audit.ts`
-    - `filterRelevantUrls`: call `atlasAgentGroq.generateText(ctx, { threadId: auditJob.analysisThread } || { userId }, { prompt })`.
-    - `generateDossierAndFitReason`: same call signature and fallback.
-- Note
+## Frontend Updates
+- Update phase label mapping in dashboard components (`app/dashboard/page.tsx`) to show:
+  - `scrape_content` → “Preparing Scrapes”
+  - `generate_dossier` → “Scrape Content & Generate Dossier”
+- Ensure any tooltips or docs (`leadGenUI.md`) mirror the new display names.
 
-### 2) Persist scraped content to storage with references (no embedding in dossier)
-- Rationale: Avoid Convex doc size limits and enable incremental updates; keep dossiers compact while keeping page content accessible.
-- New table (recommended)
-  - `audit_scraped_pages`
-    - Fields: `{ auditJobId, opportunityId, url, title?, httpStatus?, contentRef }`
-    - Indexes: `by_auditJobId`, `by_opportunityId`, `by_auditJobId_and_url`
-- Scrape/write flow
-  - In `firecrawlActions.scrapeAuditUrls`:
-    - Store markdown to `_storage` as Blob; get `contentRef`.
-    - Call `leadGen.audit.saveScrapedPageWithStorage({ auditJobId, opportunityId, url, title, httpStatus, contentRef })` per URL (batch‑safe), upsert by `(auditJobId, url)`.
-    - Return lightweight descriptors `{ url, title?, contentRef }` to the caller (no markdown strings in memory beyond local processing).
-- Dossier generation flow
-  - `generateDossierAndFitReason` loads and truncates page text using `contentRef` from `audit_scraped_pages` (select the small set of pages used for analysis), then builds prompts.
-  - Save on `audit_dossier` only:
-    - `summary`, `identified_gaps`, `talking_points`
-    - Optional `sources: Array<{ url: string, title?: string }>` for display.
-  - Do NOT embed a `pageContent` array on `audit_dossier`; rely on `audit_scraped_pages` for any future reads.
+## Backend Updates
+- Revise `marketing.getLeadGenProgress` to use weighted progress (e.g. 80% weight for `generate_dossier`, remaining 20% distributed across other phases).
+- Adjust workflow progress reporting, if needed, so weighted totals behave correctly when no audits exist.
 
-### Acceptance checklist
-- `analysisThread` created/stored per `audit_jobs` and used by all AI calls in audits with `userId` fallback.
-- Scraped pages persisted as `_storage` blobs and referenced via `audit_scraped_pages` with proper indexes.
-- Dossier remains compact (no embedded page content), with optional `sources` list.
-- No new retry/backoff or status validator changes introduced by this plan.
+## Testing & Validation
+- Add/refresh lightweight tests for `getLeadGenProgress` covering weighted math and edge cases.
+- Manual smoke test: run a flow, confirm UI shows renamed phases and overall progress curve looks right.
 
-
+## Rollout Notes
+- No schema changes or data backfills required; all updates safe to deploy quickly.

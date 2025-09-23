@@ -30,9 +30,11 @@
 - `getLeadGenJob(jobId)` (query) — parent doc for UI
 - `listLeadGenJobsByAgency(agencyId)` (query) — history for dashboard
 - `getLeadGenProgress(jobId)` (query) — overall 0–1 progress
+- `getLeadGenFlowCounts(leadGenFlowId)` (query) — totals for UI chips
 - `listClientOpportunitiesByFlow(leadGenFlowId)` (query)
 - `listAuditJobsByFlow(leadGenFlowId)` (query)
-- `getLeadGenFlowCounts(leadGenFlowId)` (query) — totals for UI chips
+- `getAuditDossier(dossierId)` (query) — expand view with dossier summary/gaps/talking points/sources
+- `listScrapedPagesByAudit(auditJobId)` (query) — signed URL + metadata list for scraped sources panel
 
 ## Workflow (convex/leadGen/workflow.ts)
 Args: { leadGenFlowId, agencyProfileId, userId, numLeads, campaign }
@@ -67,8 +69,13 @@ Status updates:
 
 ## UI contract
 - Start: marketing.startLeadGenWorkflow → { jobId }
-- Subscribe: marketing.getLeadGenJob(jobId) → phases, lastEvent, counts, placesSnapshot
-- Subscribe: client_opportunities by leadGenFlowId for row-level chips and progress
+- Subscribe: marketing.listLeadGenJobsByAgency(agencyId) → default selection & history
+- Subscribe: marketing.getLeadGenJob(jobId) → phases, lastEvent, placesSnapshot
+- Subscribe: marketing.getLeadGenProgress(jobId) → aggregate progress bar
+- Subscribe: marketing.getLeadGenFlowCounts(leadGenFlowId) → totals/ready/audit chips
+- Subscribe: marketing.listClientOpportunitiesByFlow(leadGenFlowId) → row-level info
+- Subscribe: marketing.listAuditJobsByFlow(leadGenFlowId) → per-lead audit status & dossierId
+- Lazy load on expand: marketing.getAuditDossier(dossierId) + marketing.listScrapedPagesByAudit(auditJobId)
 
 ## Optimizations & resilience
 - Keep parent doc light; compute counts via indexed queries.

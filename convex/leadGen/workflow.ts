@@ -196,12 +196,15 @@ export const leadGenWorkflow = workflow.define({
         
         console.log(`[Lead Gen Workflow] Processing audit ${i + 1}/${auditJobs.length} for opportunity ${auditJob.opportunityId}`);
         
-        // Update progress
+        const progressFraction = auditJobs.length > 0
+          ? Math.min(0.99, 0.1 + 0.9 * ((i + 1) / auditJobs.length))
+          : 1;
+
         await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
           leadGenFlowId: args.leadGenFlowId,
           phaseName: "generate_dossier",
           status: "running",
-          progress: 0.2 + (0.6 * i / auditJobs.length),
+          progress: progressFraction,
           eventMessage: `Processing audit ${i + 1}/${auditJobs.length}`,
         });
 

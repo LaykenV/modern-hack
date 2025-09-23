@@ -6,6 +6,7 @@ import { Id } from "./_generated/dataModel";
 import { workflow } from "./workflows";
 import { vWorkflowId } from "@convex-dev/workflow";
 import { vResultValidator } from "@convex-dev/workpool";
+import { LEAD_GEN_PHASE_WEIGHTS } from "./leadGen/constants";
 
 // Type for agency profile returned by getByUserId
 type AgencyProfile = {
@@ -350,20 +351,30 @@ export const getLeadGenProgress = query({
       return 0;
     }
 
-    // Calculate progress based on phase completion
-    const totalPhases = leadGenFlow.phases.length;
-    if (totalPhases === 0) return 0;
-
-    let totalProgress = 0;
-    for (const phase of leadGenFlow.phases) {
-      if (phase.status === "complete") {
-        totalProgress += 1;
-      } else if (phase.status === "running") {
-        totalProgress += phase.progress;
-      }
+    const phases = leadGenFlow.phases;
+    if (phases.length === 0) {
+      return 0;
     }
 
-    return totalProgress / totalPhases;
+    let totalWeight = 0;
+    let progressSum = 0;
+
+    for (const phase of phases) {
+      const weight = LEAD_GEN_PHASE_WEIGHTS[phase.name] ?? 0;
+      if (weight <= 0) {
+        continue;
+      }
+      totalWeight += weight;
+
+      const phaseCompletion = phase.status === "complete" ? 1 : phase.status === "running" ? Math.max(0, Math.min(1, phase.progress)) : 0;
+      progressSum += weight * phaseCompletion;
+    }
+
+    if (totalWeight === 0) {
+      return 0;
+    }
+
+    return progressSum / totalWeight;
   },
 });
 
@@ -561,5 +572,138 @@ export const getLeadGenFlowCounts = query({
       completedAudits,
       readyOpportunities,
     };
+  },
+});
+
+/**
+ * Get dossier details for a completed audit job
+ */
+export const getAuditDossier = query({
+  args: {
+    dossierId: v.id("audit_dossier"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("audit_dossier"),
+      summary: v.optional(v.string()),
+      identified_gaps: v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+          source_url: v.optional(v.string()),
+        }),
+      ),
+      talking_points: v.array(
+        v.object({
+          text: v.string(),
+          approved_claim_id: v.string(),
+          source_url: v.optional(v.string()),
+        }),
+      ),
+      sources: v.array(
+        v.object({
+          url: v.string(),
+          title: v.optional(v.string()),
+        }),
+      ),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    const dossier = await ctx.db.get(args.dossierId);
+    if (!dossier) {
+      return null;
+    }
+
+    const opportunity = await ctx.db.get(dossier.opportunityId);
+    if (!opportunity) {
+      throw new Error("Linked opportunity not found");
+    }
+
+    const agencyProfile = await ctx.db.get(opportunity.agencyId);
+    const ownsViaAgency = Boolean(agencyProfile && agencyProfile.userId === user._id);
+
+    let ownsViaFlow = false;
+    if (opportunity.leadGenFlowId) {
+      const leadGenFlow = await ctx.db.get(opportunity.leadGenFlowId);
+      ownsViaFlow = Boolean(leadGenFlow && leadGenFlow.userId === user._id);
+    }
+
+    if (!ownsViaAgency && !ownsViaFlow) {
+      throw new Error("Unauthorized access to audit dossier");
+    }
+
+    return {
+      _id: dossier._id,
+      summary: dossier.summary,
+      identified_gaps: dossier.identified_gaps ?? [],
+      talking_points: dossier.talking_points ?? [],
+      sources: dossier.sources ?? [],
+    };
+  },
+});
+
+/**
+ * List scraped pages for an audit job (without raw content)
+ */
+export const listScrapedPagesByAudit = query({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+  },
+  returns: v.array(
+    v.object({
+      url: v.string(),
+      title: v.optional(v.string()),
+      httpStatus: v.optional(v.number()),
+      contentUrl: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    const auditJob = await ctx.db.get(args.auditJobId);
+    if (!auditJob) {
+      throw new Error("Audit job not found");
+    }
+
+    const agencyProfile = await ctx.db.get(auditJob.agencyId);
+    const ownsViaAgency = Boolean(agencyProfile && agencyProfile.userId === user._id);
+
+    let ownsViaFlow = false;
+    if (auditJob.leadGenFlowId) {
+      const leadGenFlow = await ctx.db.get(auditJob.leadGenFlowId);
+      ownsViaFlow = Boolean(leadGenFlow && leadGenFlow.userId === user._id);
+    }
+
+    if (!ownsViaAgency && !ownsViaFlow) {
+      throw new Error("Unauthorized access to audit job");
+    }
+
+    const pages = await ctx.db
+      .query("audit_scraped_pages")
+      .withIndex("by_auditJobId", (q) => q.eq("auditJobId", args.auditJobId))
+      .collect();
+
+    const result = await Promise.all(
+      pages.map(async (page) => {
+        const contentUrl = page.contentRef ? await ctx.storage.getUrl(page.contentRef) : null;
+        return {
+          url: page.url,
+          title: page.title,
+          httpStatus: page.httpStatus,
+          contentUrl: contentUrl ?? undefined,
+        };
+      }),
+    );
+
+    return result;
   },
 });

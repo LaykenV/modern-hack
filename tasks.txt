@@ -41,18 +41,24 @@ set up lead gen firecrawl / google api
 //should we move marketing fields out of agency into lead gen flow?
 //workflow and scraping func
 //build dossier and fit reason
-review full flow
-split audit.ts 
+//review full flow
+//split audit.ts 
+
+//research + dossier firecrawl + talking points
+
 test
+//city not recorded in co
+scrape_content phase not tracked correctly
+//need to test w actual agency w all leadqual
+
+integrate atlas credits
 
 
-research + dossier firecrawl + talking points
 
 
 vapi integration to call with dossier
 resend emails
 
-move 
-
+increase max 10 pages on agency crawl filter?
 
 ui

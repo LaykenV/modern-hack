@@ -16,6 +16,7 @@ export const getLeadGenFlowInternal = internalQuery({
   returns: v.union(
     v.object({
       _id: v.id("lead_gen_flow"),
+      _creationTime: v.number(),
       userId: v.string(),
       agencyId: v.id("agency_profile"),
       numLeadsRequested: v.number(),
@@ -90,6 +91,7 @@ export const getAgencyProfileInternal = internalQuery({
   returns: v.union(
     v.object({
       _id: v.id("agency_profile"),
+      _creationTime: v.number(),
       userId: v.string(),
       companyName: v.string(),
       sourceUrl: v.string(),
@@ -198,6 +200,7 @@ export const getOpportunityById = internalQuery({
   returns: v.union(
     v.object({
       _id: v.id("client_opportunities"),
+      _creationTime: v.number(),
       agencyId: v.id("agency_profile"),
       name: v.string(),
       domain: v.optional(v.string()),
@@ -266,6 +269,7 @@ export const getAuditJobById = internalQuery({
   returns: v.union(
     v.object({
       _id: v.id("audit_jobs"),
+      _creationTime: v.number(),
       opportunityId: v.id("client_opportunities"),
       agencyId: v.id("agency_profile"),
       leadGenFlowId: v.optional(v.id("lead_gen_flow")),

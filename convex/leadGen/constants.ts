@@ -46,6 +46,15 @@ export const LEAD_GEN_PHASES = [
 
 export type LeadGenPhaseName = typeof LEAD_GEN_PHASES[number];
 
+export const LEAD_GEN_PHASE_WEIGHTS = {
+  source: 0.05,
+  filter_rank: 0.05,
+  persist_leads: 0.05,
+  scrape_content: 0.05,
+  generate_dossier: 0.8,
+  finalize_rank: 0,
+} as const satisfies Record<LeadGenPhaseName, number>;
+
 // Event types for lead generation flow
 export const LEAD_GEN_EVENT_TYPES = {
   INITIALIZED: "leadgen.initialized",

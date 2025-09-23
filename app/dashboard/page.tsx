@@ -2,7 +2,7 @@
 
 import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
@@ -31,6 +31,11 @@ function RedirectToHome() {
   return null;
 }
 
+const PHASE_LABELS = {
+  scrape_content: "Preparing Scrapes",
+  generate_dossier: "Scrape Content & Generate Dossier",
+} as const;
+
 function DashboardContent() {
   const user = useQuery(api.auth.getCurrentUser);
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
@@ -47,15 +52,71 @@ function DashboardContent() {
   
   // Query for lead gen job status
   const leadGenJob = useQuery(
-    api.marketing.getLeadGenJob, 
+    api.marketing.getLeadGenJob,
     currentJobId ? { jobId: currentJobId } : "skip"
   );
-  
-  // Query for lead gen jobs history  
+
+  const leadGenProgress = useQuery(
+    api.marketing.getLeadGenProgress,
+    currentJobId ? { jobId: currentJobId } : "skip"
+  );
+
+  const leadGenCounts = useQuery(
+    api.marketing.getLeadGenFlowCounts,
+    currentJobId ? { leadGenFlowId: currentJobId } : "skip"
+  );
+
+  const opportunities = useQuery(
+    api.marketing.listClientOpportunitiesByFlow,
+    currentJobId ? { leadGenFlowId: currentJobId } : "skip"
+  );
+
+  const auditJobs = useQuery(
+    api.marketing.listAuditJobsByFlow,
+    currentJobId ? { leadGenFlowId: currentJobId } : "skip"
+  );
+
+  // Query for lead gen jobs history
   const leadGenJobs = useQuery(
     api.marketing.listLeadGenJobsByAgency,
     sellerBrain?.agencyProfileId ? { agencyId: sellerBrain.agencyProfileId } : "skip"
   );
+
+  const [expandedOpportunityId, setExpandedOpportunityId] = useState<Id<"client_opportunities"> | null>(null);
+  const [viewSourcesForAuditId, setViewSourcesForAuditId] = useState<Id<"audit_jobs"> | null>(null);
+
+  const selectedAuditJob = auditJobs && expandedOpportunityId
+    ? auditJobs.find((job) => job.opportunityId === expandedOpportunityId)
+    : undefined;
+
+  const dossier = useQuery(
+    api.marketing.getAuditDossier,
+    selectedAuditJob?.dossierId ? { dossierId: selectedAuditJob.dossierId } : "skip"
+  );
+
+  const scrapedPages = useQuery(
+    api.marketing.listScrapedPagesByAudit,
+    viewSourcesForAuditId ? { auditJobId: viewSourcesForAuditId } : "skip"
+  );
+
+  const auditJobMap = useMemo(() => {
+    if (!auditJobs) {
+      return new Map();
+    }
+    return new Map(auditJobs.map((job) => [job.opportunityId, job]));
+  }, [auditJobs]);
+
+  useEffect(() => {
+    if (!currentJobId && leadGenJobs && leadGenJobs.length > 0) {
+      setCurrentJobId(leadGenJobs[0]._id);
+    }
+  }, [currentJobId, leadGenJobs]);
+
+  useEffect(() => {
+    if (!expandedOpportunityId) {
+      setViewSourcesForAuditId(null);
+    }
+  }, [expandedOpportunityId]);
 
   useEffect(() => {
     if (user && (!sellerBrain || (onboardingStatus !== "completed" && onboardingStatus !== null))) {
@@ -296,7 +357,7 @@ function DashboardContent() {
                       phase.status === "error" ? "bg-red-500" :
                       "bg-gray-300"
                     }`} />
-                    <span className="capitalize">{phase.name.replace("_", " ")}</span>
+                    <span className="capitalize">{PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}</span>
                     <span className="text-sm text-slate-500">({Math.round(phase.progress * 100)}%)</span>
                     {phase.status === "running" && <span className="text-blue-600">Running...</span>}
                     {phase.status === "error" && phase.errorMessage && (
@@ -306,6 +367,20 @@ function DashboardContent() {
                 ))}
               </div>
             </div>
+
+            {typeof leadGenProgress === "number" && (
+              <div className="mt-4">
+                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded">
+                  <div
+                    className="h-2 bg-blue-600 rounded"
+                    style={{ width: `${Math.round(leadGenProgress * 100)}%` }}
+                  />
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                  Overall progress: {Math.round(leadGenProgress * 100)}%
+                </p>
+              </div>
+            )}
 
             {/* Places Snapshot */}
             {leadGenJob.placesSnapshot && leadGenJob.placesSnapshot.length > 0 && (
@@ -343,6 +418,250 @@ function DashboardContent() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Counts Summary */}
+        {leadGenCounts && (
+          <div className="mb-6 p-4 bg-slate-100 dark:bg-slate-900 rounded">
+            <h3 className="text-lg font-medium mb-3">Flow Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+              <SummaryChip label="Total opportunities" value={leadGenCounts.totalOpportunities} />
+              <SummaryChip label="With websites" value={leadGenCounts.opportunitiesWithWebsites} />
+              <SummaryChip label="Without websites" value={leadGenCounts.opportunitiesWithoutWebsites} />
+              <SummaryChip label="Queued audits" value={leadGenCounts.queuedAudits} />
+              <SummaryChip label="Running audits" value={leadGenCounts.runningAudits} />
+              <SummaryChip label="Completed audits" value={leadGenCounts.completedAudits} />
+              <SummaryChip label="Ready opportunities" value={leadGenCounts.readyOpportunities} />
+            </div>
+          </div>
+        )}
+
+        {/* Opportunities Table */}
+        {opportunities && opportunities.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-3">Opportunities</h3>
+            <div className="space-y-3">
+              {opportunities.map((opp) => {
+                const job = auditJobMap.get(opp._id);
+                const completedPhases = job?.phases.filter((phase: { status: string }) => phase.status === "complete").length ?? 0;
+                const phaseProgress = job ? Math.round((completedPhases / job.phases.length) * 100) : 0;
+
+                const isExpanded = expandedOpportunityId === opp._id;
+
+                return (
+                  <div
+                    key={opp._id}
+                    className="border border-slate-200 dark:border-slate-800 rounded"
+                  >
+                    <button
+                      onClick={() => setExpandedOpportunityId(isExpanded ? null : opp._id)}
+                      className="w-full text-left p-4 flex flex-col gap-2"
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div>
+                          <p className="font-medium text-lg">{opp.name}</p>
+                          <p className="text-sm text-slate-500">{opp.domain ?? "No website"}</p>
+                          <p className="text-sm">Status: {opp.status}</p>
+                        </div>
+                        <div className="text-right text-sm text-slate-500">
+                          <p>Score: {Math.round(opp.qualificationScore * 100)}%</p>
+                          {job && <p>Audit: {job.status}</p>}
+                        </div>
+                      </div>
+                      <div className="text-sm flex flex-wrap gap-2">
+                        {opp.signals.map((signal) => (
+                          <span
+                            key={signal}
+                            className="inline-flex items-center rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5"
+                          >
+                            {signal.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                      {job && (
+                        <div className="w-full">
+                          <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded">
+                            <div
+                              className="h-2 bg-emerald-500 rounded"
+                              style={{ width: `${phaseProgress}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {completedPhases}/{job.phases.length} phases complete
+                          </p>
+                        </div>
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-4">
+                        {opp.fit_reason && (
+                          <div>
+                            <h4 className="font-medium mb-1">Fit Reason</h4>
+                            <p className="text-sm text-slate-600 dark:text-slate-300">{opp.fit_reason}</p>
+                          </div>
+                        )}
+
+                        {job && (
+                          <div>
+                            <h4 className="font-medium mb-2">Audit Phases</h4>
+                            <div className="space-y-1 text-sm">
+                              {job.phases.map((phase: { name: string; status: string }) => (
+                                <div key={phase.name} className="flex justify-between">
+                                  <span>{phase.name.replace(/_/g, " ")}</span>
+                                  <span className="text-slate-500">{phase.status}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {job?.dossierId && (
+                          <div>
+                            <h4 className="font-medium mb-2">Dossier</h4>
+                            {dossier ? (
+                              <div className="space-y-3 text-sm">
+                                {dossier.summary && (
+                                  <div>
+                                    <h5 className="font-medium mb-1">Summary</h5>
+                                    <p className="text-slate-600 dark:text-slate-300">{dossier.summary}</p>
+                                  </div>
+                                )}
+
+                                {dossier.identified_gaps.length > 0 && (
+                                  <div>
+                                    <h5 className="font-medium mb-1">Identified Gaps</h5>
+                                    <ul className="list-disc ml-5 space-y-1">
+                                      {dossier.identified_gaps.map((gap, idx) => (
+                                        <li key={`gap-${idx}`}>
+                                          <span className="font-medium">{gap.key}:</span> {gap.value}
+                                          {gap.source_url && (
+                                            <>
+                                              {" "}
+                                              <a
+                                                href={gap.source_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-600 dark:text-blue-400 underline"
+                                              >
+                                                Source
+                                              </a>
+                                            </>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {dossier.talking_points.length > 0 && (
+                                  <div>
+                                    <h5 className="font-medium mb-1">Talking Points</h5>
+                                    <ul className="list-disc ml-5 space-y-1">
+                                      {dossier.talking_points.map((point, idx) => (
+                                        <li key={`tp-${idx}`}>
+                                          {point.text}
+                                          {point.source_url && (
+                                            <>
+                                              {" "}
+                                              <a
+                                                href={point.source_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-600 dark:text-blue-400 underline"
+                                              >
+                                                Source
+                                              </a>
+                                            </>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {dossier.sources.length > 0 && (
+                                  <div>
+                                    <h5 className="font-medium mb-1">Sources</h5>
+                                    <ul className="list-disc ml-5 space-y-1">
+                                      {dossier.sources.map((source, idx) => (
+                                        <li key={`source-${idx}`}>
+                                          <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-blue-600 dark:text-blue-400 underline"
+                                          >
+                                            {source.title || source.url}
+                                          </a>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-500">Loading dossier...</p>
+                            )}
+                          </div>
+                        )}
+
+                        {job && (
+                          <div>
+                            <button
+                              onClick={() =>
+                                setViewSourcesForAuditId((id) =>
+                                  id === job._id ? null : job._id
+                                )
+                              }
+                              className="text-sm text-blue-600 dark:text-blue-400 underline"
+                            >
+                              {viewSourcesForAuditId === job._id
+                                ? "Hide scraped sources"
+                                : "View scraped sources"}
+                            </button>
+
+                            {viewSourcesForAuditId === job._id && (
+                              <div className="mt-3 space-y-2 text-sm">
+                                {scrapedPages
+                                  ? scrapedPages.length > 0
+                                    ? scrapedPages.map((page, idx) => (
+                                        <div
+                                          key={`scrape-${idx}`}
+                                          className="border border-slate-200 dark:border-slate-700 rounded p-2"
+                                        >
+                                          <p className="font-medium">{page.title || page.url}</p>
+                                          <p className="text-xs text-slate-500">{page.url}</p>
+                                          {typeof page.httpStatus !== "undefined" && (
+                                            <p className="text-xs text-slate-500">HTTP {page.httpStatus}</p>
+                                          )}
+                                          {page.contentUrl && (
+                                            <p className="text-xs mt-1">
+                                              <a
+                                                href={page.contentUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-600 dark:text-blue-400 underline"
+                                              >
+                                                Download content snapshot
+                                              </a>
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))
+                                    : <p className="text-xs text-slate-500">No scraped pages recorded.</p>
+                                  : <p className="text-xs text-slate-500">Loading sources...</p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -385,6 +704,20 @@ function DashboardContent() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+type SummaryChipProps = {
+  label: string;
+  value: number;
+};
+
+function SummaryChip({ label, value }: SummaryChipProps) {
+  return (
+    <div className="border border-slate-200 dark:border-slate-800 rounded p-3">
+      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
     </div>
   );
 }
