@@ -196,3 +196,71 @@ export const scrapeRelevantPages = internalAction({
   },
 });
 
+// Scrape audit URLs and return content for dossier generation
+export const scrapeAuditUrls = internalAction({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+    urls: v.array(v.string()),
+  },
+  returns: v.array(v.object({
+    url: v.string(),
+    title: v.optional(v.string()),
+    content: v.string(),
+  })),
+  handler: async (ctx, args) => {
+    const { urls } = args;
+    const scrapedContent: Array<{ url: string; title?: string; content: string }> = [];
+    
+    console.log(`[Audit Scrape] Starting to scrape ${urls.length} URLs`);
+    
+    // Use Firecrawl to scrape all URLs in parallel with batch size of 4
+    const batchSize = 4;
+    
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const batch = urls.slice(i, i + batchSize);
+      
+      const batchResults = await Promise.allSettled(
+        batch.map(async (url) => {
+          const res = await firecrawl.scrape(url, {
+            formats: ["markdown"],
+            onlyMainContent: false,
+            maxAge: 0,
+          });
+          
+          // Parse response
+          const response = res as { markdown?: string; metadata?: { title?: string; statusCode?: number; sourceURL?: string; url?: string } };
+          
+          if (response.markdown) {
+            return {
+              url: response.metadata?.sourceURL || url,
+              title: response.metadata?.title,
+              content: response.markdown.slice(0, 8000), // Truncate for processing
+            };
+          } else {
+            throw new Error(`No content found for ${url}`);
+          }
+        })
+      );
+      
+      // Process batch results
+      batchResults.forEach((result, index) => {
+        const url = batch[index];
+        if (result.status === 'fulfilled') {
+          scrapedContent.push(result.value);
+          console.log(`[Audit Scrape] Successfully scraped ${url}`);
+        } else {
+          console.error(`[Audit Scrape] Failed to scrape ${url}:`, result.reason);
+        }
+      });
+      
+      // Small delay between batches
+      if (i + batchSize < urls.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+    
+    console.log(`[Audit Scrape] Completed: ${scrapedContent.length}/${urls.length} URLs scraped successfully`);
+    return scrapedContent;
+  },
+});
+

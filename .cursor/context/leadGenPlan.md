@@ -69,3 +69,76 @@ Status updates:
 - Keep parent doc light; compute counts via indexed queries.
 - Respect rate limits; cap later-phase concurrency (4 workers) and reuse onboarding scrape batching.
 - Idempotency: all mutations scoped by leadGenFlowId; Step 1 only mutates the parent run.
+
+## Phases 2–6 — Implementation Details (mirror onboarding patterns)
+
+### Step 2 — filter_rank (next to implement)
+- Input: use `lead_gen_flow.placesSnapshot` (≤20) from Step 1; do not write to DB here.
+- Hard filter: drop any lead without `phone`.
+- Signals (Google Places–only; no web scrape required):
+  - MISSING_WEBSITE: `!website`.
+  - WEAK_WEB_PRESENCE: `website` exists but domain is a social/aggregator (e.g., `facebook.com`, `instagram.com`, `yelp.com`, `linkedin.com`, `linktr.ee`, `tiktok.com`).
+  - LOW_GOOGLE_RATING: `rating < 4.0` AND `reviews >= 5`.
+  - FEW_GOOGLE_REVIEWS: `reviews < 5` (tunable).
+- Scoring: `qualificationScore = matchedSignals.length / max(1, agencyProfile.leadQualificationCriteria.length)`; if no user criteria, score is 0.
+- Module: `convex/leadGen/filter.ts`
+  - Internal action: `filterAndScoreLeads({ leadGenFlowId, agencyProfileId })` → returns shaped leads with `{ place_id, name, website?, phone, rating?, reviews_count?, address?, signals, qualificationScore }`.
+- Status: `updatePhaseStatus("filter_rank", "running")` with progress by processed/total; on success mark complete with counts kept/dropped.
+
+### Step 3 — persist_leads
+- Upsert into `client_opportunities` using `by_place_id` (and domain canonicalization safeguard) to avoid duplicates.
+- Fields: `agencyId`, `name`, `domain` (from website host), `phone`, `place_id`, `address`, `rating`, `reviews_count`, `source:"google_places"`, `status:"SOURCED"`, `leadGenFlowId`, `targetVertical`, `targetGeography`, `qualificationScore`, `signals`.
+- Module: `convex/leadGen/persist.ts`
+  - Internal mutation: `persistClientOpportunities({ leadGenFlowId, agencyProfileId, campaign, leads })`.
+- Status: running with incremental progress (i/total), then complete with totals.
+
+### Step 4 — queue audits (phase key: scrape_content)
+- Purpose: enqueue per-opportunity deep audit for leads with a `website`/`domain`. Do not scrape in the parent; audits do it.
+- Module: `convex/leadGen/auditInit.ts`
+  - Internal action: `queueAuditsForWebsites({ leadGenFlowId, agencyProfileId })`
+    - Query `client_opportunities` by `by_leadGenFlow` with `status:"SOURCED"` and a website.
+    - Create `audit_jobs` rows: `{ opportunityId, agencyId, leadGenFlowId, targetUrl, status:"queued", phases:[map_urls, filter_urls, scrape_content, generate_dossier] }`.
+    - Optionally set opportunity status to `"AUDITING"`.
+    - Start per-opportunity audit workflows (below).
+- Status: running with queued count → complete.
+
+### Step 5 — generate_dossier (per‑opportunity audit workflow)
+- Directory: `convex/leadGen/audit/`
+- Workflow: `auditWorkflow` with args `{ auditJobId, opportunityId, agencyId, targetUrl, leadGenFlowId }`.
+  - map_urls: Firecrawl discovery‑only (links) for `targetUrl` (journal‑safe), keep URLs in memory.
+  - filter_urls: AI ranks URLs (reuse onboarding `filterRelevantPages` approach) with a dedicated thread/context.
+  - scrape_content: high‑fidelity scrape of filtered URLs (reuse onboarding scrape patterns, store blobs in `_storage`).
+  - generate_dossier: synthesize dossier JSON and concise `fit_reason` using agent with (signals + scraped content). Create `audit_dossier` and link `audit_jobs.dossierId`; set `client_opportunities.status = "READY"` and save `fit_reason`.
+- Status: update `audit_jobs.phases` and `audit_jobs.status` at each step; parent can poll/derive progress.
+- Concurrency & idempotency: cap parallel audits (e.g., 4); skip if an active or completed job already exists for the opportunity.
+
+### Step 6 — finalize_rank
+- Module: `convex/leadGen/finalize.ts`
+- Parent flow: mark `finalize_rank` complete and call `statusUtils.completeFlow`; onComplete handler sets `workflowStatus`.
+
+## Queries & UI support
+- Existing: `marketing.getLeadGenJob` (parent), `marketing.listLeadGenJobsByAgency`.
+- New:
+  - `listClientOpportunitiesByFlow(leadGenFlowId)` using `client_opportunities.by_leadGenFlow`.
+  - `listAuditJobsByFlow(leadGenFlowId)` using `audit_jobs.by_leadGenFlow`.
+  - Optional count queries for UI progress (queued/running/completed audits, READY opportunities).
+
+## Utilities & constants
+- `convex/leadGen/constants.ts`: `SOCIAL_DOMAINS`, thresholds (`LOW_RATING_THRESHOLD=4.0`, `MIN_REVIEWS_FOR_LOW_RATING=5`, `FEW_REVIEWS_THRESHOLD=10`).
+- `convex/leadGen/domain.ts`: `canonicalDomain(url)`.
+- `convex/leadGen/signals.ts`: `detectSignals(place)` returning values aligned to `LEAD_QUALIFICATION_OPTIONS`.
+
+## Resilience & idempotency
+- Retries: 3 attempts (800ms backoff) for Places‑derived phases; 3–4 attempts (1–2s backoff) for Firecrawl in audits.
+- Idempotent upserts by `place_id` and canonical domain; skip duplicate `audit_jobs` per opportunity.
+- Concurrency: cap audit workflow parallelism via `WorkflowManager` config (4) and staggered starts.
+
+## Observability
+- Phase transitions with `updatePhaseStatus` throughout leadGen; event messages per step.
+- Per‑opportunity `audit_jobs.phases` and `status` mirror onboarding style for transparent progress.
+- Parent progress can be derived from dynamic counts (e.g., audits completed / total enqueued) plus phase completion.
+
+## Acceptance criteria
+- Starting `marketing.startLeadGenWorkflow` sources, filters, scores, persists opportunities, enqueues audits for those with websites, and completes parent phases with clear status updates.
+- Per‑opportunity audits produce `audit_dossier` and `fit_reason`; opportunities become `READY`.
+- UI can subscribe to parent flow and per‑opportunity lists via the queries above.

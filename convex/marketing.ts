@@ -366,3 +366,200 @@ export const getLeadGenProgress = query({
     return totalProgress / totalPhases;
   },
 });
+
+/**
+ * List client opportunities for a lead generation flow
+ */
+export const listClientOpportunitiesByFlow = query({
+  args: {
+    leadGenFlowId: v.id("lead_gen_flow"),
+  },
+  returns: v.array(v.object({
+    _id: v.id("client_opportunities"),
+    _creationTime: v.number(),
+    name: v.string(),
+    domain: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    place_id: v.string(),
+    address: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    reviews_count: v.optional(v.number()),
+    status: v.string(),
+    qualificationScore: v.number(),
+    signals: v.array(v.string()),
+    fit_reason: v.optional(v.string()),
+  })),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    // Get the lead gen flow to verify ownership
+    const leadGenFlow = await ctx.db.get(args.leadGenFlowId);
+    if (!leadGenFlow) {
+      throw new Error("Lead generation flow not found");
+    }
+
+    if (leadGenFlow.userId !== user._id) {
+      throw new Error("Unauthorized access to lead generation flow");
+    }
+
+    const opportunities = await ctx.db
+      .query("client_opportunities")
+      .withIndex("by_leadGenFlow", (q) => q.eq("leadGenFlowId", args.leadGenFlowId))
+      .order("desc")
+      .collect();
+
+    return opportunities.map((opp) => ({
+      _id: opp._id,
+      _creationTime: opp._creationTime,
+      name: opp.name,
+      domain: opp.domain,
+      phone: opp.phone,
+      place_id: opp.place_id,
+      address: opp.address,
+      rating: opp.rating,
+      reviews_count: opp.reviews_count,
+      status: opp.status,
+      qualificationScore: opp.qualificationScore,
+      signals: opp.signals,
+      fit_reason: opp.fit_reason,
+    }));
+  },
+});
+
+/**
+ * List audit jobs for a lead generation flow
+ */
+export const listAuditJobsByFlow = query({
+  args: {
+    leadGenFlowId: v.id("lead_gen_flow"),
+  },
+  returns: v.array(v.object({
+    _id: v.id("audit_jobs"),
+    _creationTime: v.number(),
+    opportunityId: v.id("client_opportunities"),
+    targetUrl: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("error"),
+      v.literal("completed")
+    ),
+    phases: v.array(v.object({
+      name: v.union(
+        v.literal("map_urls"),
+        v.literal("filter_urls"),
+        v.literal("scrape_content"),
+        v.literal("generate_dossier"),
+      ),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("running"),
+        v.literal("complete"),
+        v.literal("error")
+      ),
+    })),
+    dossierId: v.optional(v.id("audit_dossier")),
+  })),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    // Get the lead gen flow to verify ownership
+    const leadGenFlow = await ctx.db.get(args.leadGenFlowId);
+    if (!leadGenFlow) {
+      throw new Error("Lead generation flow not found");
+    }
+
+    if (leadGenFlow.userId !== user._id) {
+      throw new Error("Unauthorized access to lead generation flow");
+    }
+
+    const auditJobs = await ctx.db
+      .query("audit_jobs")
+      .withIndex("by_leadGenFlow", (q) => q.eq("leadGenFlowId", args.leadGenFlowId))
+      .order("desc")
+      .collect();
+
+    return auditJobs.map((job) => ({
+      _id: job._id,
+      _creationTime: job._creationTime,
+      opportunityId: job.opportunityId,
+      targetUrl: job.targetUrl,
+      status: job.status,
+      phases: job.phases,
+      dossierId: job.dossierId,
+    }));
+  },
+});
+
+/**
+ * Get count statistics for opportunities and audits by flow
+ */
+export const getLeadGenFlowCounts = query({
+  args: {
+    leadGenFlowId: v.id("lead_gen_flow"),
+  },
+  returns: v.object({
+    totalOpportunities: v.number(),
+    opportunitiesWithWebsites: v.number(),
+    opportunitiesWithoutWebsites: v.number(),
+    queuedAudits: v.number(),
+    runningAudits: v.number(),
+    completedAudits: v.number(),
+    readyOpportunities: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    // Get the lead gen flow to verify ownership
+    const leadGenFlow = await ctx.db.get(args.leadGenFlowId);
+    if (!leadGenFlow) {
+      throw new Error("Lead generation flow not found");
+    }
+
+    if (leadGenFlow.userId !== user._id) {
+      throw new Error("Unauthorized access to lead generation flow");
+    }
+
+    // Get opportunities
+    const opportunities = await ctx.db
+      .query("client_opportunities")
+      .withIndex("by_leadGenFlow", (q) => q.eq("leadGenFlowId", args.leadGenFlowId))
+      .collect();
+
+    // Get audit jobs
+    const auditJobs = await ctx.db
+      .query("audit_jobs")
+      .withIndex("by_leadGenFlow", (q) => q.eq("leadGenFlowId", args.leadGenFlowId))
+      .collect();
+
+    const totalOpportunities = opportunities.length;
+    const opportunitiesWithWebsites = opportunities.filter(opp => opp.domain).length;
+    const opportunitiesWithoutWebsites = totalOpportunities - opportunitiesWithWebsites;
+    const queuedAudits = auditJobs.filter(job => job.status === "queued").length;
+    const runningAudits = auditJobs.filter(job => job.status === "running").length;
+    const completedAudits = auditJobs.filter(job => job.status === "completed").length;
+    const readyOpportunities = opportunities.filter(opp => opp.status === "READY").length;
+
+    return {
+      totalOpportunities,
+      opportunitiesWithWebsites,
+      opportunitiesWithoutWebsites,
+      queuedAudits,
+      runningAudits,
+      completedAudits,
+      readyOpportunities,
+    };
+  },
+});

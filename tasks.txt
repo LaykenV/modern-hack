@@ -35,11 +35,15 @@ test it
 
 set up lead gen firecrawl / google api
 //figure out pagination for 20+ and field mask
-clean up onboarding docs and use for reference for leadGen workflow
-add more signals and lead qual criteria
-set up real google api file and workflow
-workflow and scraping func
-build dossier and fit reason
+//clean up onboarding docs and use for reference for leadGen workflow
+//add more signals and lead qual criteria to constants
+//set up real google api file and workflow
+//should we move marketing fields out of agency into lead gen flow?
+//workflow and scraping func
+//build dossier and fit reason
+review full flow
+split audit.ts 
+test
 
 
 research + dossier firecrawl + talking points
@@ -47,6 +51,8 @@ research + dossier firecrawl + talking points
 
 vapi integration to call with dossier
 resend emails
+
+move 
 
 
 ui
