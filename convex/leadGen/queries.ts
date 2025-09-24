@@ -68,9 +68,26 @@ export const getLeadGenFlowInternal = internalQuery({
       billingBlock: v.optional(v.object({
         phase: v.string(),
         featureId: v.string(),
-        preview: v.any(),
+        preview: v.optional(v.any()),
         auditJobId: v.optional(v.id("audit_jobs")),
         createdAt: v.number(),
+        creditInfo: v.optional(v.object({
+          allowed: v.boolean(),
+          atlasFeatureId: v.string(),
+          requiredBalance: v.number(),
+          balance: v.number(),
+          deficit: v.number(),
+          usage: v.number(),
+          includedUsage: v.number(),
+          interval: v.union(v.string(), v.null()),
+          intervalCount: v.number(),
+          unlimited: v.boolean(),
+          overageAllowed: v.boolean(),
+          creditSchema: v.array(v.object({
+            feature_id: v.string(),
+            credit_amount: v.number(),
+          })),
+        })),
       })),
       placesSnapshot: v.optional(v.array(v.object({
         id: v.string(),
@@ -289,6 +306,7 @@ export const getAuditJobById = internalQuery({
       })),
       dossierId: v.optional(v.id("audit_dossier")),
       analysisThread: v.optional(v.string()),
+      metered: v.optional(v.boolean()),
     }),
     v.null()
   ),

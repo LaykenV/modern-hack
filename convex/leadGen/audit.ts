@@ -580,6 +580,7 @@ export const runAuditAction = internalAction({
     agencyId: v.id("agency_profile"),
     targetUrl: v.string(),
     leadGenFlowId: v.id("lead_gen_flow"),
+    customerId: v.optional(v.string()), // For background workflow billing context
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -713,6 +714,37 @@ export const runAuditAction = internalAction({
         phaseName: "generate_dossier",
         status: "complete",
       });
+
+      // Idempotent billing: check if already metered before tracking usage
+      const isAlreadyMetered = await ctx.runQuery(internal.leadGen.statusUtils.isAuditJobMetered, {
+        auditJobId: args.auditJobId,
+      });
+
+      if (!isAlreadyMetered) {
+        console.log(`[Audit Action] Tracking usage for audit ${args.auditJobId} (not yet metered)`);
+        
+        try {
+          // Track usage for dossier research (1 unit, Autumn multiplies by 2 credits per unit)
+          await ctx.runAction(internal.leadGen.billing.trackUsage, {
+            featureId: "dossier_research",
+            value: 1,
+            customerId: args.customerId, // Pass customerId from workflow for background billing context
+          });
+
+          // Mark audit job as metered to prevent double-charging
+          await ctx.runMutation(internal.leadGen.statusUtils.markAuditJobMetered, {
+            auditJobId: args.auditJobId,
+          });
+          
+          console.log(`[Audit Action] Successfully metered audit ${args.auditJobId}`);
+        } catch (meteringError) {
+          console.error(`[Audit Action] Failed to meter audit ${args.auditJobId}:`, meteringError);
+          // Don't throw - let the workflow fallback handle metering
+          // The audit job will remain unmetered and the workflow will catch it
+        }
+      } else {
+        console.log(`[Audit Action] Skipping billing for audit ${args.auditJobId} (already metered)`);
+      }
 
       // Mark audit job as completed
       await ctx.runMutation(internal.leadGen.audit.updateAuditJobStatus, {

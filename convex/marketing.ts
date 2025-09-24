@@ -59,6 +59,13 @@ export const startLeadGenWorkflow = action({
       throw new Error("Authentication required");
     }
 
+    // Get user identity for Autumn billing
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("User identity required for billing");
+    }
+    const customerId = identity.subject as string;
+
     // Clamp numLeads to [1, 20]
     const numLeads = Math.max(1, Math.min(args.numLeads, 20));
 
@@ -99,6 +106,7 @@ export const startLeadGenWorkflow = action({
         leadGenFlowId,
         agencyProfileId: agencyProfile._id,
         userId: user._id,
+        customerId,
         numLeads,
         campaign: {
           targetVertical,
@@ -141,6 +149,12 @@ export const handleLeadGenWorkflowComplete = internalMutation({
       console.error(
         `No lead_gen_flow found for workflow ${workflowId} or leadGenFlowId ${context.leadGenFlowId}`,
       );
+      return null;
+    }
+
+    // If the flow is paused for upgrade, don't overwrite the paused state
+    if (flow.status === "paused_for_upgrade") {
+      console.log(`[Marketing] Skipping onComplete handler - flow ${context.leadGenFlowId} is paused for upgrade`);
       return null;
     }
 
@@ -246,9 +260,26 @@ export const getLeadGenJob = query({
       billingBlock: v.optional(v.object({
         phase: v.string(),
         featureId: v.string(),
-        preview: v.any(),
+        preview: v.optional(v.any()),
         auditJobId: v.optional(v.id("audit_jobs")),
         createdAt: v.number(),
+        creditInfo: v.optional(v.object({
+          allowed: v.boolean(),
+          atlasFeatureId: v.string(),
+          requiredBalance: v.number(),
+          balance: v.number(),
+          deficit: v.number(),
+          usage: v.number(),
+          includedUsage: v.number(),
+          interval: v.union(v.string(), v.null()),
+          intervalCount: v.number(),
+          unlimited: v.boolean(),
+          overageAllowed: v.boolean(),
+          creditSchema: v.array(v.object({
+            feature_id: v.string(),
+            credit_amount: v.number(),
+          })),
+        })),
       })),
     }),
     v.null()
@@ -484,6 +515,7 @@ export const listAuditJobsByFlow = query({
       ),
     })),
     dossierId: v.optional(v.id("audit_dossier")),
+    metered: v.optional(v.boolean()),
   })),
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -516,6 +548,7 @@ export const listAuditJobsByFlow = query({
       status: job.status,
       phases: job.phases,
       dossierId: job.dossierId,
+      metered: job.metered,
     }));
   },
 });
@@ -736,6 +769,13 @@ export const resumeLeadGenWorkflow = action({
       throw new Error("Authentication required");
     }
 
+    // Get user identity for Autumn billing
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("User identity required for billing");
+    }
+    const customerId = identity.subject as string;
+
     // Verify ownership of the lead gen flow via query
     const leadGenFlow = await ctx.runQuery(internal.leadGen.statusUtils.getFlowForRelaunch, {
       leadGenFlowId: args.leadGenFlowId,
@@ -751,6 +791,7 @@ export const resumeLeadGenWorkflow = action({
 
     return await ctx.runAction(internal.leadGen.statusUtils.resumeLeadGenWorkflow, {
       leadGenFlowId: args.leadGenFlowId,
+      customerId,
     });
   },
 });

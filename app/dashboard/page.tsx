@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, Unauthenticated, useQuery, useAction, useMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -44,7 +44,7 @@ function DashboardContent() {
   const router = useRouter();
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
   const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
-  const resumeWorkflow = useMutation(api.marketing.resumeLeadGenWorkflow);
+  const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
   const { refetch: refetchCustomer } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
   
@@ -129,7 +129,13 @@ function DashboardContent() {
   }, [expandedOpportunityId]);
 
   useEffect(() => {
-    if (user && (!sellerBrain || (onboardingStatus !== "completed" && onboardingStatus !== null))) {
+    // Wait for all data to load before making redirect decisions
+    if (!user || sellerBrain === undefined || onboardingStatus === undefined) {
+      return; // Still loading
+    }
+    
+    // If no sellerBrain or onboarding not completed, redirect to onboarding
+    if (!sellerBrain || onboardingStatus !== "completed") {
       router.replace("/dashboard/onboarding");
     }
   }, [user, sellerBrain, router, onboardingStatus]);
@@ -141,28 +147,6 @@ function DashboardContent() {
     }
   }, [billingBlock, paywallOpen]);
 
-  // Handle successful upgrade and workflow resume
-  const handleUpgradeSuccess = async () => {
-    if (!currentJobId) return;
-    
-    try {
-      // Refetch customer data to get updated credits
-      await refetchCustomer();
-      
-      // Resume the workflow
-      const result = await resumeWorkflow({ leadGenFlowId: currentJobId });
-      
-      if (result.success) {
-        console.log("Workflow resumed successfully:", result.message);
-      } else {
-        console.error("Failed to resume workflow:", result.message);
-        alert(`Failed to resume workflow: ${result.message}`);
-      }
-    } catch (error) {
-      console.error("Error resuming workflow:", error);
-      alert("Failed to resume workflow. Please try again.");
-    }
-  };
   return (
     <div className="max-w-2xl mx-auto w-full">
       <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
@@ -363,8 +347,21 @@ function DashboardContent() {
         <PaywallDialog
           open={paywallOpen}
           onOpenChange={setPaywallOpen}
-          preview={billingBlock?.preview}
-          onSuccess={handleUpgradeSuccess}
+          billingBlock={billingBlock}
+          onResume={async () => {
+            if (!currentJobId) return { ok: false, message: "No current job selected" };
+            
+            try {
+              const result = await resumeWorkflow({ leadGenFlowId: currentJobId });
+              return { ok: result.success, message: result.message };
+            } catch (error) {
+              console.error("Resume workflow error:", error);
+              return { ok: false, message: "Failed to resume workflow" };
+            }
+          }}
+          onRefetchCustomer={async () => {
+            await refetchCustomer();
+          }}
         />
 
         {/* Current Job Status */}

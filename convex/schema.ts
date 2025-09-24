@@ -149,9 +149,26 @@ export default defineSchema({
         v.literal("lead_discovery"),
         v.literal("dossier_research"),
       ),
-      preview: v.any(), // Autumn preview object
+      preview: v.optional(v.any()), // Autumn preview object (optional for backward compatibility)
       auditJobId: v.optional(v.id("audit_jobs")),
       createdAt: v.number(),
+      creditInfo: v.optional(v.object({
+        allowed: v.boolean(),
+        atlasFeatureId: v.string(),
+        requiredBalance: v.number(),
+        balance: v.number(),
+        deficit: v.number(),
+        usage: v.number(),
+        includedUsage: v.number(),
+        interval: v.union(v.string(), v.null()),
+        intervalCount: v.number(),
+        unlimited: v.boolean(),
+        overageAllowed: v.boolean(),
+        creditSchema: v.array(v.object({
+          feature_id: v.string(),
+          credit_amount: v.number(),
+        })),
+      })),
     })),
     phases: v.array(v.object({
       name: v.union(
@@ -214,6 +231,8 @@ export default defineSchema({
     dossierId: v.optional(v.id("audit_dossier")), // The final output
     // Thread/user context for AI calls (upgrade plan requirement)
     analysisThread: v.optional(v.string()), // Dedicated thread per audit job
+    // Idempotent billing flag (upgrade plan requirement)
+    metered: v.optional(v.boolean()), // Track if dossier research has been billed
   })
   .index("by_opportunity", ["opportunityId"])
   .index("by_agency", ["agencyId"])

@@ -33,7 +33,7 @@ test it
 ------
 
 
-set up lead gen firecrawl / google api
+//set up lead gen firecrawl / google api
 //figure out pagination for 20+ and field mask
 //clean up onboarding docs and use for reference for leadGen workflow
 //add more signals and lead qual criteria to constants
@@ -52,15 +52,16 @@ set up lead gen firecrawl / google api
 
 //integrate atlas credits
 
-test credit integration and resume flow
-styling broken?
-
-
-
+//test credit integration
+test resume flow - //uncaught err, //blank preview, workflow status still went to complete
+//need to manually add fields needed to preview, and render upgrade button. or just render pricing table?
+//styling broken?
 
 vapi integration to call with dossier
 resend emails
 
 increase max 10 pages on agency crawl filter?
+
+test full flows
 
 ui

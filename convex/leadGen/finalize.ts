@@ -21,6 +21,16 @@ export const finalizeLeadGenWorkflow = internalAction({
 
     console.log(`[Lead Gen Finalize] Finalizing workflow for flow ${leadGenFlowId}`);
 
+    // Defensive guard: Check if flow is paused for upgrade
+    const flow = await ctx.runQuery(internal.leadGen.statusUtils.getFlowForRelaunch, {
+      leadGenFlowId,
+    });
+    
+    if (flow?.status === "paused_for_upgrade") {
+      console.log(`[Lead Gen Finalize] Skipping finalize - flow is paused for upgrade`);
+      return null;
+    }
+
     try {
       // Update finalize_rank phase to running
       await ctx.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {

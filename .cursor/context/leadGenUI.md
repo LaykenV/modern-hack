@@ -18,6 +18,7 @@
   - `paywallOpen: boolean` controls paywall dialog visibility
   - Auto-opens when `leadGenJob.billingBlock` exists
   - Managed via effects and user interactions
+  - No longer needs separate upgrade success handling (handled within dialog)
 
 ## Actions
 - `api.marketing.startLeadGenWorkflow`
@@ -31,7 +32,7 @@
 ## Queries (all `useQuery` with skip guards)
 - `api.marketing.getLeadGenJob({ jobId })`
   - Provides parent flow metadata, phases, last event, places snapshot.
-  - **Includes `billingBlock`** for paywall integration (phase, featureId, preview data)
+  - **Includes `billingBlock`** for paywall integration (phase, featureId, optional preview data, detailed creditInfo)
 - `api.marketing.getLeadGenProgress({ jobId })`
   - Drives overall progress bar in status card.
 - `api.marketing.getLeadGenFlowCounts({ leadGenFlowId })`
@@ -59,8 +60,10 @@
 1. **Start form** — Number of leads and optional campaign overrides; runs action.
 2. **Paywall Dialog** — `PaywallDialog` component rendered conditionally:
    - Opens automatically when `billingBlock` exists
-   - Shows Autumn preview data (title, message, upgrade product)
-   - Handles Stripe checkout and workflow resume on success
+   - Shows generic upgrade messaging with credit deficit information
+   - Embeds Autumn's `<PricingTable />` directly inside the dialog
+   - Auto-detects upgrade completion and resumes workflow with countdown
+   - Provides manual "I've Upgraded — Resume Now" fallback button
 3. **Current job card** — Shows status, phases timeline (with display overrides: `scrape_content` → "Preparing Scrapes", `generate_dossier` → "Scrape Content & Generate Dossier"), overall progress bar, places snapshot.
    - **Paused status banner** — Orange warning when `status === "paused_for_upgrade"` with "Upgrade Now" button
    - **Phase indicators** — Orange dots for paused phases, visual status for each phase
@@ -84,9 +87,10 @@
   - **Auto-open paywall** when `billingBlock` exists and paywall not already open
 - Loading states: text placeholders (`Loading dossier...`, `Loading sources...`) for lazy queries.
 - Error handling: `startLeadGenWorkflow` action catch block shows alert on failure.
-- **Paywall integration**:
-  - `useCustomer().refetch()` refreshes credits after upgrade
-  - `handleUpgradeSuccess` orchestrates resume workflow after checkout
+- **Enhanced paywall integration**:
+  - Auto-upgrade detection via window focus/visibility events
+  - Automatic workflow resume with success countdown
+  - Credit balance and deficit display with cost reminders
   - Visual feedback for paused workflows with upgrade prompts
 
 ## Extensibility notes
@@ -96,11 +100,15 @@
 - **PaywallDialog** component designed for reuse across different workflows
 - Billing integration patterns can be extended to other metered features
 
-## Paywall Component Integration
-- **Modified `PaywallDialog`** (`components/autumn/paywall-dialog.tsx`):
-  - Props: `{ open, onOpenChange, preview, onSuccess }`
-  - Uses `useCustomer().checkout()` for Stripe integration  
-  - Calls `onSuccess()` after successful checkout
-  - Backend-driven: receives preview data from Convex instead of calling `usePaywall`
-- **Helper content** (`lib/autumn/paywall-content.tsx`): Unchanged, formats preview into user-friendly messages
-- **Integration pattern**: Backend stores paywall data → UI displays → User upgrades → UI resumes workflow
+## Paywall Component Integration (Upgrade Plan Implementation)
+- **Redesigned `PaywallDialog`** (`components/autumn/paywall-dialog.tsx`):
+  - **New Props**: `{ open, onOpenChange, billingBlock, onResume, onRefetchCustomer }`
+  - **Embedded PricingTable**: Direct `<PricingTable />` integration inside dialog
+  - **Auto-upgrade detection**: Window focus/visibility listeners detect return from Stripe checkout
+  - **Auto-resume logic**: Automatically calls `onRefetchCustomer()` then `onResume()` on upgrade detection
+  - **Success state**: Shows "Thank you for upgrading!" with 5-second countdown and auto-close
+  - **Manual fallback**: "I've Upgraded — Resume Now" button for failed auto-detection
+  - **Generic messaging**: Derives content from `billingBlock.creditInfo` (balance, deficit, feature costs)
+  - **Preview-agnostic**: Works without Autumn `preview` data, backward compatible
+- **Deprecated**: `lib/autumn/paywall-content.tsx` no longer used (kept for potential other use cases)
+- **Enhanced integration pattern**: Backend stores `billingBlock` with `creditInfo` → UI displays embedded PricingTable → Auto-detects upgrade → Auto-resumes workflow

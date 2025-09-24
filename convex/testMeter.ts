@@ -15,6 +15,7 @@ export const testLeadDiscoveryMeter = action({
     const { data: checkData, error: checkError } = await autumn.check(ctx, {
       featureId: "lead_discovery",
     });
+    console.log('checkData', checkData);
 
     if (checkError) {
       console.error("Autumn check error:", checkError);

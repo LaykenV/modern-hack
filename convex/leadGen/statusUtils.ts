@@ -2,7 +2,7 @@ import { internalMutation, internalAction, internalQuery } from "../_generated/s
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { workflow } from "../workflows";
-import { BillingError } from "./billing";
+import { isBillingPauseError } from "./billing";
 
 /**
  * Update phase status with progress tracking
@@ -147,6 +147,12 @@ export const completeFlow = internalMutation({
       throw new Error("Lead generation flow not found");
     }
 
+    // Guard against completing a paused flow
+    if (flow.status === "paused_for_upgrade") {
+      console.log(`[StatusUtils] Skipping completeFlow - flow ${args.leadGenFlowId} is paused for upgrade`);
+      return null;
+    }
+
     const now = Date.now();
     const updatedPhases = flow.phases.map((phase) => ({
       ...phase,
@@ -179,8 +185,25 @@ export const pauseForBilling = internalMutation({
     leadGenFlowId: v.id("lead_gen_flow"),
     phase: v.union(v.literal("source"), v.literal("generate_dossier")),
     featureId: v.union(v.literal("lead_discovery"), v.literal("dossier_research")),
-    preview: v.any(),
+    preview: v.optional(v.any()),
     auditJobId: v.optional(v.id("audit_jobs")),
+    creditInfo: v.optional(v.object({
+      allowed: v.boolean(),
+      atlasFeatureId: v.string(),
+      requiredBalance: v.number(),
+      balance: v.number(),
+      deficit: v.number(),
+      usage: v.number(),
+      includedUsage: v.number(),
+      interval: v.union(v.string(), v.null()),
+      intervalCount: v.number(),
+      unlimited: v.boolean(),
+      overageAllowed: v.boolean(),
+      creditSchema: v.array(v.object({
+        feature_id: v.string(),
+        credit_amount: v.number(),
+      })),
+    })),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -196,6 +219,7 @@ export const pauseForBilling = internalMutation({
       preview: args.preview,
       auditJobId: args.auditJobId,
       createdAt: now,
+      creditInfo: args.creditInfo,
     };
 
     await ctx.db.patch(args.leadGenFlowId, {
@@ -220,6 +244,7 @@ export const pauseForBilling = internalMutation({
 export const resumeLeadGenWorkflow = internalAction({
   args: {
     leadGenFlowId: v.id("lead_gen_flow"),
+    customerId: v.string(),
   },
   returns: v.object({
     success: v.boolean(),
@@ -257,7 +282,7 @@ export const resumeLeadGenWorkflow = internalAction({
     const billingBlock = fullFlow.billingBlock;
     
     // Re-check billing before clearing the pause so we don't relaunch without credits
-    const requiredValue = billingBlock.featureId === "lead_discovery" ? 1 : 2;
+    const requiredValue = 1; // Normalized to 1 unit for all operations
     try {
       await ctx.runAction(internal.leadGen.billing.checkAndPause, {
         leadGenFlowId: args.leadGenFlowId,
@@ -265,9 +290,10 @@ export const resumeLeadGenWorkflow = internalAction({
         requiredValue,
         phase: billingBlock.phase,
         auditJobId: billingBlock.auditJobId,
+        customerId: args.customerId,
       });
     } catch (error) {
-      if (error instanceof BillingError) {
+      if (isBillingPauseError(error)) {
         return {
           success: false,
           message: "Workflow still paused: insufficient credits to resume",
@@ -287,6 +313,7 @@ export const resumeLeadGenWorkflow = internalAction({
     try {
       await ctx.runAction(internal.leadGen.statusUtils.relaunchWorkflow, {
         leadGenFlowId: args.leadGenFlowId,
+        customerId: args.customerId,
       });
       
       console.log(`[StatusUtils] Successfully resumed and relaunched workflow ${args.leadGenFlowId} after upgrade`);
@@ -383,6 +410,7 @@ export const initializePhases = () => {
 export const relaunchWorkflow = internalAction({
   args: {
     leadGenFlowId: v.id("lead_gen_flow"),
+    customerId: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -408,6 +436,7 @@ export const relaunchWorkflow = internalAction({
         leadGenFlowId: flow._id,
         agencyProfileId: flow.agencyId,
         userId: flow.userId,
+        customerId: args.customerId,
         numLeads: flow.numLeadsRequested,
         campaign: flow.campaign,
       },
@@ -462,9 +491,26 @@ export const getFullFlowForResume = internalQuery({
       billingBlock: v.optional(v.object({
         phase: v.union(v.literal("source"), v.literal("generate_dossier")),
         featureId: v.union(v.literal("lead_discovery"), v.literal("dossier_research")),
-        preview: v.any(),
+        preview: v.optional(v.any()),
         auditJobId: v.optional(v.id("audit_jobs")),
         createdAt: v.number(),
+        creditInfo: v.optional(v.object({
+          allowed: v.boolean(),
+          atlasFeatureId: v.string(),
+          requiredBalance: v.number(),
+          balance: v.number(),
+          deficit: v.number(),
+          usage: v.number(),
+          includedUsage: v.number(),
+          interval: v.union(v.string(), v.null()),
+          intervalCount: v.number(),
+          unlimited: v.boolean(),
+          overageAllowed: v.boolean(),
+          creditSchema: v.array(v.object({
+            feature_id: v.string(),
+            credit_amount: v.number(),
+          })),
+        })),
       })),
     }),
     v.null(),
@@ -493,9 +539,26 @@ export const resetPhasesAndClearBilling = internalMutation({
     billingBlock: v.object({
       phase: v.union(v.literal("source"), v.literal("generate_dossier")),
       featureId: v.union(v.literal("lead_discovery"), v.literal("dossier_research")),
-      preview: v.any(),
+      preview: v.optional(v.any()),
       auditJobId: v.optional(v.id("audit_jobs")),
       createdAt: v.number(),
+      creditInfo: v.optional(v.object({
+        allowed: v.boolean(),
+        atlasFeatureId: v.string(),
+        requiredBalance: v.number(),
+        balance: v.number(),
+        deficit: v.number(),
+        usage: v.number(),
+        includedUsage: v.number(),
+        interval: v.union(v.string(), v.null()),
+        intervalCount: v.number(),
+        unlimited: v.boolean(),
+        overageAllowed: v.boolean(),
+        creditSchema: v.array(v.object({
+          feature_id: v.string(),
+          credit_amount: v.number(),
+        })),
+      })),
     }),
   },
   returns: v.null(),
@@ -565,9 +628,26 @@ export const revertToPausedStatus = internalMutation({
     billingBlock: v.object({
       phase: v.union(v.literal("source"), v.literal("generate_dossier")),
       featureId: v.union(v.literal("lead_discovery"), v.literal("dossier_research")),
-      preview: v.any(),
+      preview: v.optional(v.any()),
       auditJobId: v.optional(v.id("audit_jobs")),
       createdAt: v.number(),
+      creditInfo: v.optional(v.object({
+        allowed: v.boolean(),
+        atlasFeatureId: v.string(),
+        requiredBalance: v.number(),
+        balance: v.number(),
+        deficit: v.number(),
+        usage: v.number(),
+        includedUsage: v.number(),
+        interval: v.union(v.string(), v.null()),
+        intervalCount: v.number(),
+        unlimited: v.boolean(),
+        overageAllowed: v.boolean(),
+        creditSchema: v.array(v.object({
+          feature_id: v.string(),
+          credit_amount: v.number(),
+        })),
+      })),
     }),
     error: v.string(),
   },
@@ -645,5 +725,39 @@ export const updateWorkflowId = internalMutation({
       workflowStatus: "running",
     });
     return null;
+  },
+});
+
+/**
+ * Helper mutation to mark audit job as metered (idempotent billing)
+ */
+export const markAuditJobMetered = internalMutation({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.auditJobId, {
+      metered: true,
+    });
+    console.log(`[StatusUtils] Marked audit job ${args.auditJobId} as metered`);
+    return null;
+  },
+});
+
+/**
+ * Helper query to check if audit job is already metered
+ */
+export const isAuditJobMetered = internalQuery({
+  args: {
+    auditJobId: v.id("audit_jobs"),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const auditJob = await ctx.db.get(args.auditJobId);
+    if (!auditJob) {
+      throw new Error("Audit job not found");
+    }
+    return auditJob.metered === true;
   },
 });
