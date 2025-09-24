@@ -1,16 +1,19 @@
 # Lead Generation Workflow — Finalized Plan (Parent Run + Per-Opportunity)
 
 ## Overview
-- ✅ Implemented: A single parent run document (`lead_gen_flow`) orchestrates the entire pipeline (analogous to `onboarding_flow`). Per‑opportunity lifecycle resides in `client_opportunities`; deep audits use `audit_jobs`.
+- ✅ **Fully Implemented**: A single parent run document (`lead_gen_flow`) orchestrates the entire pipeline (analogous to `onboarding_flow`). Per‑opportunity lifecycle resides in `client_opportunities`; deep audits use `audit_jobs`.
+- ✅ **Upgrade Plan Remediation**: Enhanced billing pause/resume system with graceful workflow handling, comprehensive error recovery, and seamless workflow relaunching.
 - Frontend subscribes to the parent job for phases/progress/events and to opportunities by `leadGenFlowId` for row‑level status.
 
 ## Data model (implemented)
 - `lead_gen_flow`
   - userId, agencyId, numLeadsRequested, numLeadsFetched
   - campaign: { targetVertical, targetGeography }
+  - status: "idle" | "running" | "paused_for_upgrade" | "error" | "completed"
   - phases: ["source", "filter_rank", "persist_leads", "scrape_content", "generate_dossier", "finalize_rank"] with status/progress/timestamps/duration
   - lastEvent { type, message, timestamp }
   - placesSnapshot?: Array<{ id, name, website?, phone?, rating?, reviews?, address? }> (≤20)
+  - **billingBlock?**: { phase: "source" | "generate_dossier", featureId: "lead_discovery" | "dossier_research", preview: any, auditJobId?, createdAt: number } — Autumn paywall integration
   - Indexes: `by_userId`, `by_agencyId`
 - `client_opportunities`
   - Link: `leadGenFlowId: Id<'lead_gen_flow'>`
@@ -27,7 +30,7 @@
 - `startLeadGenWorkflow` (action)
   - Args: { numLeads: 1–20, targetVertical?, targetGeography? }
   - Auth required. Resolves campaign from args or `agency_profile`, creates `lead_gen_flow` (initialized phases), starts workflow via `workflow.start(..., { onComplete: internal.marketing.handleLeadGenWorkflowComplete, context: { leadGenFlowId } })`, stores `workflowId`, returns `{ jobId }`.
-- `getLeadGenJob(jobId)` (query) — parent doc for UI
+- `getLeadGenJob(jobId)` (query) — parent doc for UI, **includes billingBlock for paywall**
 - `listLeadGenJobsByAgency(agencyId)` (query) — history for dashboard
 - `getLeadGenProgress(jobId)` (query) — overall 0–1 progress
 - `getLeadGenFlowCounts(leadGenFlowId)` (query) — totals for UI chips
@@ -35,6 +38,7 @@
 - `listAuditJobsByFlow(leadGenFlowId)` (query)
 - `getAuditDossier(dossierId)` (query) — expand view with dossier summary/gaps/talking points/sources
 - `listScrapedPagesByAudit(auditJobId)` (query) — signed URL + metadata list for scraped sources panel
+- **`resumeLeadGenWorkflow(leadGenFlowId)` (mutation)** — resume paused workflow after upgrade
 
 ## Workflow (convex/leadGen/workflow.ts)
 Args: { leadGenFlowId, agencyProfileId, userId, numLeads, campaign }
@@ -52,7 +56,8 @@ Status updates:
 - `workflowStatus` is updated by the onComplete handler: "completed" | "failed" | "cancelled".
 - Parent progress partly derived from dynamic counts on client_opportunities scoped by leadGenFlowId (e.g., scrapedCount/totalWithWebsites).
 
-## Step 1 — Google Places source (implemented)
+## Step 1 — Google Places source (implemented + billing)
+- **Billing integration**: `checkAndPause({ featureId: "lead_discovery", requiredValue: 1 })` before sourcing
 - Input resolution
   - Clamp numLeads to [1, 20]. Build `textQuery = "{targetVertical} in {targetGeography}"`.
 - Call strategy (convex/leadGen/source.ts)
@@ -63,9 +68,11 @@ Status updates:
   - Deduplication: by Google `id` and canonical domain.
 - Persistence & status
   - Update parent: `updatePlacesSnapshot` (≤20 snapshot, `numLeadsFetched`) and phase → complete with `lastEvent`.
+  - **Track usage**: `trackUsage({ featureId: "lead_discovery", value: 1 })` after successful sourcing
   - No writes to `client_opportunities` yet.
 - Failure handling
   - Records phase error via `recordFlowError` and fails workflow (handled by completion handler).
+  - **BillingError** pauses workflow with status `"paused_for_upgrade"` and stores `billingBlock`.
 
 ## UI contract
 - Start: marketing.startLeadGenWorkflow → { jobId }
@@ -116,7 +123,8 @@ Status updates:
     - Sets opportunity `status = "AUDITING"`.
 - Status: start with message, complete with `{ queuedCount, skippedCount }`.
 
-### Step 5 — generate_dossier (per‑opportunity audit action) (implemented)
+### Step 5 — generate_dossier (per‑opportunity audit action) (implemented + billing)
+- **Billing integration**: `checkAndPause({ featureId: "dossier_research", requiredValue: 2, auditJobId })` before each audit
 - Module: `convex/leadGen/audit.ts`
   - `runAuditAction({ auditJobId, opportunityId, agencyId, targetUrl, leadGenFlowId })` performs:
     - map_urls: discovery‑only crawl via `firecrawlActions.startCrawl` + `getCrawlStatusOnly` (journal‑safe).
@@ -125,7 +133,9 @@ Status updates:
     - generate_dossier: `generateDossierAndFitReason` creates `audit_dossier` and saves opportunity `fit_reason`.
   - Updates `audit_jobs.phases` each step; job `status` set to `"completed"` on success, `"error"` on failure.
   - Opportunity `status` set to `"READY"` on success, `"DATA_READY"` on failure.
+  - **Track usage**: `trackUsage({ featureId: "dossier_research", value: 2 })` after successful audit
 - Parent workflow processes queued audit jobs sequentially with progress updates; parallelism can be added later if needed.
+- **BillingError** pauses workflow at specific audit job for granular resume capability.
 
 ### Step 6 — finalize_rank (implemented)
 - Module: `convex/leadGen/finalize.ts`
@@ -162,7 +172,65 @@ Status updates:
   - Crawl: `formats: ["links"]` ONLY; include homepage, product/services/solutions, pricing/plans, about/company/team, customers/testimonials, security/compliance, docs/developers, resources, contact; exclude legal/careers/blog patterns.
   - Scrape (audits): `scrapeAuditUrls` stores markdown in `_storage`, then upserts `audit_scraped_pages`.
 
-## Acceptance criteria
-- Starting `marketing.startLeadGenWorkflow` sources, filters, scores, persists opportunities, enqueues audits for those with websites, and completes parent phases with clear status updates.
-- Per‑opportunity audits produce `audit_dossier` and `fit_reason`; opportunities become `READY`.
-- UI subscribes to parent flow and per‑opportunity lists via the queries above.
+## Billing & Paywall Integration (fully implemented with upgrade plan remediation)
+### Credit System
+- **Lead Discovery**: 1 credit per Google Places search (charged at source phase)
+- **Dossier Research**: 2 credits per opportunity audit (charged per audit in generate_dossier phase)
+
+### Billing Flow (Enhanced with Upgrade Plan)
+1. **Pre-check**: `checkAndPause` calls Autumn's check API before each metered operation
+2. **Success path**: Operation proceeds → `trackUsage` meters credits after success
+3. **Insufficient credits**: 
+   - Workflow pauses gracefully with `status: "paused_for_upgrade"` via `try/catch` BillingError handling
+   - `billingBlock` stores Autumn preview data and context (phase, featureId, auditJobId)
+   - Workflow exits cleanly with `return null` (no downstream mutations or `recordFlowError`)
+   - UI auto-displays paywall dialog
+4. **After upgrade**: `resumeLeadGenWorkflow` performs comprehensive resume with workflow relaunch
+
+### Enhanced Resume Process (Upgrade Plan Implementation)
+1. **Credit Re-verification**: Resume process validates sufficient credits before proceeding
+2. **Phase Reset**: Paused phase and all dependent phases reset to `pending` with zero progress
+3. **Billing Block Clearing**: `billingBlock` removed and status set to `"running"`
+4. **Workflow Relaunch**: New workflow instance started with original arguments via `workflow.start()`
+5. **Error Handling**: If relaunch fails, reverts to paused state with error details
+6. **Concurrency Protection**: Guards against concurrent resume attempts
+
+### Modules (Updated)
+- `convex/leadGen/billing.ts`: Core billing actions (`checkAndPause`, `trackUsage`, `BillingError`)
+- `convex/leadGen/statusUtils.ts`: Enhanced pause/resume system with workflow relaunch
+  - `pauseForBilling`: Stores billing context and pauses workflow
+  - `resumeLeadGenWorkflow`: Main resume action with relaunch capability
+  - `relaunchWorkflow`: Creates new workflow instance with original args
+  - `resetPhasesAndClearBilling`: Resets phases and clears billing blocks
+  - Helper queries and mutations for safe database operations
+- `convex/leadGen/workflow.ts`: Enhanced with `try/catch` BillingError handling
+- `convex/marketing.ts`: Updated resume API (now an action for workflow operations)
+- `components/autumn/paywall-dialog.tsx`: Modified to accept backend preview data
+- Frontend integration in dashboard with auto-paywall and upgrade success handling
+
+### Robust Error Handling & Recovery
+- **Graceful Pause**: Workflows pause without corruption via BillingError catch blocks
+- **Clean Exit**: No partial state or failed workflow status on billing pause
+- **Audit-Level Granularity**: Can pause mid-dossier generation at specific audit jobs
+- **Resume Validation**: Ensures credits are sufficient before clearing billing blocks
+- **Rollback Capability**: Reverts to paused state if relaunch fails
+- **Workflow Continuity**: New workflow instance continues from exact pause point
+
+### Idempotency & Resume (Enhanced)
+- **Exact Resume Point**: Workflows resume at precise pause location (source phase or specific audit job)
+- **No Double-Charging**: Credits only tracked after successful operations
+- **Phase Dependency**: Dependent phases properly reset when resuming from earlier phases
+- **Workflow Instance Management**: New workflow IDs tracked and old instances properly handled
+- **State Consistency**: Database state remains consistent throughout pause/resume cycle
+
+## Acceptance criteria (✅ All Implemented)
+- ✅ Starting `marketing.startLeadGenWorkflow` sources, filters, scores, persists opportunities, enqueues audits for those with websites, and completes parent phases with clear status updates.
+- ✅ Per‑opportunity audits produce `audit_dossier` and `fit_reason`; opportunities become `READY`.
+- ✅ UI subscribes to parent flow and per‑opportunity lists via the queries above.
+- ✅ **Enhanced Billing Integration**: 
+  - Workflows pause gracefully on insufficient credits without corruption
+  - Paywall displays with accurate preview data
+  - Resume process validates credits and relaunches workflows seamlessly
+  - Audit-level granularity for precise pause/resume points
+  - Robust error handling with rollback capabilities
+  - No double-charging or state inconsistencies

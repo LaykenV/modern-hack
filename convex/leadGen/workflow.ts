@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { workflow } from "../workflows";
 import { internal } from "../_generated/api";
 import { RETRY_CONFIG } from "./constants";
+import { BillingError } from "./billing";
 
 /**
  * Lead Generation Workflow Definition
@@ -21,6 +22,25 @@ export const leadGenWorkflow = workflow.define({
   handler: async (step, args): Promise<null> => {
     // Phase 1: Source leads from Google Places
     try {
+      // Check billing before starting source phase
+      try {
+        await step.runAction(internal.leadGen.billing.checkAndPause, {
+          leadGenFlowId: args.leadGenFlowId,
+          featureId: "lead_discovery",
+          requiredValue: 1,
+          phase: "source",
+        });
+      } catch (error) {
+        if (error instanceof BillingError) {
+          // BillingError means workflow is paused for upgrade
+          // pauseForBilling has already been called, just exit cleanly
+          console.log(`[Lead Gen Workflow] Workflow paused for billing in source phase: ${error.message}`);
+          return null;
+        }
+        // Re-throw other errors
+        throw error;
+      }
+
       // Update phase to running
       await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
         leadGenFlowId: args.leadGenFlowId,
@@ -70,6 +90,12 @@ export const leadGenWorkflow = workflow.define({
         leadGenFlowId: args.leadGenFlowId,
         places: sourcingResult.places,
         numFetched: sourcingResult.numFetched,
+      });
+
+      // Track usage after successful sourcing
+      await step.runAction(internal.leadGen.billing.trackUsage, {
+        featureId: "lead_discovery",
+        value: 1,
       });
 
       // Mark source phase as complete
@@ -208,6 +234,26 @@ export const leadGenWorkflow = workflow.define({
           eventMessage: `Processing audit ${i + 1}/${auditJobs.length}`,
         });
 
+        // Check billing before each audit (costs 2 credits per dossier)
+        try {
+          await step.runAction(internal.leadGen.billing.checkAndPause, {
+            leadGenFlowId: args.leadGenFlowId,
+            featureId: "dossier_research",
+            requiredValue: 2,
+            phase: "generate_dossier",
+            auditJobId: auditJob._id,
+          });
+        } catch (error) {
+          if (error instanceof BillingError) {
+            // BillingError means workflow is paused for upgrade at this specific audit
+            // pauseForBilling has already been called with auditJobId context, just exit cleanly
+            console.log(`[Lead Gen Workflow] Workflow paused for billing in generate_dossier phase at audit ${auditJob._id}: ${error.message}`);
+            return null;
+          }
+          // Re-throw other errors
+          throw error;
+        }
+
         // Run audit action sequentially
         await step.runAction(
           internal.leadGen.audit.runAuditAction,
@@ -220,6 +266,12 @@ export const leadGenWorkflow = workflow.define({
           },
           { retry: RETRY_CONFIG.AI_OPERATIONS }
         );
+
+        // Track usage after successful audit
+        await step.runAction(internal.leadGen.billing.trackUsage, {
+          featureId: "dossier_research",
+          value: 2,
+        });
 
         console.log(`[Lead Gen Workflow] Completed audit ${i + 1}/${auditJobs.length}`);
       }

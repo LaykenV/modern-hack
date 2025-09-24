@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useAction, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -9,6 +9,8 @@ import Image from "next/image";
 import { CreditMeter } from "@/components/CreditMeter";
 import Link from "next/link";
 import { Id } from "@/convex/_generated/dataModel";
+import PaywallDialog from "@/components/autumn/paywall-dialog";
+import { useCustomer } from "autumn-js/react";
 
 export default function DashboardPage() {
   return (
@@ -42,6 +44,8 @@ function DashboardContent() {
   const router = useRouter();
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
   const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
+  const resumeWorkflow = useMutation(api.marketing.resumeLeadGenWorkflow);
+  const { refetch: refetchCustomer } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
   
   // State for lead generation
@@ -84,6 +88,12 @@ function DashboardContent() {
 
   const [expandedOpportunityId, setExpandedOpportunityId] = useState<Id<"client_opportunities"> | null>(null);
   const [viewSourcesForAuditId, setViewSourcesForAuditId] = useState<Id<"audit_jobs"> | null>(null);
+  
+  // Paywall state
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  
+  // Get billing block from current job
+  const billingBlock = leadGenJob?.billingBlock;
 
   const selectedAuditJob = auditJobs && expandedOpportunityId
     ? auditJobs.find((job) => job.opportunityId === expandedOpportunityId)
@@ -123,6 +133,36 @@ function DashboardContent() {
       router.replace("/dashboard/onboarding");
     }
   }, [user, sellerBrain, router, onboardingStatus]);
+
+  // Auto-open paywall when billing block exists
+  useEffect(() => {
+    if (billingBlock && !paywallOpen) {
+      setPaywallOpen(true);
+    }
+  }, [billingBlock, paywallOpen]);
+
+  // Handle successful upgrade and workflow resume
+  const handleUpgradeSuccess = async () => {
+    if (!currentJobId) return;
+    
+    try {
+      // Refetch customer data to get updated credits
+      await refetchCustomer();
+      
+      // Resume the workflow
+      const result = await resumeWorkflow({ leadGenFlowId: currentJobId });
+      
+      if (result.success) {
+        console.log("Workflow resumed successfully:", result.message);
+      } else {
+        console.error("Failed to resume workflow:", result.message);
+        alert(`Failed to resume workflow: ${result.message}`);
+      }
+    } catch (error) {
+      console.error("Error resuming workflow:", error);
+      alert("Failed to resume workflow. Please try again.");
+    }
+  };
   return (
     <div className="max-w-2xl mx-auto w-full">
       <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
@@ -319,10 +359,44 @@ function DashboardContent() {
           </button>
         </div>
 
+        {/* Paywall Dialog */}
+        <PaywallDialog
+          open={paywallOpen}
+          onOpenChange={setPaywallOpen}
+          preview={billingBlock?.preview}
+          onSuccess={handleUpgradeSuccess}
+        />
+
         {/* Current Job Status */}
         {leadGenJob && (
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded">
+          <div className={`mb-6 p-4 rounded ${
+            leadGenJob.status === "paused_for_upgrade" 
+              ? "bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800" 
+              : "bg-blue-50 dark:bg-blue-900/20"
+          }`}>
             <h3 className="text-lg font-medium mb-3">Current Job Status</h3>
+            
+            {/* Paused Status Banner */}
+            {leadGenJob.status === "paused_for_upgrade" && billingBlock && (
+              <div className="mb-4 p-3 bg-orange-100 dark:bg-orange-900/30 rounded border border-orange-300 dark:border-orange-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-orange-800 dark:text-orange-200">
+                      ⏸️ Workflow Paused - Upgrade Required
+                    </p>
+                    <p className="text-sm text-orange-700 dark:text-orange-300">
+                      Insufficient credits for {billingBlock.featureId.replace("_", " ")} in {billingBlock.phase} phase
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setPaywallOpen(true)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Upgrade Now
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p><strong>Job ID:</strong> {leadGenJob._id}</p>
@@ -355,11 +429,15 @@ function DashboardContent() {
                       phase.status === "complete" ? "bg-green-500" :
                       phase.status === "running" ? "bg-blue-500" :
                       phase.status === "error" ? "bg-red-500" :
+                      leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase ? "bg-orange-500" :
                       "bg-gray-300"
                     }`} />
                     <span className="capitalize">{PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}</span>
                     <span className="text-sm text-slate-500">({Math.round(phase.progress * 100)}%)</span>
                     {phase.status === "running" && <span className="text-blue-600">Running...</span>}
+                    {leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase && (
+                      <span className="text-orange-600">Paused for upgrade</span>
+                    )}
                     {phase.status === "error" && phase.errorMessage && (
                       <span className="text-red-600 text-sm">Error: {phase.errorMessage}</span>
                     )}

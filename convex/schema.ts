@@ -128,6 +128,7 @@ export default defineSchema({
     status: v.union(
       v.literal("idle"),
       v.literal("running"), 
+      v.literal("paused_for_upgrade"),
       v.literal("error"),
       v.literal("completed"),
     ),
@@ -138,6 +139,20 @@ export default defineSchema({
       v.literal("cancelled")
     )),
     workflowId: v.optional(v.string()),
+    // Billing block for paywall integration
+    billingBlock: v.optional(v.object({
+      phase: v.union(
+        v.literal("source"),
+        v.literal("generate_dossier"),
+      ),
+      featureId: v.union(
+        v.literal("lead_discovery"),
+        v.literal("dossier_research"),
+      ),
+      preview: v.any(), // Autumn preview object
+      auditJobId: v.optional(v.id("audit_jobs")),
+      createdAt: v.number(),
+    })),
     phases: v.array(v.object({
       name: v.union(
         v.literal("source"),

@@ -46,12 +46,14 @@ set up lead gen firecrawl / google api
 
 //research + dossier firecrawl + talking points
 
-test
 //city not recorded in co
-scrape_content phase not tracked correctly
+//scrape_content phase not tracked correctly
 //need to test w actual agency w all leadqual
 
-integrate atlas credits
+//integrate atlas credits
+
+test credit integration and resume flow
+styling broken?
 
 
 

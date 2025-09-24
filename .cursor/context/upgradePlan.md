@@ -1,22 +1,15 @@
-# Lead Gen Workflow Upgrade Plan
+## Billing Pause & Resume Remediation Plan
 
-## Goals
-- Adjust displayed phase names in the frontend for clarity without touching backend schema.
-- Rebalance overall progress so dossier work accounts for ~80% of the bar.
+- **Handle billing pauses without failing the workflow**
+  - Wrap `checkAndPause` invocations in each phase with a `try/catch` for `BillingError`.
+  - When caught, skip downstream mutations (no `recordFlowError` or phase completion) and return `null` so the durable step exits cleanly.
+  - Rely on `pauseForBilling` to set `status: "paused_for_upgrade"` and persist the `billingBlock` before throwing.
 
-## Frontend Updates
-- Update phase label mapping in dashboard components (`app/dashboard/page.tsx`) to show:
-  - `scrape_content` → “Preparing Scrapes”
-  - `generate_dossier` → “Scrape Content & Generate Dossier”
-- Ensure any tooltips or docs (`leadGenUI.md`) mirror the new display names.
+- **Resume should rerun the workflow**
+  - Extend `resumeLeadGenWorkflow` to re-run `checkAndPause` (or equivalent guard) before clearing the block; if credits are still insufficient, return a helpful message.
+  - Reset the paused phase (and any dependent phases) to pending with zero progress, clear `billingBlock`, and set status back to `"running"`.
+  - Relaunch the durable workflow via `workflow.start` using stored args, write the new `workflowId`, and guard against concurrent resumes.
 
-## Backend Updates
-- Revise `marketing.getLeadGenProgress` to use weighted progress (e.g. 80% weight for `generate_dossier`, remaining 20% distributed across other phases).
-- Adjust workflow progress reporting, if needed, so weighted totals behave correctly when no audits exist.
-
-## Testing & Validation
-- Add/refresh lightweight tests for `getLeadGenProgress` covering weighted math and edge cases.
-- Manual smoke test: run a flow, confirm UI shows renamed phases and overall progress curve looks right.
-
-## Rollout Notes
-- No schema changes or data backfills required; all updates safe to deploy quickly.
+- **Propagate required credit quantities**
+  - Pass `requiredValue` through to `autumn.check` so previews reflect the actual deficit, and ensure `trackUsage` uses matching values.
+  - Audit workflow call sites to supply the correct credit counts (1 for sourcing, 2 per dossier) and confirm previews deserialize correctly in the UI.

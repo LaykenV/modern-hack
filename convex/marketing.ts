@@ -198,6 +198,7 @@ export const getLeadGenJob = query({
       status: v.union(
         v.literal("idle"),
         v.literal("running"),
+        v.literal("paused_for_upgrade"),
         v.literal("error"),
         v.literal("completed"),
       ),
@@ -242,6 +243,13 @@ export const getLeadGenJob = query({
         reviews: v.optional(v.number()),
         address: v.optional(v.string()),
       }))),
+      billingBlock: v.optional(v.object({
+        phase: v.string(),
+        featureId: v.string(),
+        preview: v.any(),
+        auditJobId: v.optional(v.id("audit_jobs")),
+        createdAt: v.number(),
+      })),
     }),
     v.null()
   ),
@@ -274,6 +282,7 @@ export const getLeadGenJob = query({
       phases: leadGenFlow.phases,
       lastEvent: leadGenFlow.lastEvent,
       placesSnapshot: leadGenFlow.placesSnapshot,
+      billingBlock: leadGenFlow.billingBlock,
     };
   },
 });
@@ -297,6 +306,7 @@ export const listLeadGenJobsByAgency = query({
     status: v.union(
       v.literal("idle"),
       v.literal("running"),
+      v.literal("paused_for_upgrade"),
       v.literal("error"),
       v.literal("completed"),
     ),
@@ -705,5 +715,42 @@ export const listScrapedPagesByAudit = query({
     );
 
     return result;
+  },
+});
+
+/**
+ * Resume lead generation workflow after successful upgrade
+ */
+export const resumeLeadGenWorkflow = action({
+  args: {
+    leadGenFlowId: v.id("lead_gen_flow"),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args): Promise<{ success: boolean; message: string }> => {
+    // Get authenticated user
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    // Verify ownership of the lead gen flow via query
+    const leadGenFlow = await ctx.runQuery(internal.leadGen.statusUtils.getFlowForRelaunch, {
+      leadGenFlowId: args.leadGenFlowId,
+    });
+    
+    if (!leadGenFlow) {
+      throw new Error("Lead generation flow not found");
+    }
+
+    if (leadGenFlow.userId !== user._id) {
+      throw new Error("Unauthorized access to lead generation flow");
+    }
+
+    return await ctx.runAction(internal.leadGen.statusUtils.resumeLeadGenWorkflow, {
+      leadGenFlowId: args.leadGenFlowId,
+    });
   },
 });

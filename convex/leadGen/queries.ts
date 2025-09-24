@@ -29,6 +29,7 @@ export const getLeadGenFlowInternal = internalQuery({
         v.literal("idle"),
         v.literal("running"),
         v.literal("error"),
+        v.literal("paused_for_upgrade"),
         v.literal("completed"),
       ),
       workflowStatus: v.optional(v.union(
@@ -63,6 +64,13 @@ export const getLeadGenFlowInternal = internalQuery({
         type: v.string(),
         message: v.string(),
         timestamp: v.number(),
+      })),
+      billingBlock: v.optional(v.object({
+        phase: v.string(),
+        featureId: v.string(),
+        preview: v.any(),
+        auditJobId: v.optional(v.id("audit_jobs")),
+        createdAt: v.number(),
       })),
       placesSnapshot: v.optional(v.array(v.object({
         id: v.string(),

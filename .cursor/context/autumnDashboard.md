@@ -12,7 +12,6 @@
   - **lead_discovery**: 1.0 per unit
   - **dossier_research**: 2.0 per unit
   - **ai_call_minutes**: 1.0 per minute
-  - **dossier_qa**: 0.2 per unit
 
 ### Plans
 
@@ -30,6 +29,5 @@
   - `featureId: "lead_discovery"`, value: `1`
   - `featureId: "dossier_research"`, value: `2`
   - `featureId: "ai_call_minutes"`, value: `1 per minute`
-  - `featureId: "dossier_qa"`, value: `0.2`
 
 

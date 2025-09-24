@@ -16,6 +16,7 @@ import type * as firecrawlActions from "../firecrawlActions.js";
 import type * as http from "../http.js";
 import type * as leadGen_audit from "../leadGen/audit.js";
 import type * as leadGen_auditInit from "../leadGen/auditInit.js";
+import type * as leadGen_billing from "../leadGen/billing.js";
 import type * as leadGen_constants from "../leadGen/constants.js";
 import type * as leadGen_filter from "../leadGen/filter.js";
 import type * as leadGen_finalize from "../leadGen/finalize.js";
@@ -42,6 +43,7 @@ import type * as onboarding_statusUtils from "../onboarding/statusUtils.js";
 import type * as onboarding_summary from "../onboarding/summary.js";
 import type * as onboarding_workflow from "../onboarding/workflow.js";
 import type * as sellerBrain from "../sellerBrain.js";
+import type * as testBilling from "../testBilling.js";
 import type * as testMeter from "../testMeter.js";
 import type * as workflows from "../workflows.js";
 
@@ -68,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "leadGen/audit": typeof leadGen_audit;
   "leadGen/auditInit": typeof leadGen_auditInit;
+  "leadGen/billing": typeof leadGen_billing;
   "leadGen/constants": typeof leadGen_constants;
   "leadGen/filter": typeof leadGen_filter;
   "leadGen/finalize": typeof leadGen_finalize;
@@ -94,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "onboarding/summary": typeof onboarding_summary;
   "onboarding/workflow": typeof onboarding_workflow;
   sellerBrain: typeof sellerBrain;
+  testBilling: typeof testBilling;
   testMeter: typeof testMeter;
   workflows: typeof workflows;
 }>;
