@@ -256,12 +256,49 @@ export default defineSchema({
   calls: defineTable({
     opportunityId: v.id("client_opportunities"),
     agencyId: v.id("agency_profile"),
-    transcript: v.optional(v.array(v.any())), // Flexible transcript format
+    // Vapi call identifier and dialing metadata
+    vapiCallId: v.optional(v.string()),
+    assistantId: v.optional(v.string()),
+    phoneNumberId: v.optional(v.string()),
+    dialedNumber: v.optional(v.string()),
+
+    // Structured transcript fragments
+    transcript: v.optional(
+      v.array(
+        v.object({
+          role: v.string(),
+          text: v.string(),
+          timestamp: v.optional(v.number()),
+          source: v.optional(v.string()),
+        }),
+      ),
+    ),
+
+    // Post-call data
     outcome: v.optional(v.string()),
     meeting_time: v.optional(v.string()),
     status: v.optional(v.string()),
     duration: v.optional(v.number()),
-  }).index("by_opportunity", ["opportunityId"]).index("by_agency", ["agencyId"]),
+    summary: v.optional(v.string()),
+    recordingUrl: v.optional(v.string()),
+    endedReason: v.optional(v.string()),
+    billingSeconds: v.optional(v.number()),
+    metadata: v.optional(v.record(v.string(), v.any())),
+
+    // Operational
+    startedAt: v.optional(v.number()),
+    lastWebhookAt: v.optional(v.number()),
+    currentStatus: v.optional(v.string()),
+    assistantSnapshot: v.optional(v.any()),
+    monitorUrls: v.optional(
+      v.object({
+        listenUrl: v.optional(v.string()),
+      }),
+    ),
+  })
+    .index("by_opportunity", ["opportunityId"]) 
+    .index("by_agency", ["agencyId"]) 
+    .index("by_vapi_call_id", ["vapiCallId"]),
 
   // Email records
   emails: defineTable({

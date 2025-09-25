@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useAction, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { api } from "@/convex/_generated/api";
@@ -47,6 +47,7 @@ function DashboardContent() {
   const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
   const { refetch: refetchCustomer } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
+  const startVapiCall = useMutation(api.calls.startCall);
   
   // State for lead generation
   const [currentJobId, setCurrentJobId] = useState<Id<"lead_gen_flow"> | null>(null);
@@ -88,6 +89,11 @@ function DashboardContent() {
 
   const [expandedOpportunityId, setExpandedOpportunityId] = useState<Id<"client_opportunities"> | null>(null);
   const [viewSourcesForAuditId, setViewSourcesForAuditId] = useState<Id<"audit_jobs"> | null>(null);
+  const [activeCallByOpportunity, setActiveCallByOpportunity] = useState<Record<string, Id<"calls">>>({});
+  const [startingCallOppId, setStartingCallOppId] = useState<Id<"client_opportunities"> | null>(null);
+  const [callErrorByOpp, setCallErrorByOpp] = useState<Record<string, string>>({});
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const [nowTs, setNowTs] = useState<number>(Date.now());
   
   // Paywall state
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -109,6 +115,12 @@ function DashboardContent() {
   const scrapedPages = useQuery(
     api.marketing.listScrapedPagesByAudit,
     viewSourcesForAuditId ? { auditJobId: viewSourcesForAuditId } : "skip"
+  );
+
+  // Subscribe to calls only for the expanded opportunity (lazy to reduce load)
+  const callsForExpanded = useQuery(
+    api.calls.getCallsByOpportunity,
+    expandedOpportunityId ? { opportunityId: expandedOpportunityId } : "skip"
   );
 
   const auditJobMap = useMemo(() => {
@@ -164,6 +176,42 @@ function DashboardContent() {
       setPaywallOpen(true);
     }
   }, [billingBlock, paywallOpen, paywallDismissed]);
+
+  // Ticking clock for live duration
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Types for Calls UI
+  type TranscriptFragment = { role?: string; text?: string; timestamp?: number; source?: string };
+  type CallRow = {
+    _id: Id<"calls">;
+    _creationTime: number;
+    currentStatus?: string;
+    status?: string;
+    startedAt?: number;
+    duration?: number;
+    monitorUrls?: { listenUrl?: string };
+    transcript?: Array<TranscriptFragment>;
+  };
+
+  // Auto-scroll transcript when new fragments arrive on the expanded call
+  const callsArray: Array<CallRow> = (callsForExpanded ?? []) as Array<CallRow>;
+  const transcriptLength = callsArray[0]?.transcript?.length ?? 0;
+  useEffect(() => {
+    if (transcriptRef.current) {
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    }
+  }, [transcriptLength]);
+
+  function formatDuration(ms: number | undefined): string {
+    if (!ms || ms < 0) return "0:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
 
   return (
     <div className="max-w-2xl mx-auto w-full">
@@ -549,6 +597,7 @@ function DashboardContent() {
                 const phaseProgress = job ? Math.round((completedPhases / job.phases.length) * 100) : 0;
 
                 const isExpanded = expandedOpportunityId === opp._id;
+                const oppKey = String(opp._id);
 
                 return (
                   <div
@@ -597,6 +646,106 @@ function DashboardContent() {
 
                     {isExpanded && (
                       <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-4">
+                        {/* Call Controls */}
+                        {opp.status === "READY" && sellerBrain && (
+                          <div>
+                            <button
+                              onClick={async () => {
+                                setStartingCallOppId(opp._id);
+                                setCallErrorByOpp((prev) => {
+                                  const next = { ...prev };
+                                  delete next[oppKey];
+                                  return next;
+                                });
+                                try {
+                                  const result = await startVapiCall({
+                                    opportunityId: opp._id,
+                                    agencyId: sellerBrain.agencyProfileId,
+                                  });
+                                  setActiveCallByOpportunity((prev) => ({ ...prev, [oppKey]: result.callId }));
+                                } catch (err) {
+                                  console.error("Start call failed", err);
+                                  const message = err instanceof Error ? err.message : "Failed to start call";
+                                  setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
+                                } finally {
+                                  setStartingCallOppId(null);
+                                }
+                              }}
+                              disabled={startingCallOppId === opp._id}
+                              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 py-2 rounded"
+                            >
+                              {startingCallOppId === opp._id ? "Starting call…" : "Call"}
+                            </button>
+                            {callErrorByOpp[oppKey] && (
+                              <p className="text-sm text-red-600 mt-2">{callErrorByOpp[oppKey]}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Live Call Panel */}
+                        {expandedOpportunityId === opp._id && Array.isArray(callsForExpanded) && callsForExpanded.length > 0 && (() => {
+                          const activeId = activeCallByOpportunity[oppKey];
+                          let selected = callsArray.find((c) => activeId && c._id === activeId) ?? null;
+                          if (!selected) {
+                            selected = callsArray
+                              .slice()
+                              .sort((a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0))[0] ?? null;
+                          }
+                          if (!selected) return null;
+                          const status: string = selected.currentStatus ?? selected.status ?? "unknown";
+                          const startedAt: number | undefined = selected.startedAt;
+                          const durationMs: number | undefined = selected.duration ?? (startedAt ? Math.max(0, nowTs - startedAt) : undefined);
+                          const statusClass =
+                            status === "in-progress" ? "bg-green-100 text-green-700" :
+                            status === "ringing" ? "bg-blue-100 text-blue-700" :
+                            status === "queued" ? "bg-gray-100 text-gray-700" :
+                            status === "completed" ? "bg-slate-100 text-slate-700" :
+                            status === "failed" ? "bg-red-100 text-red-700" :
+                            "bg-slate-100 text-slate-700";
+                          return (
+                            <div className="p-3 rounded border border-slate-200 dark:border-slate-700">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium">Live Call</h4>
+                                <div className={`px-2 py-0.5 rounded text-xs ${statusClass}`}>{status}</div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-4 text-sm">
+                                <div>
+                                  <span className="text-slate-500">Duration:</span> {formatDuration(durationMs)}
+                                </div>
+                                {selected.monitorUrls?.listenUrl && (
+                                  <a
+                                    href={selected.monitorUrls.listenUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-600 dark:text-blue-400 underline"
+                                  >
+                                    Listen
+                                  </a>
+                                )}
+                              </div>
+                              <div ref={transcriptRef} className="mt-3 max-h-48 overflow-y-auto space-y-2">
+                                {Array.isArray(selected.transcript) && selected.transcript.length > 0 ? (
+                                  selected.transcript.map((frag: TranscriptFragment, idx: number) => (
+                                    <div
+                                      key={`frag-${idx}`}
+                                      className={`text-sm p-2 rounded ${frag.role === "assistant" ? "bg-slate-100 dark:bg-slate-800" : "bg-emerald-50 dark:bg-emerald-900/30"}`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium capitalize">{frag.role || "assistant"}</span>
+                                        {frag.source && (
+                                          <span className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">{frag.source}</span>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 whitespace-pre-wrap">{frag.text}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-slate-500">Waiting for transcript…</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {opp.fit_reason && (
                           <div>
                             <h4 className="font-medium mb-1">Fit Reason</h4>

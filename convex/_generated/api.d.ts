@@ -11,6 +11,7 @@
 import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
 import type * as autumn from "../autumn.js";
+import type * as calls from "../calls.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as firecrawlActions from "../firecrawlActions.js";
 import type * as http from "../http.js";
@@ -45,6 +46,7 @@ import type * as onboarding_workflow from "../onboarding/workflow.js";
 import type * as sellerBrain from "../sellerBrain.js";
 import type * as testBilling from "../testBilling.js";
 import type * as testMeter from "../testMeter.js";
+import type * as vapi from "../vapi.js";
 import type * as workflows from "../workflows.js";
 
 import type {
@@ -65,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   agent: typeof agent;
   auth: typeof auth;
   autumn: typeof autumn;
+  calls: typeof calls;
   firecrawl: typeof firecrawl;
   firecrawlActions: typeof firecrawlActions;
   http: typeof http;
@@ -99,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   sellerBrain: typeof sellerBrain;
   testBilling: typeof testBilling;
   testMeter: typeof testMeter;
+  vapi: typeof vapi;
   workflows: typeof workflows;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
