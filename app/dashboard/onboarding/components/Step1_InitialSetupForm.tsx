@@ -74,7 +74,7 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Welcome to Onboarding</h1>
         <p className="text-sm text-slate-500">
-          Step 1 of {mode === "manual" ? 3 : 4}: Choose how you'd like to set up your AI assistant
+          Step 1 of {mode === "manual" ? 3 : 4}: Choose how you&apos;d like to set up your AI assistant
         </p>
       </div>
 
@@ -133,7 +133,7 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
                 </label>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 ml-7">
-                We'll analyze your website to automatically generate your business summary, core offer, and claims
+                We&apos;ll analyze your website to automatically generate your business summary, core offer, and claims
               </p>
             </div>
 

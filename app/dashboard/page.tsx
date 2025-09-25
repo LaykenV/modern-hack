@@ -151,7 +151,7 @@ function DashboardContent() {
       billingBlockKeyRef.current = key;
       setPaywallDismissed(false);
     }
-  }, [billingBlock?.featureId, billingBlock?.phase, billingBlock?.createdAt]);
+  }, [billingBlock]);
 
   useEffect(() => {
     // When switching jobs, allow auto-open again if paused
