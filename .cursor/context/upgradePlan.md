@@ -1,104 +1,115 @@
-## Lead Gen Workflow Resume — Phase-Gated Relaunch Plan
+### Vapi Webhook Upgrade Plan
 
-### Problem
-- After a billing pause during `generate_dossier`, resuming the lead gen workflow reruns earlier phases (`source` → `filter_rank` → `persist_leads` → `scrape_content`) before returning to `generate_dossier`.
-- This causes redundant external calls (e.g., Google Places), unnecessary work, and potential double-metering risks.
+#### Current state
+- Outbound call connects and assistant has correct context.
+- Webhook now reaches Convex (`/api/vapi-webhook`) and returns 200 OK.
+- Call records in `calls` table remain stuck at "queued" and no transcript is persisted.
 
-### Evidence (from recent runs)
-- Logs show a successful run, then a run that pauses for billing and resumes. On resume, we see the workflow hit Google Places again and re-execute earlier phases until it reaches `generate_dossier`.
-- Example log cues:
-  - `[Lead Gen Workflow] Searching for: "<vertical> in <geo>"` after resume
-  - `[Billing] Tracking usage: lead_discovery, value: 1` after resume
-  - Repeated "Starting Phase 2/3/4" messages before Phase 5 resumes
+#### Root cause
+- Vapi is posting a "message envelope" with payload under `message` (e.g., `message.type`, `message.call.id`, `message.transcript`).
+- Our handler in `convex/http.ts` currently expects top-level fields (`type`, `call.id`, etc.). When it doesn't find them, it returns 200 without updating anything.
 
-### Root Cause
-- `convex/leadGen/statusUtils.ts` → `relaunchWorkflow` restarts `internal.leadGen.workflow.leadGenWorkflow` with the original arguments and no resume hint.
-- `convex/leadGen/workflow.ts` always executes phases sequentially from `source` without consulting `lead_gen_flow.phases` or any `startPhase` indicator.
+#### Fix plan
+- **Unwrap envelope:** If `payload.message` exists, use that as the canonical object `m`; otherwise use `payload`.
+- **Extract identifiers:**
+  - `type = m.type`
+  - `vapiCallId = m.call?.id || m.id || m.callId || req.headers["X-Call-Id"]`
+- **Handle transcript:**
+  - If `m.messages` or `m.data?.messages` exists, iterate and append fragments (existing behavior).
+  - Else if `m.transcript` exists, append a single fragment using:
+    - `role = m.role || "assistant"`
+    - `text = m.transcript`
+    - `source = m.transcriptType === "partial" ? "transcript-partial" : "transcript"`
+- **Handle status updates:**
+  - `status = m.status || m.data?.status` → call `internal.calls.updateStatusFromWebhook`.
+- **Handle end-of-call-report:**
+  - Pull `summary`, `recordingUrl`, `endedReason`, `billingSeconds` from `m` (or `m.data`).
+- **Guards and logging:**
+  - If no `vapiCallId` after all fallbacks, log once and return 200.
+  - Keep responses fast; do not block on long operations.
 
-### Goals
-- On resume, skip directly to the paused phase (e.g., `generate_dossier`) and do not rerun earlier completed phases.
-- Preserve idempotent behavior and existing billing safeguards.
+#### Verification checklist
+- `server.url` points to Convex HTTP (configured via `CONVEX_SITE_URL`) — confirmed by logs.
+- `VAPI_WEBHOOK_SECRET` set and Convex verifies via `X-Vapi-Secret` (with HMAC fallback) — implemented.
+- `serverMessages` includes required types: `status-update`, `transcript`, `end-of-call-report` — confirmed.
+- `_attachVapiDetails` patches `vapiCallId` so subsequent webhooks can find the call — confirmed.
 
-### Approach Overview
-1) Add a resume hint to the workflow
-   - Add optional `startPhase?: "source" | "filter_rank" | "persist_leads" | "scrape_content" | "generate_dossier" | "finalize_rank"` to `leadGenWorkflow` args in `convex/leadGen/workflow.ts`.
-   - Default `startPhase` to `"source"` for fresh starts.
+#### Test plan
+1) Unit-style webhook tests via curl/postman against Convex endpoint:
+   - Headers: `Content-Type: application/json`, `X-Vapi-Secret: <VAPI_WEBHOOK_SECRET>`
+   - Bodies:
+     - `status-update` envelope with `message.call.id` and `message.status`
+     - `transcript` envelope with `message.transcript` and `message.role`
+     - `end-of-call-report` envelope with `message.summary`, `message.recordingUrl`, `message.endedReason`, `message.billingSeconds`
+   - Expect corresponding changes in `calls` row.
+2) End-to-end test: trigger a real outbound call and validate live updates in UI.
 
-2) Pass the correct start phase on resume
-   - In `convex/leadGen/statusUtils.ts` → `resumeLeadGenWorkflow`, derive `startPhase` from `billingBlock.phase`.
-   - Update `relaunchWorkflow` to accept and forward `startPhase` to `workflow.start(...)` when relaunching `leadGenWorkflow`.
-   - Ensure `resetPhasesAndClearBilling` only resets the paused phase and its dependents, not earlier completed phases.
+#### Environment variables
+- **CONVEX_SITE_URL**: public Convex HTTP URL (preferred for webhooks)
+- **VAPI_WEBHOOK_SECRET**: shared secret (Vapi sends in `X-Vapi-Secret`); HMAC fallback supported via `X-Vapi-Signature` if present
+- **VAPI_API_KEY**, **VAPI_PHONE_NUMBER_ID**: as configured
 
-3) Phase gating inside the workflow
-   - At the top of `leadGenWorkflow.handler`, load the current flow doc to read `phases`.
-   - Compute `firstNonCompletePhase` as the first phase whose `status !== "complete"`.
-   - Compute `entryPhase = max(startPhase, firstNonCompletePhase)` according to phase order.
-   - For each phase block (`source`, `filter_rank`, `persist_leads`, `scrape_content`, `generate_dossier`, `finalize_rank`):
-     - If the phase precedes `entryPhase` OR its status is already `complete`, skip execution and log a concise skip message (e.g., `Skipping source (already complete)` or `Skipping filter_rank due to startPhase=generate_dossier`).
+#### Relevant logs
 
-4) `generate_dossier` specifics (per-opportunity audits)
-   - Keep the current behavior of querying only `queued` audit jobs (`internal.leadGen.queries.getAuditJobsByFlow` filters `status === "queued"`). This naturally avoids reprocessing completed audits.
-   - Optional enhancement (not required now): Accept `resumeAuditJobId` from `billingBlock.auditJobId` for even tighter resume granularity within Phase 5. If omitted, queued-only behavior is sufficient to continue from where we paused.
+- Earlier failures (webhook to Next/Vercel → 405):
+```json
+{
+  "id": "log-267",
+  "level": 50,
+  "body": "Server error: Your server rejected `transcript` webhook. Error: Request failed with status code 405",
+  "attributes": {
+    "category": "system",
+    "callId": "ca8d9ae5-dcdf-40c3-9bf3-6c1364492085",
+    "orgId": "68befe23-382c-44b6-8e79-23c34335c9d5"
+  }
+}
+```
 
-### Detailed Implementation Steps
-- `convex/leadGen/workflow.ts`
-  - Extend `args` with `startPhase?: LeadGenPhaseName` (union of existing phase literals).
-  - At handler start:
-    - `const flow = await step.runQuery(internal.leadGen.statusUtils.getFlowForRelaunch, { leadGenFlowId: args.leadGenFlowId })` or a lightweight dedicated query.
-    - Determine `firstNonCompletePhase` from `flow.phases`.
-    - Set `entryPhase` to the later of `args.startPhase ?? "source"` and `firstNonCompletePhase`.
-  - For each phase block, add a guard to skip if the phase is before `entryPhase` or already `complete`.
-  - Preserve existing billing checks (`checkAndPause`), pause handling via `isBillingPauseError`, and logging.
+```json
+{
+  "id": "log-255",
+  "level": 50,
+  "body": "Request failed: transcript",
+  "attributes": {
+    "category": "webhook",
+    "callId": "ca8d9ae5-dcdf-40c3-9bf3-6c1364492085",
+    "url": "https://modern-hack-5qjr.vercel.app/api/vapi-webhook",
+    "messageType": "transcript",
+    "error": {
+      "message": "Request failed with status code 405"
+    }
+  }
+}
+```
 
-- `convex/leadGen/statusUtils.ts`
-  - `resumeLeadGenWorkflow`
-    - After credit re-check and before relaunch, read `billingBlock.phase` as `startPhase`.
-    - Call `relaunchWorkflow({ leadGenFlowId, customerId, startPhase })`.
-  - `relaunchWorkflow`
-    - Accept `startPhase` and forward it to `workflow.start(...)` args for `leadGenWorkflow`.
-  - `resetPhasesAndClearBilling`
-    - Verify it resets only the paused phase and dependents (e.g., paused at `generate_dossier` should reset `generate_dossier` and `finalize_rank` only). If it currently resets more than required, adjust accordingly.
+- Current (webhook to Convex → 200 OK, envelope under `message`):
+```json
+{
+  "id": "log-15",
+  "level": 30,
+  "body": "Response successful: transcript",
+  "attributes": {
+    "category": "webhook",
+    "callId": "835ea43e-a703-49ee-a6cf-fe7529a0285c",
+    "messageType": "transcript",
+    "url": "https://youthful-dinosaur-571.convex.site/api/vapi-webhook",
+    "response": {
+      "status": 200,
+      "data": "ok"
+    },
+    "config": {
+      "headers": {
+        "X-Vapi-Secret": "<redacted>"
+      },
+      "data": "{\"message\":{\"type\":\"transcript\",\"role\":\"user\",\"transcriptType\":\"final\",\"transcript\":\"Hello.\",\"call\":{\"id\":\"835ea43e-a703-49ee-a6cf-fe7529a0285c\"}}}"
+    }
+  }
+}
+```
 
-### Observability & Logging
-- Add clear skip logs per phase, e.g., `Skipping source (status=complete)` and `Skipping persist_leads due to startPhase=generate_dossier`.
-- Keep existing logs for phase transitions, audit processing progression, and billing events.
-
-### Correctness & Safety
-- Double-metering protection remains:
-  - Phase 1 billing uses `checkAndPause`/`trackUsage` once; with gating, `source` won’t execute on resume so no extra `trackUsage(lead_discovery)`.
-  - Phase 5 billing is idempotent at the audit level using the `metered` flag and queued-only selection; fallback metering remains guarded by `isAuditJobMetered`.
-- State drift protection:
-  - Even if `startPhase` is too early by mistake, computing `entryPhase = max(startPhase, firstNonCompletePhase)` prevents reruns of already-complete phases.
-
-### Validation Scenarios
-- A) Fresh run
-  - Start → all phases execute in order. No regressions.
-- B) Pause at `generate_dossier`, then resume
-  - On resume, logs should NOT show:
-    - Google Places queries
-    - `trackUsage` for `lead_discovery`
-    - Phase 2–4 execution
-  - Phase 5 continues with `queued` audits only; completes; finalize runs.
-- C) Pause earlier (e.g., `source`)
-  - Resume should start at `source` as expected (default or `startPhase`).
-
-### Risks & Mitigations
-- **Risk: Incorrect phase resets on resume.** Ensure `resetPhasesAndClearBilling` touches only paused + dependent phases.
-- **Risk: Concurrent resumes.** Keep existing `statusUtils` guards and single active `workflowId` updates.
-- **Risk: Hidden incomplete earlier phase.** `firstNonCompletePhase` ensures we don’t skip necessary work even if `startPhase` is later than reality.
-
-### Acceptance Criteria
-- Resuming from a billing pause at `generate_dossier` does not re-run `source`, `filter_rank`, `persist_leads`, or `scrape_content`.
-- No additional `lead_discovery` credit usage is recorded on resume.
-- `generate_dossier` continues from queued audits only; completed audits are not reprocessed.
-- Finalization occurs normally once Phase 5 completes (unless paused again).
-
-### Rollout
-1) Implement arg + gating changes in `workflow.ts`.
-2) Update `resumeLeadGenWorkflow`/`relaunchWorkflow` to pass `startPhase`.
-3) Verify `resetPhasesAndClearBilling` scope.
-4) Add/verify skip logs.
-5) Test scenarios A–C locally; confirm logs match expectations.
-6) Deploy and monitor for any unexpected `lead_discovery` metering or repeated Phase 1 logs on resume.
+#### Rollout
+- Implement handler updates in `convex/http.ts` as outlined.
+- Deploy to Convex; validate via curl tests; then perform a live call test.
+- Monitor `calls` rows for status transitions and transcript accumulation.
 
 

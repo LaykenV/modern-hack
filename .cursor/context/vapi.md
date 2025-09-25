@@ -72,10 +72,14 @@ Indexes:
 - Route: POST `/api/vapi-webhook`
 - Security: Prefer shared secret header `X-Vapi-Secret: <VAPI_WEBHOOK_SECRET>`. Falls back to HMAC-SHA256 verification of the raw request body compared against `X-Vapi-Signature` (hex digest) if the shared secret header is not present.
 - Behavior:
-  - type=status-update → `internal.calls.updateStatusFromWebhook({ vapiCallId, status })`
-  - type=speech-update → `internal.calls.appendTranscriptChunk` with partial fragment
-  - type=transcript → appends each final transcript message as fragments
-  - type=end-of-call-report → `internal.calls.finalizeReport` with `summary`, `recordingUrl`, `endedReason`, and `billingSeconds`
+  - Envelope unwrapping: If the incoming JSON has `message`, we treat `message` as the canonical payload. Otherwise we use the root object.
+  - Identifier extraction: `vapiCallId = payload.call?.id || payload.id || payload.callId || req.headers['X-Call-Id']`.
+  - type=status-update → `internal.calls.updateStatusFromWebhook({ vapiCallId, status })` using `payload.status || payload.data?.status`.
+  - type=speech-update → `internal.calls.appendTranscriptChunk` with `{ role: payload.from || 'assistant', text: payload.text || payload.data?.text, source: 'speech' }`.
+  - type=transcript →
+    - If `payload.messages || payload.data?.messages` array exists, append each `{ role, text }` as `source: 'transcript'`.
+    - Else if `payload.transcript` exists, append a single fragment `{ role: payload.role || 'assistant', text: payload.transcript, source: payload.transcriptType === 'partial' ? 'transcript-partial' : 'transcript' }`.
+  - type=end-of-call-report → `internal.calls.finalizeReport` with `summary`, `recordingUrl`, `endedReason`, `billingSeconds` pulled from root or `data`.
 - Responds with `200 ok` quickly; logs errors without leaking details.
 
 ### Inline Assistant Construction
@@ -133,6 +137,23 @@ Webhook signature test:
 2) Compute hex(HMAC-SHA256(secret=VAPI_WEBHOOK_SECRET, body=<raw-bytes>)).
 3) POST to `/api/vapi-webhook` with header `X-Vapi-Signature: <hex-digest>`.
 4) Expect 200 response and `calls` status updated.
+
+Envelope test payloads (send as the stringified body and `Content-Type: application/json`):
+
+Status update (enveloped):
+```json
+{ "message": { "type": "status-update", "status": "in-progress", "call": { "id": "<vapiCallId>" } } }
+```
+
+Transcript (single fragment):
+```json
+{ "message": { "type": "transcript", "role": "user", "transcriptType": "final", "transcript": "Hello.", "call": { "id": "<vapiCallId>" } } }
+```
+
+End of call report:
+```json
+{ "message": { "type": "end-of-call-report", "summary": "Call summary...", "recordingUrl": "https://...", "endedReason": "completed", "billingSeconds": 123, "call": { "id": "<vapiCallId>" } } }
+```
 
 Common issues:
 - 400 InvalidModules mentioning Node in non-Node files

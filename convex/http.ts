@@ -68,13 +68,30 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       recordingUrl?: string;
       endedReason?: string;
       billingSeconds?: number;
+      // transcript-specific single fragment
+      transcript?: string;
+      transcriptType?: "partial" | "final" | string;
+      role?: string;
     };
 
-    const p = payload as VapiWebhookPayload | null;
+    // Type guard for envelope shape
+    function hasMessageEnvelope(input: unknown): input is { message: unknown } {
+      return typeof input === "object" && input !== null && "message" in (input as Record<string, unknown>);
+    }
+
+    // Unwrap Vapi's message envelope when present
+    const raw: unknown = payload as unknown;
+    const p: VapiWebhookPayload = hasMessageEnvelope(raw)
+      ? ((raw as { message: unknown }).message as VapiWebhookPayload)
+      : ((raw as VapiWebhookPayload));
+
     const type = p?.type;
-    const vapiCallId: string | undefined = p?.call?.id ?? p?.id ?? p?.callId;
+    const headerCallId = req.headers.get("X-Call-Id");
+    const vapiCallId: string | undefined = p?.call?.id ?? p?.id ?? p?.callId ?? headerCallId ?? undefined;
 
     if (!type || !vapiCallId) {
+      // Guard: missing required identifiers; log once and return fast
+      console.warn("[Vapi Webhook] Missing type or call id", { type, callHeader: headerCallId });
       return new Response("ok", { status: 200 });
     }
 
@@ -96,8 +113,23 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       }
       case "transcript": {
         const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
-        for (const m of messages) {
-          const fragment = { role: m.role ?? "assistant", text: m.text ?? "", timestamp: Date.now(), source: "transcript" } as { role: string; text: string; timestamp?: number; source?: string };
+        if (Array.isArray(messages) && messages.length > 0) {
+          for (const m of messages) {
+            const fragment = {
+              role: m.role ?? "assistant",
+              text: m.text ?? "",
+              timestamp: Date.now(),
+              source: "transcript",
+            } as { role: string; text: string; timestamp?: number; source?: string };
+            await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+          }
+        } else if (typeof p?.transcript === "string") {
+          const fragment = {
+            role: (p?.role as string | undefined) ?? "assistant",
+            text: p.transcript,
+            timestamp: Date.now(),
+            source: p?.transcriptType === "partial" ? "transcript-partial" : "transcript",
+          } as { role: string; text: string; timestamp?: number; source?: string };
           await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
         }
         break;
