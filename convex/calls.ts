@@ -10,7 +10,32 @@ type AssistantPayload = {
   voice: { provider: string; voiceId: string; model?: string };
   transcriber?: { provider: string; model: string };
   firstMessageMode?: "assistant-speaks-first" | "customer-speaks-first";
-  serverMessages?: Array<{ type: "status-update" } | { type: "transcript" } | { type: "end-of-call-report" }>;
+  // Vapi expects string enum serverMessages, not objects
+  serverMessages?: Array<
+    | "conversation-update"
+    | "end-of-call-report"
+    | "function-call"
+    | "hang"
+    | "language-changed"
+    | "language-change-detected"
+    | "model-output"
+    | "phone-call-control"
+    | "speech-update"
+    | "status-update"
+    | "transcript"
+    | "transcript[transcriptType=\"final\"]"
+    | "tool-calls"
+    | "transfer-destination-request"
+    | "handoff-destination-request"
+    | "transfer-update"
+    | "user-interrupted"
+    | "voice-input"
+    | "chat.created"
+    | "chat.deleted"
+    | "session.created"
+    | "session.updated"
+    | "session.deleted"
+  >;
   metadata?: Record<string, unknown>;
 };
 
@@ -51,9 +76,9 @@ export const startCall = mutation({
       transcriber: { provider: "deepgram", model: "nova-3-general" },
       firstMessageMode: "assistant-speaks-first",
       serverMessages: [
-        { type: "status-update" },
-        { type: "transcript" },
-        { type: "end-of-call-report" },
+        "status-update",
+        "transcript",
+        "end-of-call-report",
       ],
       metadata: {
         convexOpportunityId: opportunity._id,

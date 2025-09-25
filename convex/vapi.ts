@@ -15,11 +15,32 @@ type InlineAssistant = {
   transcriber?: { provider: string; model: string };
   firstMessageMode?: "assistant-speaks-first" | "customer-speaks-first";
   server: { url: string; secret: string };
+  // Per Vapi API, serverMessages should be an array of string enums
+  // e.g. ["status-update", "speech-update", "transcript", "end-of-call-report"]
   serverMessages?: Array<
-    | { type: "status-update" }
-    | { type: "speech-update" }
-    | { type: "transcript" }
-    | { type: "end-of-call-report" }
+    | "conversation-update"
+    | "end-of-call-report"
+    | "function-call"
+    | "hang"
+    | "language-changed"
+    | "language-change-detected"
+    | "model-output"
+    | "phone-call-control"
+    | "speech-update"
+    | "status-update"
+    | "transcript"
+    | "transcript[transcriptType=\"final\"]"
+    | "tool-calls"
+    | "transfer-destination-request"
+    | "handoff-destination-request"
+    | "transfer-update"
+    | "user-interrupted"
+    | "voice-input"
+    | "chat.created"
+    | "chat.deleted"
+    | "session.created"
+    | "session.updated"
+    | "session.deleted"
   >;
   metadata?: Record<string, unknown>;
 };
@@ -73,13 +94,33 @@ export const startPhoneCall = internalAction({
       voice: v.object({ provider: v.string(), voiceId: v.string(), model: v.optional(v.string()) }),
       transcriber: v.optional(v.object({ provider: v.string(), model: v.string() })),
       firstMessageMode: v.optional(v.union(v.literal("assistant-speaks-first"), v.literal("customer-speaks-first"))),
+      // Accept string enums for serverMessages to match Vapi API
       serverMessages: v.optional(
         v.array(
           v.union(
-            v.object({ type: v.literal("status-update") }),
-            v.object({ type: v.literal("speech-update") }),
-            v.object({ type: v.literal("transcript") }),
-            v.object({ type: v.literal("end-of-call-report") }),
+            v.literal("conversation-update"),
+            v.literal("end-of-call-report"),
+            v.literal("function-call"),
+            v.literal("hang"),
+            v.literal("language-changed"),
+            v.literal("language-change-detected"),
+            v.literal("model-output"),
+            v.literal("phone-call-control"),
+            v.literal("speech-update"),
+            v.literal("status-update"),
+            v.literal("transcript"),
+            v.literal("transcript[transcriptType=\"final\"]"),
+            v.literal("tool-calls"),
+            v.literal("transfer-destination-request"),
+            v.literal("handoff-destination-request"),
+            v.literal("transfer-update"),
+            v.literal("user-interrupted"),
+            v.literal("voice-input"),
+            v.literal("chat.created"),
+            v.literal("chat.deleted"),
+            v.literal("session.created"),
+            v.literal("session.updated"),
+            v.literal("session.deleted"),
           ),
         ),
       ),
@@ -100,9 +141,9 @@ export const startPhoneCall = internalAction({
       ...assistant,
       server: { url: `${SITE_URL}/api/vapi-webhook`, secret: WEBHOOK_SECRET },
       serverMessages: assistant.serverMessages ?? [
-        { type: "status-update" },
-        { type: "transcript" },
-        { type: "end-of-call-report" },
+        "status-update",
+        "transcript",
+        "end-of-call-report",
       ],
     } as InlineAssistant;
 

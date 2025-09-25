@@ -89,7 +89,10 @@ We generate the assistant payload dynamically per call:
 - voice: PlayHT (jennifer, PlayDialog)
 - transcriber: Deepgram (nova-3-general)
 - firstMessageMode: "assistant-speaks-first"
-- server/serverMessages: injected in `internal.vapi.startPhoneCall` from env in Node.
+- server: injected in `internal.vapi.startPhoneCall` from env in Node as `{ url, secret }`.
+- serverMessages: must be an array of string enums supported by Vapi (not objects). We default to:
+  - `["status-update", "transcript", "end-of-call-report"]`
+  - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted", and the selector "transcript[transcriptType=\"final\"]".
 - metadata: convexOpportunityId, convexAgencyId, leadGenFlowId
 
 ### Call Lifecycle
