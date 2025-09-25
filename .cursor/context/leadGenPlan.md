@@ -44,7 +44,13 @@
 - **`resumeLeadGenWorkflow(leadGenFlowId)` (mutation)** — resume paused workflow after upgrade
 
 ## Workflow (convex/leadGen/workflow.ts)
-Args: { leadGenFlowId, agencyProfileId, userId, customerId, numLeads, campaign }
+Args: { leadGenFlowId, agencyProfileId, userId, customerId, numLeads, campaign, startPhase? ("source" | "filter_rank" | "persist_leads" | "scrape_content" | "generate_dossier" | "finalize_rank") }
+
+### Phase gating on resume
+- Computes `entryPhase = max(startPhase, firstNonCompletePhase)` based on phase order.
+- Skips any phase that precedes `entryPhase` or is already marked `complete`.
+- Emits concise skip logs, e.g., "Skipping source (status=complete) due to startPhase=generate_dossier".
+- Ensures idempotent behavior and prevents duplicate billing on resume.
 
 Phases:
 1) source — Google Places fetch (IMPLEMENTED)
@@ -139,8 +145,14 @@ Status updates:
   - Opportunity `status` set to `"READY"` on success, `"DATA_READY"` on failure.
   - **Primary metering**: `trackUsage({ featureId: "dossier_research", value: 1 })` after successful audit, sets `metered: true`
 - Parent workflow processes queued audit jobs sequentially with progress updates; parallelism can be added later if needed.
-- **Defense-in-depth**: Workflow fallback metering checks `metered` flag and only bills if audit-level metering failed
+- **Defense-in-depth**: Workflow fallback metering checks `audit_jobs.metered` flag and only bills if audit-level metering failed
 - **BillingError** pauses workflow at specific audit job for granular resume capability.
+
+- **Progress policy (updated)**:
+  - Initialize `generate_dossier` at progress `0.1` when the phase starts.
+  - Do not increase progress when an audit starts. Only increment after an audit completes successfully (or is handled and considered done for the batch).
+  - Let `completedAudits` be the count of finished audits and `totalAudits` the total queued. Compute progress as `0.1 + 0.9 * (completedAudits / totalAudits)`.
+  - This avoids premature jumps and the "stuck at 99%" issue; progress reaches `1.0` only when all audits are done and the phase is marked `complete`.
 
 ### Step 6 — finalize_rank (implemented)
 - Module: `convex/leadGen/finalize.ts`
@@ -224,8 +236,8 @@ Status updates:
   - **NEW**: `isBillingPauseError(err: unknown): boolean` - Robust cross-runtime error detector that works when prototypes are lost across action→workflow boundaries
 - `convex/leadGen/statusUtils.ts`: Enhanced pause/resume system with idempotent billing
   - `pauseForBilling`: Stores billing context (including `creditInfo`) and pauses workflow
-  - `resumeLeadGenWorkflow`: Main resume action with relaunch capability (accepts `customerId`)
-  - `relaunchWorkflow`: Creates new workflow instance with original args (includes `customerId`)
+  - `resumeLeadGenWorkflow`: Main resume action with relaunch capability (accepts `customerId`), derives `startPhase` from `billingBlock.phase` and forwards it
+  - `relaunchWorkflow`: Creates new workflow instance with original args (includes `customerId`), accepts optional `startPhase` and forwards to `workflow.start`
   - `resetPhasesAndClearBilling`: Resets phases and clears billing blocks (including `creditInfo`)
   - **New**: `markAuditJobMetered`, `isAuditJobMetered` for idempotent billing management
   - Helper queries and mutations for safe database operations with updated validators
@@ -238,6 +250,7 @@ Status updates:
   - **No Duplicate Billing**: Primary metering moved to audit-level for atomicity
   - **UPDATED**: Uses `isBillingPauseError` instead of `instanceof BillingError` for reliable cross-runtime detection
   - **UPDATED**: Outer try/catch around audit loop prevents finalize when billing pause occurs - exits cleanly with `return null`
+  - **NEW**: Phase gating with optional `startPhase`; skips completed/earlier phases on resume
 - `convex/marketing.ts`: Updated resume API and workflow start
   - **Background Fix**: Captures `customerId` from `ctx.auth.getUserIdentity()?.subject`
   - **Workflow Start**: Passes `customerId` to workflow.start() calls

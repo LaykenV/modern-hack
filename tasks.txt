@@ -11,7 +11,7 @@
 
 //ontinue refining onboarding workflow
 //prompt with firecrawl docs to check and ai agent + workflow docs
-test it 
+//test it 
 
 //pages not updated from queued
 //claims only getting urls as context so they suck
@@ -53,9 +53,19 @@ test it
 //integrate atlas credits
 
 //test credit integration
-test resume flow - //uncaught err, //blank preview, workflow status still went to complete
+//test resume flow - //uncaught err, //blank preview, //workflow status still went to complete
 //need to manually add fields needed to preview, and render upgrade button. or just render pricing table?
 //styling broken?
+
+//resume statuses in ui werent perfect and it refetches
+//enough credits for first scrape then run out works. but idk about starting with 1 credit
+//redirect url and success state for dialog
+
+percentage jumps when audit starts
+when resuming workflow, fetch, filter etc happens again. duplicates are skipped.
+
+deploy and update keys
+
 
 vapi integration to call with dossier
 resend emails

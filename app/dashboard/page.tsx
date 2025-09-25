@@ -2,7 +2,7 @@
 
 import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
@@ -91,6 +91,8 @@ function DashboardContent() {
   
   // Paywall state
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallDismissed, setPaywallDismissed] = useState(false);
+  const billingBlockKeyRef = useRef<string | null>(null);
   
   // Get billing block from current job
   const billingBlock = leadGenJob?.billingBlock;
@@ -140,12 +142,28 @@ function DashboardContent() {
     }
   }, [user, sellerBrain, router, onboardingStatus]);
 
-  // Auto-open paywall when billing block exists
+  // Reset dismissal when a new billing block arrives (e.g., new pause) or when job changes
   useEffect(() => {
-    if (billingBlock && !paywallOpen) {
+    const key = billingBlock
+      ? `${billingBlock.featureId}:${billingBlock.phase}:${billingBlock.createdAt}`
+      : null;
+    if (key && key !== billingBlockKeyRef.current) {
+      billingBlockKeyRef.current = key;
+      setPaywallDismissed(false);
+    }
+  }, [billingBlock?.featureId, billingBlock?.phase, billingBlock?.createdAt]);
+
+  useEffect(() => {
+    // When switching jobs, allow auto-open again if paused
+    setPaywallDismissed(false);
+  }, [currentJobId]);
+
+  // Auto-open paywall when billing block exists, unless user dismissed it
+  useEffect(() => {
+    if (billingBlock && !paywallOpen && !paywallDismissed) {
       setPaywallOpen(true);
     }
-  }, [billingBlock, paywallOpen]);
+  }, [billingBlock, paywallOpen, paywallDismissed]);
 
   return (
     <div className="max-w-2xl mx-auto w-full">
@@ -346,7 +364,12 @@ function DashboardContent() {
         {/* Paywall Dialog */}
         <PaywallDialog
           open={paywallOpen}
-          onOpenChange={setPaywallOpen}
+          onOpenChange={(open) => {
+            setPaywallOpen(open);
+            if (!open) {
+              setPaywallDismissed(true);
+            }
+          }}
           billingBlock={billingBlock}
           onResume={async () => {
             if (!currentJobId) return { ok: false, message: "No current job selected" };
@@ -386,7 +409,10 @@ function DashboardContent() {
                     </p>
                   </div>
                   <button
-                    onClick={() => setPaywallOpen(true)}
+                    onClick={() => {
+                      setPaywallDismissed(false);
+                      setPaywallOpen(true);
+                    }}
                     className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm"
                   >
                     Upgrade Now

@@ -16,7 +16,8 @@
   - `viewSourcesForAuditId` toggles the scraped sources panel; reset when accordion collapses.
 - **Paywall state**:
   - `paywallOpen: boolean` controls paywall dialog visibility
-  - Auto-opens when `leadGenJob.billingBlock` exists
+  - Auto-opens when `billingBlock` exists, unless dismissed for this pause event
+  - `paywallDismissed: boolean` prevents auto-reopen after user closes; resets on new pause or job change
   - Managed via effects and user interactions
   - No longer needs separate upgrade success handling (handled within dialog)
 
@@ -59,11 +60,12 @@
 ## UI layout
 1. **Start form** — Number of leads and optional campaign overrides; runs action.
 2. **Paywall Dialog** — `PaywallDialog` component rendered conditionally:
-   - Opens automatically when `billingBlock` exists
+   - Opens automatically when `billingBlock` exists unless dismissed for the current pause
    - Shows generic upgrade messaging with credit deficit information
    - Embeds Autumn's `<PricingTable />` directly inside the dialog
    - Auto-detects upgrade completion and resumes workflow with countdown
    - Provides manual "I've Upgraded — Resume Now" fallback button
+   - Dismissal is keyed by `featureId`/`phase`/`createdAt`; the paused status banner provides an "Upgrade Now" button that clears dismissal and reopens the dialog
 3. **Current job card** — Shows status, phases timeline (with display overrides: `scrape_content` → "Preparing Scrapes", `generate_dossier` → "Scrape Content & Generate Dossier"), overall progress bar, places snapshot.
    - **Paused status banner** — Orange warning when `status === "paused_for_upgrade"` with "Upgrade Now" button
    - **Phase indicators** — Orange dots for paused phases, visual status for each phase
@@ -84,7 +86,7 @@
 - Effects synchronize selection state:
   - Auto-select latest job once history loads.
   - Reset `viewSourcesForAuditId` when accordion collapses.
-  - **Auto-open paywall** when `billingBlock` exists and paywall not already open
+  - **Auto-open paywall** when `billingBlock` exists and paywall not already open, unless dismissed for the current pause; dismissal resets on new pause or job switch
 - Loading states: text placeholders (`Loading dossier...`, `Loading sources...`) for lazy queries.
 - Error handling: `startLeadGenWorkflow` action catch block shows alert on failure.
 - **Enhanced paywall integration**:
@@ -99,6 +101,7 @@
 - Opportunities list renders all rows (< 20) but componentized for potential virtualization.
 - **PaywallDialog** component designed for reuse across different workflows
 - Billing integration patterns can be extended to other metered features
+ - Dismiss-and-reopen behavior supported: dialog close marks dismissed, banner button reopens
 
 ## Paywall Component Integration (Upgrade Plan Implementation)
 - **Redesigned `PaywallDialog`** (`components/autumn/paywall-dialog.tsx`):
@@ -112,3 +115,4 @@
   - **Preview-agnostic**: Works without Autumn `preview` data, backward compatible
 - **Deprecated**: `lib/autumn/paywall-content.tsx` no longer used (kept for potential other use cases)
 - **Enhanced integration pattern**: Backend stores `billingBlock` with `creditInfo` → UI displays embedded PricingTable → Auto-detects upgrade → Auto-resumes workflow
+  - **Dismiss-and-reopen**: Parent tracks `paywallDismissed`. `onOpenChange(false)` sets dismissal to prevent auto-reopen. "Upgrade Now" banner button clears dismissal and reopens the dialog.

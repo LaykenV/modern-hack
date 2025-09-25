@@ -314,6 +314,7 @@ export const resumeLeadGenWorkflow = internalAction({
       await ctx.runAction(internal.leadGen.statusUtils.relaunchWorkflow, {
         leadGenFlowId: args.leadGenFlowId,
         customerId: args.customerId,
+        startPhase: billingBlock.phase,
       });
       
       console.log(`[StatusUtils] Successfully resumed and relaunched workflow ${args.leadGenFlowId} after upgrade`);
@@ -411,6 +412,16 @@ export const relaunchWorkflow = internalAction({
   args: {
     leadGenFlowId: v.id("lead_gen_flow"),
     customerId: v.string(),
+    startPhase: v.optional(
+      v.union(
+        v.literal("source"),
+        v.literal("filter_rank"),
+        v.literal("persist_leads"),
+        v.literal("scrape_content"),
+        v.literal("generate_dossier"),
+        v.literal("finalize_rank"),
+      ),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -439,6 +450,7 @@ export const relaunchWorkflow = internalAction({
         customerId: args.customerId,
         numLeads: flow.numLeadsRequested,
         campaign: flow.campaign,
+        startPhase: args.startPhase,
       },
       {
         onComplete: internal.marketing.handleLeadGenWorkflowComplete,

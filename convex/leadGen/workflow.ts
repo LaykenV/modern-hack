@@ -19,9 +19,89 @@ export const leadGenWorkflow = workflow.define({
       targetVertical: v.string(),
       targetGeography: v.string(),
     }),
+    // Optional phase gating for resume logic
+    startPhase: v.optional(
+      v.union(
+        v.literal("source"),
+        v.literal("filter_rank"),
+        v.literal("persist_leads"),
+        v.literal("scrape_content"),
+        v.literal("generate_dossier"),
+        v.literal("finalize_rank"),
+      ),
+    ),
   },
   handler: async (step, args): Promise<null> => {
-    // Phase 1: Source leads from Google Places
+    // Phase gating setup: determine the correct entry phase
+    const phaseOrder = [
+      "source",
+      "filter_rank",
+      "persist_leads",
+      "scrape_content",
+      "generate_dossier",
+      "finalize_rank",
+    ] as const;
+    type PhaseName = typeof phaseOrder[number];
+    type FilteredLead = {
+      place_id: string;
+      name: string;
+      website?: string;
+      phone: string;
+      rating?: number;
+      reviews_count?: number;
+      address?: string;
+      signals: string[];
+      qualificationScore: number;
+    };
+
+    type PhaseStatus = "pending" | "running" | "complete" | "error";
+    type PhaseSnapshot = {
+      name: PhaseName;
+      status: PhaseStatus;
+      progress: number;
+      startedAt?: number;
+      completedAt?: number;
+      duration?: number;
+      errorMessage?: string;
+    };
+    type FullFlowPhasesResult = { phases: Array<PhaseSnapshot> } | null;
+
+    const flowForPhases = (await step.runQuery(
+      internal.leadGen.statusUtils.getFullFlowForResume,
+      { leadGenFlowId: args.leadGenFlowId }
+    )) as FullFlowPhasesResult;
+    const phases: Array<PhaseSnapshot> = flowForPhases?.phases ?? [];
+    const getStatus = (name: PhaseName): PhaseStatus | undefined =>
+      phases.find((p) => p.name === name)?.status;
+    const phaseStatusByName: Record<PhaseName, PhaseStatus | undefined> = {
+      source: getStatus("source"),
+      filter_rank: getStatus("filter_rank"),
+      persist_leads: getStatus("persist_leads"),
+      scrape_content: getStatus("scrape_content"),
+      generate_dossier: getStatus("generate_dossier"),
+      finalize_rank: getStatus("finalize_rank"),
+    };
+
+    const firstNonCompletePhase: PhaseName = (phases.find((p) => p.status !== "complete")?.name as PhaseName) ?? "finalize_rank";
+    const startPhaseFromArgs: PhaseName = (args.startPhase as PhaseName | undefined) ?? "source";
+    const entryIndex = Math.max(
+      phaseOrder.indexOf(startPhaseFromArgs),
+      phaseOrder.indexOf(firstNonCompletePhase),
+    );
+    const entryPhase = phaseOrder[entryIndex];
+
+    const shouldRunPhase = (phase: PhaseName): boolean => {
+      const beforeEntry = phaseOrder.indexOf(phase) < entryIndex;
+      const alreadyComplete = phaseStatusByName[phase] === "complete";
+      return !beforeEntry && !alreadyComplete;
+    };
+
+    // Phase 1: Source leads from Google Places (may be skipped)
+    if (!shouldRunPhase("source")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping source (status=${phaseStatusByName.source ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
     try {
       // Check billing before starting source phase
       console.log('userID in workflow', args.userId);
@@ -126,220 +206,267 @@ export const leadGenWorkflow = workflow.define({
       throw new Error(`Source phase failed: ${errorMessage}`);
     }
 
-    // Phase 2: Filter and rank leads
-    console.log("[Lead Gen Workflow] Starting Phase 2: Filter and Rank");
-    const filteredLeads = await step.runAction(
-      internal.leadGen.filter.filterAndScoreLeads,
-      {
+    }
+
+    // Phase 2: Filter and rank leads (may be skipped)
+    let filteredLeads: Array<FilteredLead> | undefined = undefined;
+    if (!shouldRunPhase("filter_rank")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping filter_rank (status=${phaseStatusByName.filter_rank ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
+      console.log("[Lead Gen Workflow] Starting Phase 2: Filter and Rank");
+      filteredLeads = (await step.runAction(
+        internal.leadGen.filter.filterAndScoreLeads,
+        {
+          leadGenFlowId: args.leadGenFlowId,
+          agencyProfileId: args.agencyProfileId,
+        },
+        {
+          retry: RETRY_CONFIG.AI_OPERATIONS,
+        }
+      )) as Array<FilteredLead>;
+
+      console.log(`[Lead Gen Workflow] Phase 2 completed: ${filteredLeads.length} leads passed filter`);
+    }
+
+    // Phase 3: Persist leads as client opportunities (may be skipped)
+    if (!shouldRunPhase("persist_leads")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping persist_leads (status=${phaseStatusByName.persist_leads ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
+      console.log("[Lead Gen Workflow] Starting Phase 3: Persist Leads");
+      // If filter phase was skipped but we need to persist, re-generate filtered leads defensively
+      if (!filteredLeads) {
+        filteredLeads = (await step.runAction(
+          internal.leadGen.filter.filterAndScoreLeads,
+          {
+            leadGenFlowId: args.leadGenFlowId,
+            agencyProfileId: args.agencyProfileId,
+          },
+          {
+            retry: RETRY_CONFIG.AI_OPERATIONS,
+          }
+        )) as Array<FilteredLead>;
+      }
+
+      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+        leadGenFlowId: args.leadGenFlowId,
+        phaseName: "persist_leads",
+        status: "running",
+        progress: 0.1,
+        eventMessage: `Persisting ${filteredLeads.length} filtered leads`,
+      });
+
+      const persistResult = await step.runMutation(internal.leadGen.persist.persistClientOpportunities, {
         leadGenFlowId: args.leadGenFlowId,
         agencyProfileId: args.agencyProfileId,
-      },
-      {
-        retry: RETRY_CONFIG.AI_OPERATIONS,
-      }
-    );
+        campaign: args.campaign,
+        leads: filteredLeads,
+      });
 
-    console.log(`[Lead Gen Workflow] Phase 2 completed: ${filteredLeads.length} leads passed filter`);
-
-    // Phase 3: Persist leads as client opportunities
-    console.log("[Lead Gen Workflow] Starting Phase 3: Persist Leads");
-    
-    await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-      leadGenFlowId: args.leadGenFlowId,
-      phaseName: "persist_leads",
-      status: "running",
-      progress: 0.1,
-      eventMessage: `Persisting ${filteredLeads.length} filtered leads`,
-    });
-
-    const persistResult = await step.runMutation(internal.leadGen.persist.persistClientOpportunities, {
-      leadGenFlowId: args.leadGenFlowId,
-      agencyProfileId: args.agencyProfileId,
-      campaign: args.campaign,
-      leads: filteredLeads,
-    });
-
-    await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-      leadGenFlowId: args.leadGenFlowId,
-      phaseName: "persist_leads",
-      status: "complete",
-      progress: 1.0,
-      eventMessage: `Persisted ${persistResult.created} opportunities (${persistResult.skipped} skipped)`,
-    });
-
-    console.log(`[Lead Gen Workflow] Phase 3 completed: created ${persistResult.created}, skipped ${persistResult.skipped}`);
-
-    // Phase 4: Queue audits for opportunities with websites (scrape_content phase)
-    console.log("[Lead Gen Workflow] Starting Phase 4: Queue Audits");
-    
-    await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-      leadGenFlowId: args.leadGenFlowId,
-      phaseName: "scrape_content",
-      status: "running",
-      progress: 0.1,
-      eventMessage: "Queueing audit jobs for opportunities with websites",
-    });
-
-    const auditResult = await step.runAction(
-      internal.leadGen.auditInit.queueAuditsForWebsites,
-      {
+      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
         leadGenFlowId: args.leadGenFlowId,
-        agencyProfileId: args.agencyProfileId,
-      },
-      {
-        retry: RETRY_CONFIG.AI_OPERATIONS,
-      }
-    );
+        phaseName: "persist_leads",
+        status: "complete",
+        progress: 1.0,
+        eventMessage: `Persisted ${persistResult.created} opportunities (${persistResult.skipped} skipped)`,
+      });
 
-    await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-      leadGenFlowId: args.leadGenFlowId,
-      phaseName: "scrape_content",
-      status: "complete",
-      progress: 1.0,
-      eventMessage: `Queued ${auditResult.queuedCount} audit jobs (${auditResult.skippedCount} skipped)`,
-    });
+      console.log(`[Lead Gen Workflow] Phase 3 completed: created ${persistResult.created}, skipped ${persistResult.skipped}`);
+    }
 
-    console.log(`[Lead Gen Workflow] Phase 4 completed: queued ${auditResult.queuedCount} audits, skipped ${auditResult.skippedCount}`);
+    // Phase 4: Queue audits for opportunities with websites (scrape_content phase) (may be skipped)
+    if (!shouldRunPhase("scrape_content")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping scrape_content (status=${phaseStatusByName.scrape_content ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
+      console.log("[Lead Gen Workflow] Starting Phase 4: Queue Audits");
+      
+      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+        leadGenFlowId: args.leadGenFlowId,
+        phaseName: "scrape_content",
+        status: "running",
+        progress: 0.1,
+        eventMessage: "Queueing audit jobs for opportunities with websites",
+      });
 
-    // Phase 5: Generate dossiers (per-opportunity audit workflows)
-    console.log("[Lead Gen Workflow] Starting Phase 5: Generate Dossiers");
-    
-    await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-      leadGenFlowId: args.leadGenFlowId,
-      phaseName: "generate_dossier",
-      status: "running",
-      progress: 0.1,
-      eventMessage: "Starting audit workflows for opportunities with websites",
-    });
+      const auditResult = await step.runAction(
+        internal.leadGen.auditInit.queueAuditsForWebsites,
+        {
+          leadGenFlowId: args.leadGenFlowId,
+          agencyProfileId: args.agencyProfileId,
+        },
+        {
+          retry: RETRY_CONFIG.AI_OPERATIONS,
+        }
+      );
 
-    // Get all queued audit jobs for this lead gen flow
-    const auditJobs = await step.runQuery(internal.leadGen.queries.getAuditJobsByFlow, {
-      leadGenFlowId: args.leadGenFlowId,
-    });
+      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+        leadGenFlowId: args.leadGenFlowId,
+        phaseName: "scrape_content",
+        status: "complete",
+        progress: 1.0,
+        eventMessage: `Queued ${auditResult.queuedCount} audit jobs (${auditResult.skippedCount} skipped)`,
+      });
 
-    console.log(`[Lead Gen Workflow] Found ${auditJobs.length} audit jobs to process`);
+      console.log(`[Lead Gen Workflow] Phase 4 completed: queued ${auditResult.queuedCount} audits, skipped ${auditResult.skippedCount}`);
+    }
 
-    // Process audit jobs sequentially (each runAuditAction already batches URL scraping internally)
-    try {
-      for (let i = 0; i < auditJobs.length; i++) {
-        const auditJob = auditJobs[i];
+    // Phase 5: Generate dossiers (per-opportunity audit workflows) (may be skipped)
+    if (!shouldRunPhase("generate_dossier")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping generate_dossier (status=${phaseStatusByName.generate_dossier ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
+      console.log("[Lead Gen Workflow] Starting Phase 5: Generate Dossiers");
+      
+      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+        leadGenFlowId: args.leadGenFlowId,
+        phaseName: "generate_dossier",
+        status: "running",
+        progress: 0.1,
+        eventMessage: "Starting audit workflows for opportunities with websites",
+      });
+
+      // Get all queued audit jobs for this lead gen flow
+      const auditJobs = await step.runQuery(internal.leadGen.queries.getAuditJobsByFlow, {
+        leadGenFlowId: args.leadGenFlowId,
+      });
+
+      console.log(`[Lead Gen Workflow] Found ${auditJobs.length} audit jobs to process`);
+
+      // Process audit jobs sequentially (each runAuditAction already batches URL scraping internally)
+      try {
+        const totalAudits = auditJobs.length;
+        let completedAudits = 0;
+        for (let i = 0; i < auditJobs.length; i++) {
+          const auditJob = auditJobs[i];
+          
+          console.log(`[Lead Gen Workflow] Processing audit ${i + 1}/${auditJobs.length} for opportunity ${auditJob.opportunityId}`);
+          
+          // Check billing before each audit (costs 1 unit, Autumn multiplies by 2 credits per unit)
+          try {
+            await step.runAction(internal.leadGen.billing.checkAndPause, {
+              leadGenFlowId: args.leadGenFlowId,
+              featureId: "dossier_research",
+              requiredValue: 1,
+              phase: "generate_dossier",
+              auditJobId: auditJob._id,
+              customerId: args.customerId,
+            });
+          } catch (error) {
+            if (isBillingPauseError(error)) {
+              // BillingError means workflow is paused for upgrade at this specific audit
+              // pauseForBilling has already been called with auditJobId context, just exit cleanly
+              console.log(`[Lead Gen Workflow] Workflow paused for billing in generate_dossier phase at audit ${auditJob._id}: ${String(error)}`);
+              return null;
+            }
+            // Re-throw other errors
+            throw error;
+          }
+
+          // Run audit action sequentially (billing is handled inside runAuditAction for idempotency)
+          await step.runAction(
+            internal.leadGen.audit.runAuditAction,
+            {
+              auditJobId: auditJob._id,
+              opportunityId: auditJob.opportunityId,
+              agencyId: auditJob.agencyId,
+              targetUrl: auditJob.targetUrl,
+              leadGenFlowId: auditJob.leadGenFlowId || args.leadGenFlowId,
+              customerId: args.customerId, // Pass customerId for background workflow billing context
+            },
+            { retry: RETRY_CONFIG.AI_OPERATIONS }
+          );
+
+          // Defense-in-depth: Fallback metering check (in case audit-level metering failed)
+          const isMetered = await step.runQuery(internal.leadGen.statusUtils.isAuditJobMetered, {
+            auditJobId: auditJob._id,
+          });
+          
+          if (!isMetered) {
+            console.log(`[Lead Gen Workflow] Fallback metering for audit ${auditJob._id} (audit-level metering may have failed)`);
+            
+            // Track usage as fallback
+            await step.runAction(internal.leadGen.billing.trackUsage, {
+              featureId: "dossier_research",
+              value: 1,
+              customerId: args.customerId,
+            });
+            
+            // Mark as metered
+            await step.runMutation(internal.leadGen.statusUtils.markAuditJobMetered, {
+              auditJobId: auditJob._id,
+            });
+          }
+
+          // Update progress AFTER completing the audit
+          completedAudits += 1;
+          const progressAfter = totalAudits > 0 ? 0.1 + 0.9 * (completedAudits / totalAudits) : 1;
+          await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+            leadGenFlowId: args.leadGenFlowId,
+            phaseName: "generate_dossier",
+            status: "running",
+            progress: progressAfter,
+            eventMessage: `Completed audit ${completedAudits}/${totalAudits}`,
+          });
+
+          console.log(`[Lead Gen Workflow] Completed audit ${i + 1}/${auditJobs.length}`);
+        }
         
-        console.log(`[Lead Gen Workflow] Processing audit ${i + 1}/${auditJobs.length} for opportunity ${auditJob.opportunityId}`);
-        
-        const progressFraction = auditJobs.length > 0
-          ? Math.min(0.99, 0.1 + 0.9 * ((i + 1) / auditJobs.length))
-          : 1;
-
         await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
           leadGenFlowId: args.leadGenFlowId,
           phaseName: "generate_dossier",
-          status: "running",
-          progress: progressFraction,
-          eventMessage: `Processing audit ${i + 1}/${auditJobs.length}`,
+          status: "complete",
+          progress: 1.0,
+          eventMessage: `Completed ${auditJobs.length} audit workflows`,
         });
 
-        // Check billing before each audit (costs 1 unit, Autumn multiplies by 2 credits per unit)
-        try {
-          await step.runAction(internal.leadGen.billing.checkAndPause, {
-            leadGenFlowId: args.leadGenFlowId,
-            featureId: "dossier_research",
-            requiredValue: 1,
-            phase: "generate_dossier",
-            auditJobId: auditJob._id,
-            customerId: args.customerId,
-          });
-        } catch (error) {
-          if (isBillingPauseError(error)) {
-            // BillingError means workflow is paused for upgrade at this specific audit
-            // pauseForBilling has already been called with auditJobId context, just exit cleanly
-            console.log(`[Lead Gen Workflow] Workflow paused for billing in generate_dossier phase at audit ${auditJob._id}: ${String(error)}`);
-            return null;
-          }
-          // Re-throw other errors
-          throw error;
-        }
-
-        // Run audit action sequentially (billing is handled inside runAuditAction for idempotency)
-        await step.runAction(
-          internal.leadGen.audit.runAuditAction,
-          {
-            auditJobId: auditJob._id,
-            opportunityId: auditJob.opportunityId,
-            agencyId: auditJob.agencyId,
-            targetUrl: auditJob.targetUrl,
-            leadGenFlowId: auditJob.leadGenFlowId || args.leadGenFlowId,
-            customerId: args.customerId, // Pass customerId for background workflow billing context
-          },
-          { retry: RETRY_CONFIG.AI_OPERATIONS }
-        );
-
-        // Defense-in-depth: Fallback metering check (in case audit-level metering failed)
-        const isMetered = await step.runQuery(internal.leadGen.statusUtils.isAuditJobMetered, {
-          auditJobId: auditJob._id,
-        });
+        console.log(`[Lead Gen Workflow] Phase 5 completed: ${auditJobs.length} audits processed`);
         
-        if (!isMetered) {
-          console.log(`[Lead Gen Workflow] Fallback metering for audit ${auditJob._id} (audit-level metering may have failed)`);
-          
-          // Track usage as fallback
-          await step.runAction(internal.leadGen.billing.trackUsage, {
-            featureId: "dossier_research",
-            value: 1,
-            customerId: args.customerId,
-          });
-          
-          // Mark as metered
-          await step.runMutation(internal.leadGen.statusUtils.markAuditJobMetered, {
-            auditJobId: auditJob._id,
-          });
+      } catch (error) {
+        // Check if this is a billing pause error - if so, exit cleanly without marking phase complete
+        if (isBillingPauseError(error)) {
+          console.log(`[Lead Gen Workflow] Workflow paused for billing in generate_dossier phase: ${String(error)}`);
+          return null;
         }
-
-        console.log(`[Lead Gen Workflow] Completed audit ${i + 1}/${auditJobs.length}`);
+        
+        // For non-billing errors, mark phase complete with failures and continue
+        console.error("[Lead Gen Workflow] Some audit workflows failed:", error);
+        
+        await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
+          leadGenFlowId: args.leadGenFlowId,
+          phaseName: "generate_dossier",
+          status: "complete", // Continue workflow even if some audits fail
+          progress: 1.0,
+          eventMessage: "Audit workflows completed with some failures",
+        });
       }
-      
-      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-        leadGenFlowId: args.leadGenFlowId,
-        phaseName: "generate_dossier",
-        status: "complete",
-        progress: 1.0,
-        eventMessage: `Completed ${auditJobs.length} audit workflows`,
-      });
-
-      console.log(`[Lead Gen Workflow] Phase 5 completed: ${auditJobs.length} audits processed`);
-      
-    } catch (error) {
-      // Check if this is a billing pause error - if so, exit cleanly without marking phase complete
-      if (isBillingPauseError(error)) {
-        console.log(`[Lead Gen Workflow] Workflow paused for billing in generate_dossier phase: ${String(error)}`);
-        return null;
-      }
-      
-      // For non-billing errors, mark phase complete with failures and continue
-      console.error("[Lead Gen Workflow] Some audit workflows failed:", error);
-      
-      await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
-        leadGenFlowId: args.leadGenFlowId,
-        phaseName: "generate_dossier",
-        status: "complete", // Continue workflow even if some audits fail
-        progress: 1.0,
-        eventMessage: "Audit workflows completed with some failures",
-      });
     }
 
-    // Phase 6: Finalize workflow
-    console.log("[Lead Gen Workflow] Starting Phase 6: Finalize");
-    
-    await step.runAction(
-      internal.leadGen.finalize.finalizeLeadGenWorkflow,
-      {
-        leadGenFlowId: args.leadGenFlowId,
-      },
-      {
-        retry: RETRY_CONFIG.AI_OPERATIONS,
-      }
-    );
+    // Phase 6: Finalize workflow (may be skipped)
+    if (!shouldRunPhase("finalize_rank")) {
+      console.log(
+        `[Lead Gen Workflow] Skipping finalize_rank (status=${phaseStatusByName.finalize_rank ?? "unknown"}) due to startPhase=${entryPhase}`
+      );
+    } else {
+      console.log("[Lead Gen Workflow] Starting Phase 6: Finalize");
+      
+      await step.runAction(
+        internal.leadGen.finalize.finalizeLeadGenWorkflow,
+        {
+          leadGenFlowId: args.leadGenFlowId,
+        },
+        {
+          retry: RETRY_CONFIG.AI_OPERATIONS,
+        }
+      );
 
-    console.log("[Lead Gen Workflow] All phases completed successfully");
+      console.log("[Lead Gen Workflow] All phases completed successfully");
+    }
     return null;
   },
 });

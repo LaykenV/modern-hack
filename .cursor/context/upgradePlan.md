@@ -1,134 +1,104 @@
-## LeadGen billing pause bug — finalize skip + onComplete guard (2025-09-24)
+## Lead Gen Workflow Resume — Phase-Gated Relaunch Plan
 
-### Problem summary
-- When a user runs out of credits during Phase 5 (generate_dossier), we correctly call `pauseForBilling` and throw a `BillingError`, but the durable workflow still proceeds to finalize and marks the run as completed.
-- Consequence: subsequent resume attempts fail because the flow is already marked `completed`.
+### Problem
+- After a billing pause during `generate_dossier`, resuming the lead gen workflow reruns earlier phases (`source` → `filter_rank` → `persist_leads` → `scrape_content`) before returning to `generate_dossier`.
+- This causes redundant external calls (e.g., Google Places), unnecessary work, and potential double-metering risks.
 
-### Root cause
-- The `BillingError` is thrown from an action (Node) and caught in the workflow (V8). Across runtime boundaries, `instanceof BillingError` is unreliable (prototype lost). Our `catch` blocks miss the intended early-return path and fall through to the generic error handling, which:
-  - Marks the `generate_dossier` phase "complete with some failures" and
-  - Continues to Phase 6 (finalize), which unconditionally calls `completeFlow`.
-- Additionally, the durable workflow `onComplete` handler sets the flow to `completed` on any `success` result, without checking whether the flow was paused mid-run.
+### Evidence (from recent runs)
+- Logs show a successful run, then a run that pauses for billing and resumes. On resume, we see the workflow hit Google Places again and re-execute earlier phases until it reaches `generate_dossier`.
+- Example log cues:
+  - `[Lead Gen Workflow] Searching for: "<vertical> in <geo>"` after resume
+  - `[Billing] Tracking usage: lead_discovery, value: 1` after resume
+  - Repeated "Starting Phase 2/3/4" messages before Phase 5 resumes
 
-### High-level fix
-1) Introduce a robust billing pause error detector that works across runtimes (name/message checks) and use it everywhere we currently do `instanceof BillingError`.
-2) Prevent finalization when the flow is paused — both in the workflow control flow and defensively inside the finalize action and `completeFlow` mutation.
-3) Make the `onComplete` handler a no-op if the flow is paused, so a paused run never gets marked completed.
-4) Avoid marking the `generate_dossier` phase as "complete" on a billing pause.
+### Root Cause
+- `convex/leadGen/statusUtils.ts` → `relaunchWorkflow` restarts `internal.leadGen.workflow.leadGenWorkflow` with the original arguments and no resume hint.
+- `convex/leadGen/workflow.ts` always executes phases sequentially from `source` without consulting `lead_gen_flow.phases` or any `startPhase` indicator.
 
-No schema changes. No data migrations. We do not retrofit already-incorrect completed runs.
+### Goals
+- On resume, skip directly to the paused phase (e.g., `generate_dossier`) and do not rerun earlier completed phases.
+- Preserve idempotent behavior and existing billing safeguards.
 
----
+### Approach Overview
+1) Add a resume hint to the workflow
+   - Add optional `startPhase?: "source" | "filter_rank" | "persist_leads" | "scrape_content" | "generate_dossier" | "finalize_rank"` to `leadGenWorkflow` args in `convex/leadGen/workflow.ts`.
+   - Default `startPhase` to `"source"` for fresh starts.
 
-### Changes by file
+2) Pass the correct start phase on resume
+   - In `convex/leadGen/statusUtils.ts` → `resumeLeadGenWorkflow`, derive `startPhase` from `billingBlock.phase`.
+   - Update `relaunchWorkflow` to accept and forward `startPhase` to `workflow.start(...)` when relaunching `leadGenWorkflow`.
+   - Ensure `resetPhasesAndClearBilling` only resets the paused phase and its dependents, not earlier completed phases.
 
-#### 1) `convex/leadGen/billing.ts`
-- Add a helper exported alongside `BillingError`:
-  - `export function isBillingPauseError(err: unknown): boolean` that returns true if:
-    - `err instanceof BillingError` OR
-    - `(err as any)?.name === "BillingError"` OR
-    - `String(err).includes("Workflow paused for billing")`.
-- Rationale: Works across action→workflow boundary where prototypes may be lost.
+3) Phase gating inside the workflow
+   - At the top of `leadGenWorkflow.handler`, load the current flow doc to read `phases`.
+   - Compute `firstNonCompletePhase` as the first phase whose `status !== "complete"`.
+   - Compute `entryPhase = max(startPhase, firstNonCompletePhase)` according to phase order.
+   - For each phase block (`source`, `filter_rank`, `persist_leads`, `scrape_content`, `generate_dossier`, `finalize_rank`):
+     - If the phase precedes `entryPhase` OR its status is already `complete`, skip execution and log a concise skip message (e.g., `Skipping source (already complete)` or `Skipping filter_rank due to startPhase=generate_dossier`).
 
-#### 2) `convex/leadGen/workflow.ts`
-- Import and use `isBillingPauseError` instead of `instanceof BillingError` in both places:
-  - Source phase pre-check catch: if billing pause → `return null` (no downstream error recording).
-  - Audit loop pre-check catch: if billing pause → `return null` (exit handler early).
-- Outer try/catch around the audit loop:
-  - If caught error is a billing pause → just `return null` (do NOT write "completed with some failures"), ensuring no finalize step runs.
-  - Non-billing errors keep existing behavior.
-- Net effect: On billing pause, the handler returns early before Phase 6 and does not finalize.
+4) `generate_dossier` specifics (per-opportunity audits)
+   - Keep the current behavior of querying only `queued` audit jobs (`internal.leadGen.queries.getAuditJobsByFlow` filters `status === "queued"`). This naturally avoids reprocessing completed audits.
+   - Optional enhancement (not required now): Accept `resumeAuditJobId` from `billingBlock.auditJobId` for even tighter resume granularity within Phase 5. If omitted, queued-only behavior is sufficient to continue from where we paused.
 
-#### 3) `convex/leadGen/finalize.ts`
-- Defensive guard at the start of `finalizeLeadGenWorkflow`:
-  - Load the flow; if `status === "paused_for_upgrade"`, log and `return null` immediately (skip phase updates and `completeFlow`).
-- Rationale: Safety net if finalize is called by mistake.
+### Detailed Implementation Steps
+- `convex/leadGen/workflow.ts`
+  - Extend `args` with `startPhase?: LeadGenPhaseName` (union of existing phase literals).
+  - At handler start:
+    - `const flow = await step.runQuery(internal.leadGen.statusUtils.getFlowForRelaunch, { leadGenFlowId: args.leadGenFlowId })` or a lightweight dedicated query.
+    - Determine `firstNonCompletePhase` from `flow.phases`.
+    - Set `entryPhase` to the later of `args.startPhase ?? "source"` and `firstNonCompletePhase`.
+  - For each phase block, add a guard to skip if the phase is before `entryPhase` or already `complete`.
+  - Preserve existing billing checks (`checkAndPause`), pause handling via `isBillingPauseError`, and logging.
 
-#### 4) `convex/leadGen/statusUtils.ts`
-- `completeFlow` mutation:
-  - Load the flow; if `status === "paused_for_upgrade"`, log and `return null` (do not set `status/workflowStatus` to completed and do not mass-complete phases).
-- `resumeLeadGenWorkflow` action:
-  - Replace `instanceof BillingError` with `isBillingPauseError` for the pre-check re-verification path.
-- (No other logic changes.)
+- `convex/leadGen/statusUtils.ts`
+  - `resumeLeadGenWorkflow`
+    - After credit re-check and before relaunch, read `billingBlock.phase` as `startPhase`.
+    - Call `relaunchWorkflow({ leadGenFlowId, customerId, startPhase })`.
+  - `relaunchWorkflow`
+    - Accept `startPhase` and forward it to `workflow.start(...)` args for `leadGenWorkflow`.
+  - `resetPhasesAndClearBilling`
+    - Verify it resets only the paused phase and dependents (e.g., paused at `generate_dossier` should reset `generate_dossier` and `finalize_rank` only). If it currently resets more than required, adjust accordingly.
 
-#### 5) `convex/marketing.ts`
-- `handleLeadGenWorkflowComplete` (workflow `onComplete` handler):
-  - Re-read the flow by `context.leadGenFlowId`.
-  - If the flow is `paused_for_upgrade`, no-op (do not set `status/workflowStatus` to completed/failed/cancelled). This preserves the paused state set during the run.
-  - Otherwise preserve current behavior (set completed/failed/cancelled).
+### Observability & Logging
+- Add clear skip logs per phase, e.g., `Skipping source (status=complete)` and `Skipping persist_leads due to startPhase=generate_dossier`.
+- Keep existing logs for phase transitions, audit processing progression, and billing events.
 
----
+### Correctness & Safety
+- Double-metering protection remains:
+  - Phase 1 billing uses `checkAndPause`/`trackUsage` once; with gating, `source` won’t execute on resume so no extra `trackUsage(lead_discovery)`.
+  - Phase 5 billing is idempotent at the audit level using the `metered` flag and queued-only selection; fallback metering remains guarded by `isAuditJobMetered`.
+- State drift protection:
+  - Even if `startPhase` is too early by mistake, computing `entryPhase = max(startPhase, firstNonCompletePhase)` prevents reruns of already-complete phases.
 
-### Behavior after the change
-- On insufficient credits in Phase 1 or Phase 5:
-  - `pauseForBilling` stores `billingBlock` and sets `status = paused_for_upgrade`.
-  - The workflow handler returns early.
-  - `onComplete` detects paused flow and does nothing (no status overwrite).
-  - Finalize is never called; even if it were, the finalize and `completeFlow` guards prevent completion.
-- Resume continues to work as designed (re-verifies credits, resets paused phase + dependents, clears `billingBlock`, relaunches workflow with preserved `customerId`).
+### Validation Scenarios
+- A) Fresh run
+  - Start → all phases execute in order. No regressions.
+- B) Pause at `generate_dossier`, then resume
+  - On resume, logs should NOT show:
+    - Google Places queries
+    - `trackUsage` for `lead_discovery`
+    - Phase 2–4 execution
+  - Phase 5 continues with `queued` audits only; completes; finalize runs.
+- C) Pause earlier (e.g., `source`)
+  - Resume should start at `source` as expected (default or `startPhase`).
 
----
+### Risks & Mitigations
+- **Risk: Incorrect phase resets on resume.** Ensure `resetPhasesAndClearBilling` touches only paused + dependent phases.
+- **Risk: Concurrent resumes.** Keep existing `statusUtils` guards and single active `workflowId` updates.
+- **Risk: Hidden incomplete earlier phase.** `firstNonCompletePhase` ensures we don’t skip necessary work even if `startPhase` is later than reality.
 
-### Implementation checklist
-1) billing.ts
-   - [ ] Add `isBillingPauseError(err: unknown): boolean` helper.
-
-2) workflow.ts
-   - [ ] Replace both `instanceof BillingError` checks with `isBillingPauseError` (source pre-check and audit pre-check).
-   - [ ] In the audit-phase outer `catch`, if `isBillingPauseError(error)` then `return null` without writing a completion status for `generate_dossier`.
-
-3) finalize.ts
-   - [ ] Load flow and early-return if `status === "paused_for_upgrade"` before any updates.
-
-4) statusUtils.ts
-   - [ ] In `completeFlow`, early-return when flow is paused.
-   - [ ] In `resumeLeadGenWorkflow`, replace `instanceof BillingError` with `isBillingPauseError`.
-
-5) marketing.ts
-   - [ ] In `handleLeadGenWorkflowComplete`, if flow is paused, no-op instead of marking completed.
-
-6) Logging (optional but recommended)
-   - [ ] Add concise logs for: detected billing pause in workflow, finalize skipped due to pause, onComplete skipped due to pause.
-
----
-
-### QA test plan
-Manual verification in dev:
-1) Pause during Phase 5 (insufficient dossier credits)
-   - Setup: Account with 1 atlas credit, then run lead gen for leads that queue audits.
-   - Expect:
-     - Logs show `pauseForBilling` called with `featureId: dossier_research` and `status` becomes `paused_for_upgrade`.
-     - No `"Phase 6: Finalize"` logs.
-     - `getLeadGenJob` shows `status: paused_for_upgrade` and `billingBlock` populated.
-     - `onComplete` does not mark `completed`.
-
-2) Pause during Phase 1 (insufficient discovery credits)
-   - Setup: Zero credits, start a new job.
-   - Expect: Same as above: paused, no finalize, `onComplete` no-op.
-
-3) Resume after topping up
-   - Upgrade credits.
-   - Call `marketing.resumeLeadGenWorkflow(jobId)`.
-   - Expect:
-     - Pre-check passes; phases reset from paused point; `billingBlock` cleared; status returns to `running`.
-     - New `workflowId` recorded.
-     - Job completes successfully assuming enough credits.
-
-4) Non-billing errors
-   - Simulate a real failure (e.g., throw in audit run). Expect audit-phase writes "completed with some failures" and proceed to finalize. Ensure we didn’t regress non-billing failure handling.
-
----
-
-### Notes and constraints
-- We’re not retrofitting earlier incorrect runs. Any previously mis-marked `completed` flows remain as-is.
-- No schema changes; all changes are in control flow and guards.
-- The detector intentionally relies on error `name` and `message` substring to handle cross-runtime loss of prototypes.
-
-### Risks
-- Adding guards in finalize and completeFlow changes lifecycle semantics slightly, but only for the paused state.
-- If any other code path inadvertently calls finalize while paused, we now explicitly no-op — correct behavior given business rules.
+### Acceptance Criteria
+- Resuming from a billing pause at `generate_dossier` does not re-run `source`, `filter_rank`, `persist_leads`, or `scrape_content`.
+- No additional `lead_discovery` credit usage is recorded on resume.
+- `generate_dossier` continues from queued audits only; completed audits are not reprocessed.
+- Finalization occurs normally once Phase 5 completes (unless paused again).
 
 ### Rollout
-- Regular deploy. Verify logs and run the QA plan above.
+1) Implement arg + gating changes in `workflow.ts`.
+2) Update `resumeLeadGenWorkflow`/`relaunchWorkflow` to pass `startPhase`.
+3) Verify `resetPhasesAndClearBilling` scope.
+4) Add/verify skip logs.
+5) Test scenarios A–C locally; confirm logs match expectations.
+6) Deploy and monitor for any unexpected `lead_discovery` metering or repeated Phase 1 logs on resume.
 
 
