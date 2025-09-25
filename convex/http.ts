@@ -3,11 +3,15 @@ import { authComponent, createAuth } from "./auth";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 
-// HMAC-SHA256 verification for Vapi webhook
-async function verifyVapiSignature(body: ArrayBuffer, signature: string | null): Promise<boolean> {
+// Verify Vapi webhook either via shared secret header or HMAC-SHA256 of body
+async function verifyVapiSignature(body: ArrayBuffer, signature: string | null, secretHeader: string | null): Promise<boolean> {
   try {
     const secret = process.env.VAPI_WEBHOOK_SECRET ?? "";
-    if (!secret || !signature) return false;
+    if (!secret) return false;
+    // Prefer simple shared secret header if provided by Vapi
+    if (secretHeader && secretHeader.trim() === secret) return true;
+    // Fallback to HMAC hex digest verification if header present
+    if (!signature) return false;
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode(secret),
@@ -19,7 +23,6 @@ async function verifyVapiSignature(body: ArrayBuffer, signature: string | null):
     const digestHex = Array.from(new Uint8Array(mac))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    // Vapi sends hex digest in X-Vapi-Signature per plan
     return signature.trim() === digestHex;
   } catch {
     return false;
@@ -29,7 +32,9 @@ async function verifyVapiSignature(body: ArrayBuffer, signature: string | null):
 const vapiWebhook = httpAction(async (ctx, req) => {
   const bodyBytes = await req.arrayBuffer();
   const signature = req.headers.get("X-Vapi-Signature");
-  const ok = await verifyVapiSignature(bodyBytes, signature);
+  // Vapi may send either X-Vapi-Secret (shared secret) or X-Vapi-Signature (HMAC)
+  const shared = req.headers.get("X-Vapi-Secret");
+  const ok = await verifyVapiSignature(bodyBytes, signature, shared);
   if (!ok) return new Response("unauthorized", { status: 401 });
 
   let payload: unknown;

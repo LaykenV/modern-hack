@@ -5,8 +5,9 @@ This document explains our Vapi phone-call integration end-to-end: data model up
 ### Environment Variables
 - VAPI_API_KEY: Server token for Vapi API.
 - VAPI_PHONE_NUMBER_ID: Vapi phone number to originate calls from.
-- VAPI_WEBHOOK_SECRET: HMAC secret used to verify incoming Vapi webhooks.
-- SITE_URL: Public URL of the app, used to construct the webhook endpoint.
+- VAPI_WEBHOOK_SECRET: Secret shared with Vapi (sent in `X-Vapi-Secret`) or used to compute/verify `X-Vapi-Signature`.
+- CONVEX_SITE_URL: Public Convex HTTP URL (preferred) to construct the webhook endpoint, e.g. `https://<your-convex-deployment>.convex.site`.
+- SITE_URL: Fallback if `CONVEX_SITE_URL` is not set.
 
 Notes:
 - Secrets are only accessed in Node runtimes (internal actions, HTTP handlers).
@@ -58,8 +59,8 @@ Indexes:
 #### Vapi Node Runtime (convex/vapi.ts)
 - startPhoneCall (internalAction)
   - Args: { callId, customerNumber, assistant }
-  - Reads `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_WEBHOOK_SECRET`, and `SITE_URL` from `process.env`.
-  - Injects secure `server: { url: `${SITE_URL}/api/vapi-webhook`, secret: VAPI_WEBHOOK_SECRET }` and default `serverMessages` inside Node (not in public mutation).
+  - Reads `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_WEBHOOK_SECRET`, and `CONVEX_SITE_URL` (or `SITE_URL`) from `process.env`.
+  - Injects secure `server: { url: `${CONVEX_SITE_URL}/api/vapi-webhook`, secret: VAPI_WEBHOOK_SECRET }` and default `serverMessages` inside Node (not in public mutation).
   - POSTs to `https://api.vapi.ai/call/phone` with the inline assistant (squad.members[0].assistant = inlineAssistant).
   - On success, calls `internal.calls._attachVapiDetails` to patch the `calls` row with `vapiCallId`, `phoneNumberId`, and optional `monitor.listenUrl`.
 
@@ -69,7 +70,7 @@ Indexes:
 
 #### Webhook (convex/http.ts)
 - Route: POST `/api/vapi-webhook`
-- Security: HMAC-SHA256 verification of the raw request body using `VAPI_WEBHOOK_SECRET`, compared against `X-Vapi-Signature` header (hex digest).
+- Security: Prefer shared secret header `X-Vapi-Secret: <VAPI_WEBHOOK_SECRET>`. Falls back to HMAC-SHA256 verification of the raw request body compared against `X-Vapi-Signature` (hex digest) if the shared secret header is not present.
 - Behavior:
   - type=status-update → `internal.calls.updateStatusFromWebhook({ vapiCallId, status })`
   - type=speech-update → `internal.calls.appendTranscriptChunk` with partial fragment
@@ -90,6 +91,7 @@ We generate the assistant payload dynamically per call:
 - transcriber: Deepgram (nova-3-general)
 - firstMessageMode: "assistant-speaks-first"
 - server: injected in `internal.vapi.startPhoneCall` from env in Node as `{ url, secret }`.
+  - url: `${CONVEX_SITE_URL}/api/vapi-webhook` (preferred). Do not point to a Next.js/Vercel URL; use Convex’s URL so the Convex httpAction receives requests.
 - serverMessages: must be an array of string enums supported by Vapi (not objects). We default to:
   - `["status-update", "transcript", "end-of-call-report"]`
   - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted", and the selector "transcript[transcriptType=\"final\"]".

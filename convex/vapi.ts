@@ -131,15 +131,15 @@ export const startPhoneCall = internalAction({
   handler: async (ctx, { callId, customerNumber, assistant }) => {
     const token = process.env.VAPI_API_KEY ?? "";
     const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID ?? "";
-    const SITE_URL = process.env.SITE_URL ?? "";
+    const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL ?? process.env.SITE_URL ?? "";
     const WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET ?? "";
     if (!token || !phoneNumberId) throw new Error("Missing Vapi env configuration");
-    if (!SITE_URL || !WEBHOOK_SECRET) throw new Error("Missing SITE_URL or VAPI_WEBHOOK_SECRET");
+    if (!CONVEX_SITE_URL || !WEBHOOK_SECRET) throw new Error("Missing CONVEX_SITE_URL (or SITE_URL) or VAPI_WEBHOOK_SECRET");
 
     // Inject secure server config only in Node runtime
     const inlineAssistant: InlineAssistant = {
       ...assistant,
-      server: { url: `${SITE_URL}/api/vapi-webhook`, secret: WEBHOOK_SECRET },
+      server: { url: `${CONVEX_SITE_URL.replace(/\/$/, "")}/api/vapi-webhook`, secret: WEBHOOK_SECRET },
       serverMessages: assistant.serverMessages ?? [
         "status-update",
         "transcript",
