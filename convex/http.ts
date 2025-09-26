@@ -95,7 +95,11 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       return new Response("ok", { status: 200 });
     }
 
-    if (type === "transcript" || type === "end-of-call-report") {
+    const shouldLogPayload =
+      type === "end-of-call-report" ||
+      (typeof type === "string" && type.toLowerCase().includes("transcript"));
+
+    if (shouldLogPayload) {
       try {
         console.log(
           "[Vapi Webhook] Debug payload",
