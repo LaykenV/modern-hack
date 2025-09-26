@@ -74,7 +74,7 @@
 
 timer not stopping on complete and render summary 
 dont show/accept partial transcript
-listen not working
+//listen not working
 
 calendar plan?
 create table, check availability before call, book meeting func

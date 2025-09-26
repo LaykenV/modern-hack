@@ -152,6 +152,19 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       case "transcript-final":
       default: {
         if (typeof type === "string" && type.toLowerCase().includes("transcript")) {
+          const transcriptType = typeof p?.transcriptType === "string" ? p.transcriptType.toLowerCase() : undefined;
+          const isPartial = transcriptType === "partial" || type.toLowerCase().includes("partial");
+          if (isPartial) {
+            try {
+              console.log(
+                "[Vapi Webhook] Transcript fragment (skipped partial)",
+                JSON.stringify({ type, vapiCallId, transcriptType, role: p?.role })
+              );
+            } catch (logErr) {
+              console.warn("[Vapi Webhook] Failed to stringify transcript partial payload", logErr);
+            }
+            break;
+          }
           const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
           if (Array.isArray(messages) && messages.length > 0) {
             for (const m of messages) {
@@ -159,7 +172,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
                 role: m.role ?? "assistant",
                 text: m.text ?? "",
                 timestamp: Date.now(),
-                source: type,
+                source: type.toLowerCase().includes("transcript") ? "transcript" : type,
               } as { role: string; text: string; timestamp?: number; source?: string };
               try {
                 console.log(
@@ -176,7 +189,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
               role: (p?.role as string | undefined) ?? "assistant",
               text: p.transcript,
               timestamp: Date.now(),
-              source: type,
+              source: type.toLowerCase().includes("transcript") ? "transcript" : type,
             } as { role: string; text: string; timestamp?: number; source?: string };
             try {
               console.log(
