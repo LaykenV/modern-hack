@@ -1,115 +1,133 @@
-### Vapi Webhook Upgrade Plan
+## Vapi Integration Upgrade Plan
 
-#### Current state
-- Outbound call connects and assistant has correct context.
-- Webhook now reaches Convex (`/api/vapi-webhook`) and returns 200 OK.
-- Call records in `calls` table remain stuck at "queued" and no transcript is persisted.
+### Scope
+- **Issue 1**: Accept only final transcripts (drop partials) from Vapi.
+- **Issue 2**: Make the “Listen” feature work by consuming the `listenUrl` WebSocket stream correctly in the UI (instead of opening the raw URL).
 
-#### Root cause
-- Vapi is posting a "message envelope" with payload under `message` (e.g., `message.type`, `message.call.id`, `message.transcript`).
-- Our handler in `convex/http.ts` currently expects top-level fields (`type`, `call.id`, etc.). When it doesn't find them, it returns 200 without updating anything.
+### Current State (context)
+- Backend
+  - `convex/vapi.ts` creates phone calls via Vapi and persists `monitor.listenUrl` on success.
+  - `convex/calls.ts` builds the inline assistant (OpenAI model, PlayHT voice, Deepgram transcriber) and sets `serverMessages: ["status-update", "transcript", "end-of-call-report"]`.
+  - `convex/http.ts` validates the webhook using `VAPI_WEBHOOK_SECRET` (shared secret or HMAC), unwraps envelopes, routes by `type`:
+    - `status-update` → updates status.
+    - `speech-update` → appends transcript fragment with `source: "speech"`.
+    - `transcript` →
+      - If `messages[]` exists, appends each as `source: "transcript"` (treated as final).
+      - Else if single `transcript` string exists, appends as `source: "transcript"` when `transcriptType !== "partial"`, or as `source: "transcript-partial"` when partial.
+    - `end-of-call-report` → persists summary/recording/billing and marks call as `completed`.
+- Observed behavior
+  - The `calls.transcript` array contains both `source: "transcript-partial"` and `source: "transcript"`, e.g., duplicate lines like "Great." appear twice (partial then final).
+  - Clicking “Listen” opens the `wss://.../listen` URL in a new tab, which shows an empty page (expected, since it’s a raw WebSocket endpoint, not an HTML page).
 
-#### Fix plan
-- **Unwrap envelope:** If `payload.message` exists, use that as the canonical object `m`; otherwise use `payload`.
-- **Extract identifiers:**
-  - `type = m.type`
-  - `vapiCallId = m.call?.id || m.id || m.callId || req.headers["X-Call-Id"]`
-- **Handle transcript:**
-  - If `m.messages` or `m.data?.messages` exists, iterate and append fragments (existing behavior).
-  - Else if `m.transcript` exists, append a single fragment using:
-    - `role = m.role || "assistant"`
-    - `text = m.transcript`
-    - `source = m.transcriptType === "partial" ? "transcript-partial" : "transcript"`
-- **Handle status updates:**
-  - `status = m.status || m.data?.status` → call `internal.calls.updateStatusFromWebhook`.
-- **Handle end-of-call-report:**
-  - Pull `summary`, `recordingUrl`, `endedReason`, `billingSeconds` from `m` (or `m.data`).
-- **Guards and logging:**
-  - If no `vapiCallId` after all fallbacks, log once and return 200.
-  - Keep responses fast; do not block on long operations.
+### Decisions
+- **Final transcripts only**
+  - Configure upstream event selection to finals using `serverMessages` selector `"transcript[transcriptType=\"final\"]"` (supported by Vapi) so only final transcript events are delivered.
+  - Keep webhook-side filtering as defense-in-depth: ignore `transcriptType === "partial"` and optionally dedupe identical final strings arriving close together.
+- **Listen feature**
+  - Do not open the `wss://.../listen` URL directly. Implement an in-app WebSocket client that connects to the URL and plays PCM audio via the Web Audio API. Provide UX for connect/disconnect and error states.
 
-#### Verification checklist
-- `server.url` points to Convex HTTP (configured via `CONVEX_SITE_URL`) — confirmed by logs.
-- `VAPI_WEBHOOK_SECRET` set and Convex verifies via `X-Vapi-Secret` (with HMAC fallback) — implemented.
-- `serverMessages` includes required types: `status-update`, `transcript`, `end-of-call-report` — confirmed.
-- `_attachVapiDetails` patches `vapiCallId` so subsequent webhooks can find the call — confirmed.
+### Planned Changes (no code edits yet)
 
-#### Test plan
-1) Unit-style webhook tests via curl/postman against Convex endpoint:
-   - Headers: `Content-Type: application/json`, `X-Vapi-Secret: <VAPI_WEBHOOK_SECRET>`
-   - Bodies:
-     - `status-update` envelope with `message.call.id` and `message.status`
-     - `transcript` envelope with `message.transcript` and `message.role`
-     - `end-of-call-report` envelope with `message.summary`, `message.recordingUrl`, `message.endedReason`, `message.billingSeconds`
-   - Expect corresponding changes in `calls` row.
-2) End-to-end test: trigger a real outbound call and validate live updates in UI.
+#### 1) Update assistant `serverMessages` to finals only
+- Files: `convex/vapi.ts`, `convex/calls.ts`
+- Change both inline assistant payloads to:
+  - `serverMessages: ["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`
+- Rationale: Prevent partial transcripts from being sent at all; reduce webhook load and storage noise.
 
-#### Environment variables
-- **CONVEX_SITE_URL**: public Convex HTTP URL (preferred for webhooks)
-- **VAPI_WEBHOOK_SECRET**: shared secret (Vapi sends in `X-Vapi-Secret`); HMAC fallback supported via `X-Vapi-Signature` if present
-- **VAPI_API_KEY**, **VAPI_PHONE_NUMBER_ID**: as configured
-
-#### Relevant logs
-
-- Earlier failures (webhook to Next/Vercel → 405):
-```json
-{
-  "id": "log-267",
-  "level": 50,
-  "body": "Server error: Your server rejected `transcript` webhook. Error: Request failed with status code 405",
-  "attributes": {
-    "category": "system",
-    "callId": "ca8d9ae5-dcdf-40c3-9bf3-6c1364492085",
-    "orgId": "68befe23-382c-44b6-8e79-23c34335c9d5"
-  }
-}
+Example (illustrative only):
+```ts
+serverMessages: [
+  "status-update",
+  "transcript[transcriptType=\"final\"]",
+  "end-of-call-report",
+]
 ```
 
-```json
-{
-  "id": "log-255",
-  "level": 50,
-  "body": "Request failed: transcript",
-  "attributes": {
-    "category": "webhook",
-    "callId": "ca8d9ae5-dcdf-40c3-9bf3-6c1364492085",
-    "url": "https://modern-hack-5qjr.vercel.app/api/vapi-webhook",
-    "messageType": "transcript",
-    "error": {
-      "message": "Request failed with status code 405"
-    }
+#### 2) Harden webhook to drop partials and dedupe finals
+- File: `convex/http.ts`
+- Adjust the `"transcript"` case:
+  - If it’s a single-fragment payload and `transcriptType === "partial"`, skip appending.
+  - If it’s `messages[]`, continue appending as finals.
+  - Add a simple deduper to avoid storing repeated finals (e.g., when the same text arrives via different paths):
+    - Strategy: On append, compare against the last 1–3 fragments for the same `role`. If `source === "transcript"` and `text` matches (case and whitespace normalized), skip.
+  - Keep `speech-update` handling unchanged.
+
+Acceptance for Issue 1:
+- After a real call, `calls.transcript` contains only entries with `source: "transcript"` (no `transcript-partial`).
+- Final phrases like "Great." appear only once.
+
+#### 3) Implement a real “Listen” experience in the UI
+- Files: UI layer (e.g., `app/dashboard/...`), no backend change required for `listenUrl`.
+- Replace the current `window.open(listenUrl)` behavior with a modal that hosts a `LiveListen` React component:
+  - Props: `{ listenUrl: string }`.
+  - Behavior:
+    - On connect: `new WebSocket(listenUrl)`; track `readyState`, errors, and close events.
+    - On `message` with binary payloads: treat as 16-bit PCM and stream to audio output using Web Audio.
+    - On close: stop playback and release audio resources.
+    - UI controls: Connect/Disconnect toggle, status indicator, basic error text.
+  - Audio playback suggestions:
+    - Use an `AudioWorklet` for stable, low-latency PCM playback (preferred), or a small ring buffer feeding an `AudioBufferSourceNode` as a simpler fallback.
+    - Default sample rate to 16000 Hz unless Vapi indicates otherwise; make this configurable if needed.
+
+Illustrative client snippet (simplified):
+```ts
+// Pseudocode only
+const ws = new WebSocket(listenUrl);
+const audioCtx = new AudioContext({ sampleRate: 16000 });
+// Use an AudioWorklet or ScriptProcessor to push Int16 PCM chunks to the output
+ws.onmessage = (evt) => {
+  if (evt.data instanceof Blob) {
+    evt.data.arrayBuffer().then((buf) => {
+      // Convert Int16 PCM -> Float32 [−1, 1], enqueue to audio pipeline
+    });
   }
-}
+};
 ```
 
-- Current (webhook to Convex → 200 OK, envelope under `message`):
-```json
-{
-  "id": "log-15",
-  "level": 30,
-  "body": "Response successful: transcript",
-  "attributes": {
-    "category": "webhook",
-    "callId": "835ea43e-a703-49ee-a6cf-fe7529a0285c",
-    "messageType": "transcript",
-    "url": "https://youthful-dinosaur-571.convex.site/api/vapi-webhook",
-    "response": {
-      "status": 200,
-      "data": "ok"
-    },
-    "config": {
-      "headers": {
-        "X-Vapi-Secret": "<redacted>"
-      },
-      "data": "{\"message\":{\"type\":\"transcript\",\"role\":\"user\",\"transcriptType\":\"final\",\"transcript\":\"Hello.\",\"call\":{\"id\":\"835ea43e-a703-49ee-a6cf-fe7529a0285c\"}}}"
-    }
-  }
-}
-```
+Acceptance for Issue 2:
+- Clicking “Listen” opens a modal, connects within ~1s, plays live audio, and allows clean disconnect.
+- The previous blank tab behavior is removed.
 
-#### Rollout
-- Implement handler updates in `convex/http.ts` as outlined.
-- Deploy to Convex; validate via curl tests; then perform a live call test.
-- Monitor `calls` rows for status transitions and transcript accumulation.
+### Test Plan
+- Local validation (dev):
+  - Use a test call to verify webhook behavior:
+    - With updated `serverMessages`, confirm partials stop arriving.
+    - Manually POST a partial single-fragment payload to the webhook and verify it’s ignored.
+    - POST a `messages[]` transcript payload and verify it’s appended as finals.
+    - Confirm deduper prevents storing duplicates when the same final text is received via different paths.
+  - UI listen test:
+    - Trigger a live call; open the Listen modal; verify audio playback and graceful disconnect.
+    - Simulate a WebSocket error and ensure the UI surfaces an error state without crashing.
+
+- Observability:
+  - Add debug logs (temporary) around transcript dropping/deduping (ensure no secrets are logged). Remove or lower verbosity after validation.
+
+### Rollout Steps
+1) Update `convex/calls.ts` assistant `serverMessages` to finals only.
+2) Update `convex/vapi.ts` to enforce the same `serverMessages` injection server-side.
+3) Adjust `convex/http.ts` transcript logic to skip partial single-fragments and add dedupe for finals.
+4) Update `.cursor/context/vapi.md` to document the new `serverMessages` selector and webhook filtering expectations.
+5) Implement the `LiveListen` UI (modal + component) and replace any `window.open(listenUrl)` usages.
+6) Run a real test call end-to-end; validate transcripts and Listen.
+
+### Risks & Mitigations
+- Risk: `transcript[transcriptType=\"final\"]` selector unsupported in older configs.
+  - Mitigation: Webhook still ignores partials. If finals stop entirely, temporarily fall back to `"transcript"` while keeping webhook filtering.
+- Risk: Audio glitches in-browser due to buffer underflow.
+  - Mitigation: Use `AudioWorklet` + ring buffer; small pre-buffer (e.g., 100–200ms) before playback start.
+- Risk: Duplicate finals via multiple sources.
+  - Mitigation: Add short-window dedupe on text + role.
+
+### Acceptance Criteria (summary)
+- Only final transcripts persisted; no `source: "transcript-partial"` stored.
+- No duplicate final lines for the same utterance.
+- Listen modal plays audio reliably; no blank tabs opened.
+
+### Follow-up (optional, not in this change)
+- UI timer noted in `tasks.txt` ("timer not stopping on complete and render summary"): subscribe to `status === "completed"` and stop timers; re-render with `summary` from `end-of-call-report`.
+
+### References (from Vapi docs via Context7)
+- `serverMessages` supports selectors, including `transcript[transcriptType="final"]` (filter finals at the source).
+- `listenUrl` is a WebSocket that streams binary PCM audio; it is not an HTML page and should be consumed by a WS client and played via an audio pipeline.
 
 

@@ -68,9 +68,13 @@
 //test all flows
 
 
-vapi integration to call with dossier
+//vapi integration to call with dossier
 //create phone number
 //create plan from google docs and double check it
+
+timer not stopping on complete and render summary 
+dont show/accept partial transcript
+listen not working
 
 calendar plan?
 create table, check availability before call, book meeting func

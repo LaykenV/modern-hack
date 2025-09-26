@@ -49,6 +49,8 @@ Indexes:
 
 - appendTranscriptChunk (internalMutation)
   - Lookup by `vapiCallId` and push a transcript fragment onto `transcript[]`.
+  - Defense-in-depth: ignores `source: 'transcript-partial'` fragments.
+  - Adds short-window dedupe to prevent repeated final lines: compares incoming text (normalized) against the last 3 fragments for the same role.
 
 - finalizeReport (internalMutation)
   - Lookup by `vapiCallId` and persist `summary`, `recordingUrl`, `endedReason`, `billingSeconds`, and mark status as completed.
@@ -61,6 +63,7 @@ Indexes:
   - Args: { callId, customerNumber, assistant }
   - Reads `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_WEBHOOK_SECRET`, and `CONVEX_SITE_URL` (or `SITE_URL`) from `process.env`.
   - Injects secure `server: { url: `${CONVEX_SITE_URL}/api/vapi-webhook`, secret: VAPI_WEBHOOK_SECRET }` and default `serverMessages` inside Node (not in public mutation).
+  - Finals-only transcripts: sets `serverMessages` to `["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`.
   - POSTs to `https://api.vapi.ai/call/phone` with the inline assistant (squad.members[0].assistant = inlineAssistant).
   - On success, calls `internal.calls._attachVapiDetails` to patch the `calls` row with `vapiCallId`, `phoneNumberId`, and optional `monitor.listenUrl`.
 
@@ -78,7 +81,8 @@ Indexes:
   - type=speech-update → `internal.calls.appendTranscriptChunk` with `{ role: payload.from || 'assistant', text: payload.text || payload.data?.text, source: 'speech' }`.
   - type=transcript →
     - If `payload.messages || payload.data?.messages` array exists, append each `{ role, text }` as `source: 'transcript'`.
-    - Else if `payload.transcript` exists, append a single fragment `{ role: payload.role || 'assistant', text: payload.transcript, source: payload.transcriptType === 'partial' ? 'transcript-partial' : 'transcript' }`.
+    - Else if `payload.transcript` exists and `transcriptType !== 'partial'`, append a single fragment `{ role: payload.role || 'assistant', text: payload.transcript, source: 'transcript' }`.
+    - Partials are dropped defensively.
   - type=end-of-call-report → `internal.calls.finalizeReport` with `summary`, `recordingUrl`, `endedReason`, `billingSeconds` pulled from root or `data`.
 - Responds with `200 ok` quickly; logs errors without leaking details.
 
@@ -96,9 +100,9 @@ We generate the assistant payload dynamically per call:
 - firstMessageMode: "assistant-speaks-first"
 - server: injected in `internal.vapi.startPhoneCall` from env in Node as `{ url, secret }`.
   - url: `${CONVEX_SITE_URL}/api/vapi-webhook` (preferred). Do not point to a Next.js/Vercel URL; use Convex’s URL so the Convex httpAction receives requests.
-- serverMessages: must be an array of string enums supported by Vapi (not objects). We default to:
-  - `["status-update", "transcript", "end-of-call-report"]`
-  - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted", and the selector "transcript[transcriptType=\"final\"]".
+- serverMessages: must be an array of string enums supported by Vapi (not objects). We default to finals-only:
+  - `["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`
+  - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted".
 - metadata: convexOpportunityId, convexAgencyId, leadGenFlowId
 
 ### Call Lifecycle
@@ -149,6 +153,10 @@ Transcript (single fragment):
 ```json
 { "message": { "type": "transcript", "role": "user", "transcriptType": "final", "transcript": "Hello.", "call": { "id": "<vapiCallId>" } } }
 ```
+Partials (single fragment) are ignored by the webhook:
+```json
+{ "message": { "type": "transcript", "role": "user", "transcriptType": "partial", "transcript": "Hell", "call": { "id": "<vapiCallId>" } } }
+```
 
 End of call report:
 ```json
@@ -167,6 +175,16 @@ Common issues:
 - Secrets (API key, webhook secret) never leave Node.
 - HMAC verification enforced before any mutation calls.
 - We do not store audio blobs; only `recordingUrl` (URL reference) is saved.
+
+### Live Listen UI
+- The dashboard includes a modal-based in-app listener that connects to `monitor.listenUrl` via WebSocket and plays Int16 PCM audio via Web Audio.
+- Controls: Connect / Disconnect, status display, error surfacing.
+- Default sample rate assumed 16kHz.
+- Componentization: Live listen UI has been extracted to `components/LiveListen.tsx` and imported in `app/dashboard/page.tsx`.
+
+### UI Behavior on Call Completion
+- When a call status becomes `completed`, the dashboard stops the running timer and displays a fixed duration using `billingSeconds` when available.
+- The end-of-call `summary` (populated by the `end-of-call-report` webhook via `internal.calls.finalizeReport`) is rendered below the transcript on the live call panel.
 
 ### Future Enhancements
 - Add watchdog/reconciliation job if webhooks are missed; poll `GET /call/{id}`.

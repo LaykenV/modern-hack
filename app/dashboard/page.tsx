@@ -11,6 +11,8 @@ import Link from "next/link";
 import { Id } from "@/convex/_generated/dataModel";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
 import { useCustomer } from "autumn-js/react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import LiveListen from "../../components/LiveListen";
 
 export default function DashboardPage() {
   return (
@@ -94,6 +96,8 @@ function DashboardContent() {
   const [callErrorByOpp, setCallErrorByOpp] = useState<Record<string, string>>({});
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const [nowTs, setNowTs] = useState<number>(Date.now());
+  const [listenModalOpen, setListenModalOpen] = useState(false);
+  const [listenUrlForModal, setListenUrlForModal] = useState<string | null>(null);
   
   // Paywall state
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -194,16 +198,36 @@ function DashboardContent() {
     duration?: number;
     monitorUrls?: { listenUrl?: string };
     transcript?: Array<TranscriptFragment>;
+    summary?: string;
+    billingSeconds?: number;
   };
 
   // Auto-scroll transcript when new fragments arrive on the expanded call
   const callsArray: Array<CallRow> = (callsForExpanded ?? []) as Array<CallRow>;
-  const transcriptLength = callsArray[0]?.transcript?.length ?? 0;
   useEffect(() => {
+    if (!expandedOpportunityId) return;
+    if (!Array.isArray(callsForExpanded) || callsForExpanded.length === 0) return;
+
+    const typedCalls = callsForExpanded as Array<CallRow>;
+    const oppKey = String(expandedOpportunityId);
+    const activeId = activeCallByOpportunity[oppKey];
+
+    let selectedCall = activeId
+      ? typedCalls.find((call) => call._id === activeId) ?? null
+      : null;
+
+    if (!selectedCall) {
+      selectedCall = typedCalls
+        .slice()
+        .sort((a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0))[0] ?? null;
+    }
+
+    if (!selectedCall) return;
+
     if (transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
-  }, [transcriptLength]);
+  }, [callsForExpanded, activeCallByOpportunity, expandedOpportunityId]);
 
   function formatDuration(ms: number | undefined): string {
     if (!ms || ms < 0) return "0:00";
@@ -694,7 +718,17 @@ function DashboardContent() {
                           if (!selected) return null;
                           const status: string = selected.currentStatus ?? selected.status ?? "unknown";
                           const startedAt: number | undefined = selected.startedAt;
-                          const durationMs: number | undefined = selected.duration ?? (startedAt ? Math.max(0, nowTs - startedAt) : undefined);
+                          const isCompleted = status === "completed";
+                          const completedDurationMs: number | undefined =
+                            typeof selected.billingSeconds === "number"
+                              ? Math.max(0, selected.billingSeconds * 1000)
+                              : undefined;
+                          const durationMs: number | undefined =
+                            selected.duration ?? (isCompleted
+                              ? completedDurationMs
+                              : startedAt
+                              ? Math.max(0, nowTs - startedAt)
+                              : undefined);
                           const statusClass =
                             status === "in-progress" ? "bg-green-100 text-green-700" :
                             status === "ringing" ? "bg-blue-100 text-blue-700" :
@@ -713,14 +747,15 @@ function DashboardContent() {
                                   <span className="text-slate-500">Duration:</span> {formatDuration(durationMs)}
                                 </div>
                                 {selected.monitorUrls?.listenUrl && (
-                                  <a
-                                    href={selected.monitorUrls.listenUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
                                     className="text-blue-600 dark:text-blue-400 underline"
+                                    onClick={() => {
+                                      setListenUrlForModal(selected!.monitorUrls!.listenUrl!);
+                                      setListenModalOpen(true);
+                                    }}
                                   >
                                     Listen
-                                  </a>
+                                  </button>
                                 )}
                               </div>
                               <div ref={transcriptRef} className="mt-3 max-h-48 overflow-y-auto space-y-2">
@@ -743,6 +778,12 @@ function DashboardContent() {
                                   <p className="text-sm text-slate-500">Waiting for transcript…</p>
                                 )}
                               </div>
+                              {status === "completed" && selected.summary && (
+                                <div className="mt-3 p-2 rounded bg-slate-50 dark:bg-slate-800">
+                                  <h5 className="font-medium">Summary</h5>
+                                  <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{selected.summary}</p>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -954,6 +995,26 @@ function DashboardContent() {
           </div>
         )}
       </div>
+      {/* Live Listen Modal */}
+      <Dialog open={listenModalOpen} onOpenChange={(open) => {
+        setListenModalOpen(open);
+        if (!open) {
+          setListenUrlForModal(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Live Listen</DialogTitle>
+            <DialogDescription>
+              Connect to the live audio stream for this call. Use Connect to start and Disconnect to stop.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2">
+            <LiveListen listenUrl={listenUrlForModal} />
+          </div>
+          <DialogFooter />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -971,5 +1032,4 @@ function SummaryChip({ label, value }: SummaryChipProps) {
     </div>
   );
 }
-
 

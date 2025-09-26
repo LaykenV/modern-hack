@@ -124,11 +124,15 @@ const vapiWebhook = httpAction(async (ctx, req) => {
             await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
           }
         } else if (typeof p?.transcript === "string") {
+          // Drop partial single-fragment transcripts; accept only finals
+          if (p?.transcriptType === "partial") {
+            break;
+          }
           const fragment = {
             role: (p?.role as string | undefined) ?? "assistant",
             text: p.transcript,
             timestamp: Date.now(),
-            source: p?.transcriptType === "partial" ? "transcript-partial" : "transcript",
+            source: "transcript",
           } as { role: string; text: string; timestamp?: number; source?: string };
           await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
         }

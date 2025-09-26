@@ -142,7 +142,7 @@ export const startPhoneCall = internalAction({
       server: { url: `${CONVEX_SITE_URL.replace(/\/$/, "")}/api/vapi-webhook`, secret: WEBHOOK_SECRET },
       serverMessages: assistant.serverMessages ?? [
         "status-update",
-        "transcript",
+        "transcript[transcriptType=\"final\"]",
         "end-of-call-report",
       ],
     } as InlineAssistant;
