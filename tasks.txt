@@ -76,9 +76,9 @@
 //dont show/accept partial transcript
 //listen not working
 
-twilio phone number
-test billingSeconds
-deploy
+//twilio phone number
+//test billingSeconds
+//deploy
 
 //calendar plan?
 //create table, check availability before call, book meeting func
@@ -101,3 +101,7 @@ ui
 test everything
 
 demo video
+
+
+
+cancel firecrawl, cancel twilio, cancel cursor ultra

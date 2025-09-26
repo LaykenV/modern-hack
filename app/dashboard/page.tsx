@@ -49,7 +49,7 @@ function DashboardContent() {
   const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
   const { refetch: refetchCustomer } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
-  const startVapiCall = useMutation(api.calls.startCall);
+  const startVapiCall = useMutation(api.call.calls.startCall);
   
   // State for lead generation
   const [currentJobId, setCurrentJobId] = useState<Id<"lead_gen_flow"> | null>(null);
@@ -123,7 +123,7 @@ function DashboardContent() {
 
   // Subscribe to calls only for the expanded opportunity (lazy to reduce load)
   const callsForExpanded = useQuery(
-    api.calls.getCallsByOpportunity,
+    api.call.calls.getCallsByOpportunity,
     expandedOpportunityId ? { opportunityId: expandedOpportunityId } : "skip"
   );
 
