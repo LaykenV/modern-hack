@@ -129,7 +129,7 @@ Then share ONE relevant success story from your approved claims to build credibi
 ## 4) Schedule Like a Human Would
 DON'T immediately rattle off time slots. Instead:
 
-"Great! I'd love to set up a brief chat. What day works better for you - earlier in the week or later?"
+"Great! I'd love to set up a brief chat. What day works better for you - earlier or later on {one of our recommended days}"
 
 Listen to their preference, then offer 2 specific times from your available slots that match their preference.
 

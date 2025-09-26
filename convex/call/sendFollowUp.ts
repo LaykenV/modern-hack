@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { DateTime } from "luxon";
 import type { Doc } from "../_generated/dataModel";
+import { authComponent } from "../auth";
 
 export const sendBookingConfirmation = internalAction({
   args: {
@@ -54,7 +55,7 @@ export const sendBookingConfirmation = internalAction({
         timeZoneName: 'short'
       });
       const prospectEmail = opportunity.email;
-      const user = await ctx.auth.getUserIdentity();
+      const user = await authComponent.getAuthUser(ctx);
 
 
       // Log structured confirmation details
