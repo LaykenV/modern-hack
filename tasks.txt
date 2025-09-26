@@ -73,7 +73,7 @@
 //create plan from google docs and double check it
 
 timer not stopping on complete and render summary 
-dont show/accept partial transcript
+//dont show/accept partial transcript
 //listen not working
 
 calendar plan?

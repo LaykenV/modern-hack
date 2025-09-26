@@ -60,6 +60,9 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         recordingUrl?: string;
         endedReason?: string;
         billingSeconds?: number;
+        durationSeconds?: number;
+        duration?: number;
+        durationMs?: number;
       };
       from?: string;
       text?: string;
@@ -68,6 +71,15 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       recordingUrl?: string;
       endedReason?: string;
       billingSeconds?: number;
+      durationSeconds?: number;
+      duration?: number;
+      durationMs?: number;
+      artifact?: {
+        durationSeconds?: number;
+        duration?: number;
+        durationMs?: number;
+        messages?: TranscriptMessage[];
+      };
       // transcript-specific single fragment
       transcript?: string;
       transcriptType?: "partial" | "final" | string;
@@ -208,7 +220,44 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         const summary = (p?.summary as string | undefined) ?? p?.data?.summary;
         const recordingUrl = (p?.recordingUrl as string | undefined) ?? p?.data?.recordingUrl;
         const endedReason = (p?.endedReason as string | undefined) ?? p?.data?.endedReason;
-        const billingSeconds = (p?.billingSeconds as number | undefined) ?? p?.data?.billingSeconds;
+        const asFiniteNumber = (value: unknown): number | undefined => {
+          if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value)) {
+            return undefined;
+          }
+          return value;
+        };
+
+        const toSeconds = (value: unknown, unit: "seconds" | "milliseconds" = "seconds"): number | undefined => {
+          const num = asFiniteNumber(value);
+          if (num === undefined) return undefined;
+          return unit === "seconds" ? num : num / 1000;
+        };
+
+        const rawBillingSeconds =
+          toSeconds(p?.billingSeconds) ??
+          toSeconds(p?.data?.billingSeconds) ??
+          toSeconds(p?.durationSeconds) ??
+          toSeconds(p?.data?.durationSeconds) ??
+          toSeconds(p?.duration) ??
+          toSeconds(p?.data?.duration) ??
+          toSeconds(p?.artifact?.durationSeconds) ??
+          toSeconds(p?.artifact?.duration) ??
+          toSeconds(p?.durationMs, "milliseconds") ??
+          toSeconds(p?.data?.durationMs, "milliseconds") ??
+          toSeconds(p?.artifact?.durationMs, "milliseconds");
+
+        const billingSeconds =
+          rawBillingSeconds !== undefined ? Math.round(Number(rawBillingSeconds)) : undefined;
+
+        try {
+          console.log(
+            "[Vapi Webhook] Billing seconds extracted",
+            JSON.stringify({ vapiCallId, rawBillingSeconds, billingSeconds }),
+          );
+        } catch (logErr) {
+          console.warn("[Vapi Webhook] Failed to stringify billing seconds payload", logErr);
+        }
+
         await ctx.runMutation(internal.calls.finalizeReport, {
           vapiCallId,
           summary,

@@ -204,11 +204,15 @@ export const finalizeReport = internalMutation({
       .withIndex("by_vapi_call_id", (q) => q.eq("vapiCallId", args.vapiCallId))
       .unique();
     if (!record) return null;
+    const safeBillingSeconds =
+      typeof args.billingSeconds === "number" && Number.isFinite(args.billingSeconds)
+        ? Math.max(0, Math.round(args.billingSeconds))
+        : undefined;
     await ctx.db.patch(record._id, {
       summary: args.summary,
       recordingUrl: args.recordingUrl,
       endedReason: args.endedReason,
-      billingSeconds: args.billingSeconds,
+      billingSeconds: safeBillingSeconds,
       status: "completed",
       currentStatus: "completed",
       lastWebhookAt: Date.now(),
