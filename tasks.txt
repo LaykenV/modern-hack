@@ -91,11 +91,14 @@ timer not working still
 
 
 get email in leadgen
-resend emails with ics and recap
+test email log
 
+
+resend emails with ics and recap
 test emails
 
 add credit metering to calls
+test crediting
 
 increase max 10 pages on agency crawl filter? crawl should start right away in ui and takes too long
 update system prompts?

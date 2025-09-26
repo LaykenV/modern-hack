@@ -230,6 +230,7 @@ export const getOpportunityById = internalQuery({
       name: v.string(),
       domain: v.optional(v.string()),
       phone: v.optional(v.string()),
+      email: v.optional(v.string()),
       place_id: v.string(),
       address: v.optional(v.string()),
       city: v.optional(v.string()),

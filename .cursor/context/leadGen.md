@@ -39,6 +39,7 @@ export default defineSchema({
     name: v.string(),
     domain: v.optional(v.string()),
     phone: v.optional(v.string()), // Kept optional in schema, but will be required by our filter logic
+    email: v.optional(v.string()), // Contact email discovered during audit/dossier phase
     place_id: v.string(),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
@@ -196,3 +197,4 @@ This pipeline is a Convex `action` triggered by the user. It finds, filters, sco
 *   **Campaign Filtering**: A new set of dropdowns on the dashboard will allow the agency owner to filter their opportunities by the historical `targetVertical` and `targetGeography` they were generated for. This is essential for managing multiple campaigns.
 *   **Transparent Auditing**: If a lead's status is `"AUDITING"`, the UI can show the current active phase from the `audit_jobs` table, making the user feel like the system is actively working for them.
 *   **Richer Dossiers**: The "Client Opportunity Report" is now built from a much more robust process, increasing the quality of the `identified_gaps` and the resulting AI call script.
+*   **Email Discovery**: Contact emails are automatically extracted from prospect websites during the audit phase, providing additional contact options beyond phone numbers for follow-up communications.

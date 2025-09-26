@@ -146,6 +146,7 @@ export const createAuditDossier = internalMutation({
       url: v.string(),
       title: v.optional(v.string()),
     }))),
+    email: v.optional(v.string()), // Optional email extracted from website analysis
   },
   returns: v.id("audit_dossier"),
   handler: async (ctx, args) => {
@@ -162,6 +163,17 @@ export const createAuditDossier = internalMutation({
     await ctx.db.patch(args.auditJobId, {
       dossierId,
     });
+
+    // Update opportunity email if a new email was found and differs from stored value
+    if (args.email) {
+      const currentOpportunity = await ctx.db.get(args.opportunityId);
+      if (currentOpportunity && currentOpportunity.email !== args.email) {
+        await ctx.db.patch(args.opportunityId, {
+          email: args.email,
+        });
+        console.log(`[Audit Dossier] Updated opportunity ${args.opportunityId} email to ${args.email}`);
+      }
+    }
 
     return dossierId;
   },
@@ -273,14 +285,15 @@ export const filterRelevantUrls = internalAction({
 
     const prompt = `Rank the following website URLs by relevance for lead generation audit and sales intelligence.
 
-Context: We're auditing a potential client website to understand their business, identify gaps, and create talking points for sales outreach.
+Context: We're auditing a potential client website to understand their business, identify gaps, and create talking points for sales outreach. We also need to extract contact information for follow-up.
 
 Instructions:
 - PRIORITIZE: homepage, product/services/solutions, pricing, about/company, case studies/testimonials, team/leadership
-- INCLUDE: key feature pages, integration/partner pages, resources/documentation if core to business
-- DEPRIORITIZE: blog posts (unless recent and highly relevant), careers, legal/privacy, generic contact pages
+- INCLUDE: contact/contact-us pages (essential for email discovery), key feature pages, integration/partner pages, resources/documentation if core to business
+- ENSURE: At least one contact-style page is included in the selection when available (contact, contact-us, get-in-touch, etc.)
+- DEPRIORITIZE: blog posts (unless recent and highly relevant), careers, legal/privacy
 - EXCLUDE: URLs with query params, anchors, or duplicate content
-- LIMIT: return exactly 4 most relevant URLs for comprehensive business understanding
+- LIMIT: return exactly 4 most relevant URLs for comprehensive business understanding and contact discovery
 - USE ONLY the provided URLs; do not invent new ones
 
 Output (JSON only, no prose): {"urls": [string, ...]}
@@ -331,8 +344,10 @@ ${top.map((p, i) => `[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}`).jo
           const hasPricing = url.includes('/pricing') || title.includes('pricing');
           const hasAbout = url.includes('/about') || title.includes('about');
           const hasService = url.includes('/service') || title.includes('service');
+          const hasContact = url.includes('/contact') || title.includes('contact') || 
+                           url.includes('/get-in-touch') || title.includes('get in touch');
           
-          return isHomepage || hasProduct || hasPricing || hasAbout || hasService;
+          return isHomepage || hasProduct || hasPricing || hasAbout || hasService || hasContact;
         })
         .slice(0, 4)
         .map(p => p.url);
@@ -430,10 +445,12 @@ Create a comprehensive sales dossier with:
 1. BUSINESS SUMMARY (2-3 sentences): What they do, who they serve, key value propositions
 2. IDENTIFIED GAPS (3-5 specific gaps): Technical, marketing, operational, or strategic weaknesses we could address
 3. TALKING POINTS (3-4 points): Specific conversation starters that connect our capabilities to their needs
+4. PRIMARY EMAIL: Best contact email found on the website (look for info@, contact@, hello@, sales@, or named contacts)
 
 Format as JSON:
 {
   "summary": "Business summary here",
+  "primary_email": "best-contact@company.com or null if not found",
   "gaps": [
     {"key": "Gap category", "value": "Specific gap description", "source_url": "supporting URL"},
     ...
@@ -454,6 +471,12 @@ Format as JSON:
       
       const dossierRes = await atlasAgentGroq.generateText(ctx, threadContext, { prompt: dossierPrompt });
       const dossierData = JSON.parse(dossierRes.text ?? "{}");
+      
+      // Extract email from AI response
+      const extractedEmail = dossierData.primary_email && 
+                            dossierData.primary_email !== "null" && 
+                            dossierData.primary_email.includes('@') 
+                            ? dossierData.primary_email : null;
       
       // Generate fit reason separately for brevity
       const fitPrompt: string = `Based on this analysis, write a concise 1-2 sentence "fit reason" explaining why ${opportunity.name} is a good prospect for ${agency.companyName}.
@@ -488,6 +511,7 @@ Fit Reason:`;
           url: page.url,
           title: page.title,
         })),
+        email: extractedEmail, // Pass extracted email to dossier creation
       });
 
       // Save fit reason to opportunity
@@ -532,6 +556,7 @@ Fit Reason:`;
           url: page.url,
           title: page.title,
         })),
+        email: undefined, // No email extraction in fallback case
       });
 
       await ctx.runMutation(internal.leadGen.audit.saveFitReason, {

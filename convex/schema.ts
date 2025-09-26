@@ -48,6 +48,7 @@ export default defineSchema({
     name: v.string(),
     domain: v.optional(v.string()),
     phone: v.optional(v.string()), // Kept optional in schema, but will be required by our filter logic
+    email: v.optional(v.string()), // Contact email discovered during audit/dossier phase
     place_id: v.string(),
     address: v.optional(v.string()),
     city: v.optional(v.string()),

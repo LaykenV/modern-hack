@@ -83,6 +83,7 @@ export const persistClientOpportunities = internalMutation({
           name: lead.name,
           domain: domain,
           phone: lead.phone,
+          email: undefined, // Will be populated during audit/dossier phase
           place_id: lead.place_id,
           address: lead.address,
           rating: lead.rating,

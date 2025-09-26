@@ -22,6 +22,7 @@
   - Status lifecycle: "SOURCED" → (no website → "DATA_READY") or (audit path) "AUDITING" → "READY"
   - Booked meeting timestamp: `meeting_time?: number` (Unix ms; set when a meeting is booked)
   - Campaign fields: `targetVertical`, `targetGeography`; ranking: `qualificationScore`; badges: `signals[]`
+  - Contact info: `phone` (required by filter), `email` (discovered during audit/dossier phase)
   - Indexes: `by_agency`, `by_place_id`, `by_agency_and_campaign`, `by_leadGenFlow`, `by_agency_and_domain`, `by_leadGenFlow_and_domain`
 - `audit_jobs` (updated with upgrade plan)
   - Links: `opportunityId`, `agencyId`, optional `leadGenFlowId`; `targetUrl`, `status`, `phases[]`, optional `dossierId`, optional `analysisThread`
@@ -90,7 +91,7 @@ Status updates:
 - Subscribe: marketing.getLeadGenJob(jobId) → phases, lastEvent, placesSnapshot
 - Subscribe: marketing.getLeadGenProgress(jobId) → aggregate progress bar
 - Subscribe: marketing.getLeadGenFlowCounts(leadGenFlowId) → totals/ready/audit chips
-- Subscribe: marketing.listClientOpportunitiesByFlow(leadGenFlowId) → row-level info
+- Subscribe: marketing.listClientOpportunitiesByFlow(leadGenFlowId) → row-level info (includes email field)
 - Subscribe: marketing.listAuditJobsByFlow(leadGenFlowId) → per-lead audit status & dossierId
 - Lazy load on expand: marketing.getAuditDossier(dossierId) + marketing.listScrapedPagesByAudit(auditJobId)
 
@@ -133,14 +134,15 @@ Status updates:
     - Sets opportunity `status = "AUDITING"`.
 - Status: start with message, complete with `{ queuedCount, skippedCount }`.
 
-### Step 5 — generate_dossier (per‑opportunity audit action) (implemented + idempotent billing)
+### Step 5 — generate_dossier (per‑opportunity audit action) (implemented + idempotent billing + email extraction)
 - **Billing integration**: `checkAndPause({ featureId: "dossier_research", requiredValue: 1, auditJobId })` before each audit (1 unit = 2 credits via Autumn)
 - Module: `convex/leadGen/audit.ts`
   - `runAuditAction({ auditJobId, opportunityId, agencyId, targetUrl, leadGenFlowId, customerId })` performs:
     - map_urls: discovery‑only crawl via `firecrawlActions.startCrawl` + `getCrawlStatusOnly` (journal‑safe).
-    - filter_urls: AI selection via `filterRelevantUrls` using `analysisThread` (fallback to rules if needed).
+    - filter_urls: AI selection via `filterRelevantUrls` using `analysisThread` (prioritizes contact pages for email discovery).
     - scrape_content: `firecrawlActions.scrapeAuditUrls` stores markdown in `_storage` and upserts to `audit_scraped_pages`.
-    - generate_dossier: `generateDossierAndFitReason` creates `audit_dossier` and saves opportunity `fit_reason`.
+    - generate_dossier: `generateDossierAndFitReason` creates `audit_dossier`, extracts contact email, and saves opportunity `fit_reason`.
+    - **Email extraction**: AI analyzes scraped content to extract best contact email (info@, contact@, sales@, etc.) and updates opportunity record.
     - **Idempotent billing**: Checks `audit_jobs.metered` flag before tracking usage to prevent double-charging
   - Updates `audit_jobs.phases` each step; job `status` set to `"completed"` on success, `"error"` on failure.
   - Opportunity `status` set to `"READY"` on success, `"DATA_READY"` on failure.
@@ -185,10 +187,15 @@ Status updates:
 - Per‑opportunity: `audit_jobs.phases` updated each step; `status` transitions visible to UI.
 - Progress: top‑level `getLeadGenProgress` + counts from `getLeadGenFlowCounts`.
 
-## Firecrawl configuration (discovery‑only + targeted scrape)
+## Firecrawl configuration (discovery‑only + targeted scrape + email extraction)
 - `convex/firecrawlActions.ts`:
   - Crawl: `formats: ["links"]` ONLY; include homepage, product/services/solutions, pricing/plans, about/company/team, customers/testimonials, security/compliance, docs/developers, resources, contact; exclude legal/careers/blog patterns.
   - Scrape (audits): `scrapeAuditUrls` stores markdown in `_storage`, then upserts `audit_scraped_pages`.
+- `convex/leadGen/audit.ts` - `filterRelevantUrls`:
+  - AI prompt explicitly prioritizes contact pages for email discovery
+  - Ensures at least one contact-style page is included when available
+  - Fallback logic includes contact page detection patterns
+  - Enhanced to support email extraction workflow
 
 ## Billing & Paywall Integration (fully implemented with upgrade plan + background workflow fix)
 ### Credit System (Upgrade Plan Implementation)

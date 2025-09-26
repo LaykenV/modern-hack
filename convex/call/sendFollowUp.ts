@@ -53,6 +53,7 @@ export const sendBookingConfirmation = internalAction({
         minute: '2-digit',
         timeZoneName: 'short'
       });
+      const prospectEmail = opportunity.email;
 
       // Log structured confirmation details
       console.log(`[Follow-up] Meeting Booking Confirmed:`, {
@@ -60,6 +61,7 @@ export const sendBookingConfirmation = internalAction({
         agency: agency.companyName,
         prospect: opportunity.name,
         prospectPhone: opportunity.phone,
+        prospectEmail: prospectEmail,
         meetingTime: formattedTime,
         timeZone: agencyTimeZone,
         source: meeting.source,
