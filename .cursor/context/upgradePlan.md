@@ -1,133 +1,103 @@
-## Vapi Integration Upgrade Plan
+# Upgrade Plan — Post-Call AI Meeting Booking
 
-### Scope
-- **Issue 1**: Accept only final transcripts (drop partials) from Vapi.
-- **Issue 2**: Make the “Listen” feature work by consuming the `listenUrl` WebSocket stream correctly in the UI (instead of opening the raw URL).
+## Overview
+- Extend the Vapi call workflow so Atlas can surface a few recommended meeting times, allow prospects to suggest alternates, and automatically detect bookings from the transcript using `atlasAgentGroq`.
+- Keep frontend changes out of scope for now; focus on Convex functions, data model updates, and backend observability.
+- Reuse existing agency availability strings and persist contextual metadata so the AI can reason about open slots both during the call and afterward.
 
-### Current State (context)
-- Backend
-  - `convex/vapi.ts` creates phone calls via Vapi and persists `monitor.listenUrl` on success.
-  - `convex/calls.ts` builds the inline assistant (OpenAI model, PlayHT voice, Deepgram transcriber) and sets `serverMessages: ["status-update", "transcript", "end-of-call-report"]`.
-  - `convex/http.ts` validates the webhook using `VAPI_WEBHOOK_SECRET` (shared secret or HMAC), unwraps envelopes, routes by `type`:
-    - `status-update` → updates status.
-    - `speech-update` → appends transcript fragment with `source: "speech"`.
-    - `transcript` →
-      - If `messages[]` exists, appends each as `source: "transcript"` (treated as final).
-      - Else if single `transcript` string exists, appends as `source: "transcript"` when `transcriptType !== "partial"`, or as `source: "transcript-partial"` when partial.
-    - `end-of-call-report` → persists summary/recording/billing and marks call as `completed`.
-- Observed behavior
-  - The `calls.transcript` array contains both `source: "transcript-partial"` and `source: "transcript"`, e.g., duplicate lines like "Great." appear twice (partial then final).
-  - Clicking “Listen” opens the `wss://.../listen` URL in a new tab, which shows an empty page (expected, since it’s a raw WebSocket endpoint, not an HTML page).
+## Phase 1 – Data Model & Availability Foundations
+- `convex/schema.ts`
+  - Add `meetings` table with fields:
+    - `agencyId: v.id("agency_profile")`
+    - `opportunityId: v.id("client_opportunities")`
+    - `callId: v.id("calls")`
+    - `meetingTime: v.number()` (Unix ms)
+    - Optional `createdBy`, `source` (default `"ai_call"`)
+  - Index `by_agency_and_time` on `[agencyId, meetingTime]`.
+- New helper module `convex/call/availability.ts`
+  - Query `getAvailableSlots` (internal or public depending on future UI needs).
+  - Inputs: `{ agencyId }`.
+  - Logic:
+    1. Load agency profile to get `timeZone`, `targetGeography`, and `availability[]` (strings like `"Tue 10:00-12:00"`).
+    2. Use Luxon `DateTime` helpers (`DateTime.fromISO`, `setZone`, `plus`, `toUTC`) to generate potential 15-minute slots for the next 5–7 business days in the agency TZ while keeping results in ISO 8601.
+    3. Fetch future meetings via `meetings` index (e.g., next 14 days) and remove conflicts using Luxon comparisons (`hasSame`, `toMillis`).
+    4. Return structured slots `{ iso: string, label: string }` along with the raw availability strings for context; ensure outputs are serialized with `toISO()`.
+  - Provide helpers for parsing availability windows into actual datetimes; keep in module for reuse by transcript analysis.
 
-### Decisions
-- **Final transcripts only**
-  - Configure upstream event selection to finals using `serverMessages` selector `"transcript[transcriptType=\"final\"]"` (supported by Vapi) so only final transcript events are delivered.
-  - Keep webhook-side filtering as defense-in-depth: ignore `transcriptType === "partial"` and optionally dedupe identical final strings arriving close together.
-- **Listen feature**
-  - Do not open the `wss://.../listen` URL directly. Implement an in-app WebSocket client that connects to the URL and plays PCM audio via the Web Audio API. Provide UX for connect/disconnect and error states.
+## Phase 2 – Call Initiation Enhancements
+- `convex/call/calls.ts`
+  - Before scheduling the Vapi action, call `api.availability.getAvailableSlots({ agencyId })`.
+  - Derive:
+    - `recommendedSlots`: top 3–4 upcoming ISO strings for the prompt.
+    - `futureMeetings`: snapshot of the next 2 weeks of booked meetings.
+  - Extend system prompt:
+    - Include a section listing recommended slots in human-friendly format.
+    - Instruct the assistant to explicitly confirm any agreed time and accept alternates if proposed.
+  - Extend call metadata:
+    - Persist `offeredSlotsISO`, `agencyAvailabilityWindows`, and `futureMeetings` on the call record (`ctx.db.patch` after insert). Dates should be stored as ISO strings returned by Luxon to avoid timezone ambiguity.
+  - Pass this metadata into the scheduled `internal.vapi.startPhoneCall` payload.
+- `convex/vapi.ts`
+  - Update `startPhoneCall` args to accept optional `offeredSlotsISO`, `agencyAvailabilityWindows`, and `futureMeetings`.
+  - Merge these into the assistant metadata sent to Vapi (`metadata.offeredSlotsISO`, etc.).
+  - Ensure metadata keys remain JSON-serializable and small.
 
-### Planned Changes (no code edits yet)
+## Phase 3 – Transcript Analysis
+- New `convex/call/ai.ts`
+  - Internal action `processCallTranscript`:
+    - Input `{ callId }`.
+    - Load call doc to access transcript fragments, metadata, opportunity, agency context.
+    - Reconstruct the availability grid using helpers from `convex/availability.ts` with Luxon for precise timezone math, factoring in booked meetings (including any newly persisted `futureMeetings`).
+    - Aggregate transcript text (ordered by timestamp) and identify explicit rejections (for later status updates).
+    - Use `atlasAgentGroq.generateText` with JSON output prompt including the availability list and instructions:
+      - Determine if a meeting was booked.
+      - Return `{ meetingBooked: boolean, slotIso: string | null, confidence: number, reasoning: string, rejectionDetected: boolean }`.
+      - Only allow `slotIso` values present in the availability grid; use Luxon `DateTime.fromISO(slot, { zone: agencyTZ })` for validation.
+    - Parse JSON defensively; log and exit if invalid or confidence below threshold.
+    - Persist `bookingAnalysis` on the call doc for observability.
+    - If `rejectionDetected` true, schedule status update for opportunity (`status: "Rejected"`).
+    - If `meetingBooked` true, call `internal.meetings.finalizeBooking`.
+- `convex/http.ts`
+  - In the `end-of-call-report` branch:
+    - After `internal.calls.finalizeReport`, look up the call record by `vapiCallId` (if not already retrieved).
+    - Schedule `internal.ai.processCallTranscript` with `{ callId }`.
 
-#### 1) Update assistant `serverMessages` to finals only
-- Files: `convex/vapi.ts`, `convex/calls.ts`
-- Change both inline assistant payloads to:
-  - `serverMessages: ["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`
-- Rationale: Prevent partial transcripts from being sent at all; reduce webhook load and storage noise.
+## Phase 4 – Meeting Finalization & Opportunity Status
+- `convex/call/meetings.ts`
+  - Internal mutation `finalizeBooking`:
+    - Inputs `{ callId, isoTimestamp }`.
+    - Validate slot is still open by querying `meetings` index and recomputing grid (Luxon `DateTime.fromISO(isoTimestamp).toMillis()` for comparisons).
+    - Insert meeting row (source `"ai_call"`). Store `meetingTime` as `DateTime.fromISO(isoTimestamp).toMillis()`.
+    - Patch `calls` doc with `outcome: "booked"`, `meeting_time` (ms), `currentStatus: "booked"`).
+    - Patch related `client_opportunities` doc with `status: "Booked"`, `meeting_time`, and optionally store booking metadata.
+    - Schedule follow-up placeholder action with `{ meetingId }`.
+  - Provide helper `markOpportunityRejected` to centralize updates when the transcript indicates a rejection.
 
-Example (illustrative only):
-```ts
-serverMessages: [
-  "status-update",
-  "transcript[transcriptType=\"final\"]",
-  "end-of-call-report",
-]
-```
+## Phase 5 – Follow-up Placeholder (Backend Only)
+- New `convex/call/sendFollowUp.ts` (or update existing utility):
+  - Internal action `sendBookingConfirmation`:
+    - Inputs `{ meetingId }`.
+    - Load meeting + relationships; log a structured message summarizing the booking.
+    - Leave TODO for future Resend + ICS implementation.
 
-#### 2) Harden webhook to drop partials and dedupe finals
-- File: `convex/http.ts`
-- Adjust the `"transcript"` case:
-  - If it’s a single-fragment payload and `transcriptType === "partial"`, skip appending.
-  - If it’s `messages[]`, continue appending as finals.
-  - Add a simple deduper to avoid storing repeated finals (e.g., when the same text arrives via different paths):
-    - Strategy: On append, compare against the last 1–3 fragments for the same `role`. If `source === "transcript"` and `text` matches (case and whitespace normalized), skip.
-  - Keep `speech-update` handling unchanged.
+## Observability & Instrumentation
+- Add structured `ctx.log` statements around:
+  - Availability slot generation (number generated, reasons for filtering).
+  - Assistant prompt metadata (IDs only, avoid PII).
+  - AI transcript decisions (confidence, reasoning, chosen slot).
+  - Meeting finalization and opportunity status transitions.
+- When logging or storing times, use Luxon `toISO()` for human-readable forms and `toMillis()` for persistence.
+- Consider storing `analysisVersion` on call doc to ease migrations later.
 
-Acceptance for Issue 1:
-- After a real call, `calls.transcript` contains only entries with `source: "transcript"` (no `transcript-partial`).
-- Final phrases like "Great." appear only once.
+## Testing & Verification Plan
+- **Unit-style Convex tests:** Invoke `internal.ai.processCallTranscript` with mocked call records representing booked, rejected, and ambiguous transcripts.
+- **Webhook replay:** Send canned `end-of-call-report` payloads to ensure the scheduler chain fires exactly once per call.
+- **Race conditions:** Attempt parallel bookings on the same slot to confirm `finalizeBooking` guard logic blocks duplicates.
+- **Negative cases:** Empty availability list, no transcript, or AI returning slot outside windows should leave opportunity untouched and log warnings.
 
-#### 3) Implement a real “Listen” experience in the UI
-- Files: UI layer (e.g., `app/dashboard/...`), no backend change required for `listenUrl`.
-- Replace the current `window.open(listenUrl)` behavior with a modal that hosts a `LiveListen` React component:
-  - Props: `{ listenUrl: string }`.
-  - Behavior:
-    - On connect: `new WebSocket(listenUrl)`; track `readyState`, errors, and close events.
-    - On `message` with binary payloads: treat as 16-bit PCM and stream to audio output using Web Audio.
-    - On close: stop playback and release audio resources.
-    - UI controls: Connect/Disconnect toggle, status indicator, basic error text.
-  - Audio playback suggestions:
-    - Use an `AudioWorklet` for stable, low-latency PCM playback (preferred), or a small ring buffer feeding an `AudioBufferSourceNode` as a simpler fallback.
-    - Default sample rate to 16000 Hz unless Vapi indicates otherwise; make this configurable if needed.
-
-Illustrative client snippet (simplified):
-```ts
-// Pseudocode only
-const ws = new WebSocket(listenUrl);
-const audioCtx = new AudioContext({ sampleRate: 16000 });
-// Use an AudioWorklet or ScriptProcessor to push Int16 PCM chunks to the output
-ws.onmessage = (evt) => {
-  if (evt.data instanceof Blob) {
-    evt.data.arrayBuffer().then((buf) => {
-      // Convert Int16 PCM -> Float32 [−1, 1], enqueue to audio pipeline
-    });
-  }
-};
-```
-
-Acceptance for Issue 2:
-- Clicking “Listen” opens a modal, connects within ~1s, plays live audio, and allows clean disconnect.
-- The previous blank tab behavior is removed.
-
-### Test Plan
-- Local validation (dev):
-  - Use a test call to verify webhook behavior:
-    - With updated `serverMessages`, confirm partials stop arriving.
-    - Manually POST a partial single-fragment payload to the webhook and verify it’s ignored.
-    - POST a `messages[]` transcript payload and verify it’s appended as finals.
-    - Confirm deduper prevents storing duplicates when the same final text is received via different paths.
-  - UI listen test:
-    - Trigger a live call; open the Listen modal; verify audio playback and graceful disconnect.
-    - Simulate a WebSocket error and ensure the UI surfaces an error state without crashing.
-
-- Observability:
-  - Add debug logs (temporary) around transcript dropping/deduping (ensure no secrets are logged). Remove or lower verbosity after validation.
-
-### Rollout Steps
-1) Update `convex/calls.ts` assistant `serverMessages` to finals only.
-2) Update `convex/vapi.ts` to enforce the same `serverMessages` injection server-side.
-3) Adjust `convex/http.ts` transcript logic to skip partial single-fragments and add dedupe for finals.
-4) Update `.cursor/context/vapi.md` to document the new `serverMessages` selector and webhook filtering expectations.
-5) Implement the `LiveListen` UI (modal + component) and replace any `window.open(listenUrl)` usages.
-6) Run a real test call end-to-end; validate transcripts and Listen.
-
-### Risks & Mitigations
-- Risk: `transcript[transcriptType=\"final\"]` selector unsupported in older configs.
-  - Mitigation: Webhook still ignores partials. If finals stop entirely, temporarily fall back to `"transcript"` while keeping webhook filtering.
-- Risk: Audio glitches in-browser due to buffer underflow.
-  - Mitigation: Use `AudioWorklet` + ring buffer; small pre-buffer (e.g., 100–200ms) before playback start.
-- Risk: Duplicate finals via multiple sources.
-  - Mitigation: Add short-window dedupe on text + role.
-
-### Acceptance Criteria (summary)
-- Only final transcripts persisted; no `source: "transcript-partial"` stored.
-- No duplicate final lines for the same utterance.
-- Listen modal plays audio reliably; no blank tabs opened.
-
-### Follow-up (optional, not in this change)
-- UI timer noted in `tasks.txt` ("timer not stopping on complete and render summary"): subscribe to `status === "completed"` and stop timers; re-render with `summary` from `end-of-call-report`.
-
-### References (from Vapi docs via Context7)
-- `serverMessages` supports selectors, including `transcript[transcriptType="final"]` (filter finals at the source).
-- `listenUrl` is a WebSocket that streams binary PCM audio; it is not an HTML page and should be consumed by a WS client and played via an audio pipeline.
+## Dependencies & Notes
+- Requires regenerated data model types after schema change.
+- No frontend/UI work yet; ensure API additions remain internal unless later exposed.
+- Maintain compatibility with existing timeline/credit systems; booking updates should not interfere with billing logic.
+- Keep future email/ICS logic isolated so the placeholder can be swapped without reworking the booking pipeline.
 
 

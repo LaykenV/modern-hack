@@ -56,6 +56,7 @@ export default defineSchema({
     source: v.string(), // "google_places"
     fit_reason: v.optional(v.string()),
     status: v.string(), // e.g., "SOURCED", "SCRAPING", "DATA_READY", "AUDITING", "READY", "CONTACTED"
+    meeting_time: v.optional(v.number()), // Unix ms timestamp for booked meetings
 
     // For lead generation workflow tracking
     leadGenFlowId: v.optional(v.id("lead_gen_flow")), // Link to parent run
@@ -276,7 +277,7 @@ export default defineSchema({
 
     // Post-call data
     outcome: v.optional(v.string()),
-    meeting_time: v.optional(v.string()),
+    meeting_time: v.optional(v.number()), // Changed to number (Unix ms) for consistency
     status: v.optional(v.string()),
     duration: v.optional(v.number()),
     summary: v.optional(v.string()),
@@ -295,10 +296,36 @@ export default defineSchema({
         listenUrl: v.optional(v.string()),
       }),
     ),
+
+    // Meeting booking metadata (Phase 2)
+    offeredSlotsISO: v.optional(v.array(v.string())),
+    agencyAvailabilityWindows: v.optional(v.array(v.string())),
+    futureMeetings: v.optional(v.array(v.object({
+      iso: v.string(),
+    }))),
+    
+    // AI analysis results (Phase 3)
+    bookingAnalysis: v.optional(v.object({
+      meetingBooked: v.boolean(),
+      slotIso: v.optional(v.string()),
+      confidence: v.number(),
+      reasoning: v.string(),
+      rejectionDetected: v.boolean(),
+    })),
   })
     .index("by_opportunity", ["opportunityId"]) 
     .index("by_agency", ["agencyId"]) 
     .index("by_vapi_call_id", ["vapiCallId"]),
+
+  // Meeting records (Phase 1)
+  meetings: defineTable({
+    agencyId: v.id("agency_profile"),
+    opportunityId: v.id("client_opportunities"),
+    callId: v.id("calls"),
+    meetingTime: v.number(), // Unix ms timestamp
+    createdBy: v.optional(v.string()),
+    source: v.optional(v.string()), // default "ai_call"
+  }).index("by_agency_and_time", ["agencyId", "meetingTime"]),
 
   // Email records
   emails: defineTable({

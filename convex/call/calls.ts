@@ -1,7 +1,7 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from ".././_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from ".././_generated/api";
+import type { Doc, Id } from ".././_generated/dataModel";
 
 type AssistantMessage = { role: "system"; content: string };
 type AssistantPayload = {
@@ -60,10 +60,27 @@ export const startCall = mutation({
     );
     if (!agency) throw new Error("Agency profile not found");
 
-    // Build system prompt from agency + opportunity
+    // Get available meeting slots before building the prompt
+    const availabilityData = await ctx.runQuery(
+      internal.call.availability.getAvailableSlots,
+      { agencyId }
+    );
+    
+    // Get top 3-4 recommended slots and format them
+    const recommendedSlots = availabilityData.slots.slice(0, 4);
+    const slotsText = recommendedSlots.length > 0 
+      ? `Available meeting times: ${recommendedSlots.map((slot: { label: string }) => slot.label).join(", ")}`
+      : "No available meeting slots currently";
+    
+    // Prepare future meetings snapshot for context
+    const futureMeetings = availabilityData.slots.slice(0, 10).map((slot: { iso: string }) => ({ iso: slot.iso }));
+
+    // Build system prompt from agency + opportunity + availability
     const approvedClaims = (agency.approvedClaims ?? []).map((claim: { text: string }) => claim.text).join(" | ") || "";
     const guardrails = (agency.guardrails ?? []).join(", ") || "standard compliance";
-    const systemContent = `You are a friendly sales rep for "${agency.companyName}". Their core offer is "${agency.coreOffer ?? ""}". You are calling "${opportunity.name}" in ${agency.targetGeography ?? "their area"}. Reference their gap: "${opportunity.fit_reason ?? ""}". You MUST cite one approved claim: ${approvedClaims}. Follow guardrails: ${guardrails}.`;
+    const systemContent = `You are a friendly sales rep for "${agency.companyName}". Their core offer is "${agency.coreOffer ?? ""}". You are calling "${opportunity.name}" in ${agency.targetGeography ?? "their area"}. Reference their gap: "${opportunity.fit_reason ?? ""}". You MUST cite one approved claim: ${approvedClaims}. Follow guardrails: ${guardrails}.
+
+MEETING BOOKING: ${slotsText}. If the prospect is interested, suggest one of these times and ask for confirmation. Accept alternative times if they propose them. Always explicitly confirm any agreed meeting time before ending the call.`;
 
     const inlineAssistant: AssistantPayload = {
       name: `Atlas AI Rep for ${agency.companyName}`,
@@ -84,6 +101,9 @@ export const startCall = mutation({
         convexOpportunityId: opportunity._id,
         convexAgencyId: agency._id,
         leadGenFlowId: opportunity.leadGenFlowId ?? null,
+        offeredSlotsISO: recommendedSlots.map((slot: { iso: string }) => slot.iso),
+        agencyAvailabilityWindows: availabilityData.availabilityWindows,
+        futureMeetings: futureMeetings,
       },
     };
 
@@ -98,11 +118,22 @@ export const startCall = mutation({
       currentStatus: "queued",
     });
 
+    // Patch call record with availability metadata
+    await ctx.db.patch(callId, {
+      offeredSlotsISO: recommendedSlots.map((slot: { iso: string }) => slot.iso),
+      agencyAvailabilityWindows: availabilityData.availabilityWindows,
+      futureMeetings: futureMeetings,
+    });
+
     // Schedule Vapi action to place the call (keeps Node-only code in vapi.ts)
     await ctx.scheduler.runAfter(0, (internal as typeof internal).vapi.startPhoneCall, {
       callId,
       customerNumber: opportunity.phone!,
       assistant: inlineAssistant,
+      // Pass availability metadata to vapi action
+      offeredSlotsISO: recommendedSlots.map((slot: { iso: string }) => slot.iso),
+      agencyAvailabilityWindows: availabilityData.availabilityWindows,
+      futureMeetings: futureMeetings,
     });
 
     return { callId, vapiCallId: "pending" };
@@ -230,6 +261,26 @@ export const getCallById = query({
   },
 });
 
+export const getCallByIdInternal = internalQuery({
+  args: { callId: v.id("calls") },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, { callId }) => {
+    return await ctx.db.get(callId);
+  },
+});
+
+export const getCallByVapiId = internalQuery({
+  args: { vapiCallId: v.string() },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, { vapiCallId }) => {
+    const record = await ctx.db
+      .query("calls")
+      .withIndex("by_vapi_call_id", (q) => q.eq("vapiCallId", vapiCallId))
+      .unique();
+    return record;
+  },
+});
+
 export const getCallsByOpportunity = query({
   args: { opportunityId: v.id("client_opportunities") },
   returns: v.array(v.any()),
@@ -239,6 +290,25 @@ export const getCallsByOpportunity = query({
       .withIndex("by_opportunity", (q) => q.eq("opportunityId", opportunityId))
       .collect();
     return rows;
+  },
+});
+
+// Update booking analysis results (Phase 3)
+export const updateBookingAnalysis = internalMutation({
+  args: {
+    callId: v.id("calls"),
+    bookingAnalysis: v.object({
+      meetingBooked: v.boolean(),
+      slotIso: v.optional(v.string()),
+      confidence: v.number(),
+      reasoning: v.string(),
+      rejectionDetected: v.boolean(),
+    }),
+  },
+  returns: v.null(),
+  handler: async (ctx, { callId, bookingAnalysis }) => {
+    await ctx.db.patch(callId, { bookingAnalysis });
+    return null;
   },
 });
 

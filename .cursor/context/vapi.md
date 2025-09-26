@@ -14,9 +14,9 @@ Notes:
 - Do not expose these to the browser or client queries/mutations.
 
 ### Data Model (convex/schema.ts)
-We extended the `calls` table to track the Vapi lifecycle.
+We extended the `calls` table to track the Vapi lifecycle and meeting booking.
 
-Added fields:
+#### Calls Table Fields:
 - vapiCallId: string? — The Vapi call identifier.
 - assistantId: string? — Optional Vapi assistant id if persisting.
 - phoneNumberId: string? — The Vapi phone number used to dial.
@@ -28,20 +28,35 @@ Added fields:
 - assistantSnapshot: any? — Inline assistant payload used for the call (audit/debug).
 - monitorUrls: { listenUrl? }? — Optional listen URL from Vapi monitor.
 
+#### Meeting Booking Fields (NEW):
+- offeredSlotsISO: string[]? — ISO timestamps of meeting slots offered during call.
+- agencyAvailabilityWindows: string[]? — Raw availability strings (e.g., "Tue 10:00-12:00").
+- futureMeetings: Array<{ iso: string }>? — Snapshot of upcoming meetings for context.
+- bookingAnalysis: object? — AI analysis results with confidence, reasoning, and booking detection.
+
+#### New Tables:
+- **meetings**: Stores confirmed meeting bookings
+  - agencyId, opportunityId, callId: References to related entities
+  - meetingTime: number — Unix ms timestamp
+  - source: string — Defaults to "ai_call"
+  - createdBy: string? — Who created the meeting
+- **client_opportunities**: Enhanced with meeting_time field for booked meetings
+
 Indexes:
-- by_opportunity(opportunityId)
-- by_agency(agencyId)
-- by_vapi_call_id(vapiCallId)
+- calls: by_opportunity(opportunityId), by_agency(agencyId), by_vapi_call_id(vapiCallId)
+- meetings: by_agency_and_time([agencyId, meetingTime])
 
 ### Backend Components
 
-#### Calls API (convex/calls.ts)
+#### Calls API (convex/call/calls.ts)
 - startCall (mutation)
   - Args: { opportunityId, agencyId }
   - Loads the opportunity and agency profile, validates presence of a phone number.
-  - Builds the inline assistant prompt from agency-approved claims, guardrails, core offer, target geography, and the opportunity’s fit_reason.
+  - **NEW**: Fetches available meeting slots using `internal.call.availability.getAvailableSlots`.
+  - Builds the inline assistant prompt from agency-approved claims, guardrails, core offer, target geography, opportunity's fit_reason, **and available meeting times**.
   - Inserts a `calls` row with status="initiated" and the assistant snapshot.
-  - Schedules `internal.vapi.startPhoneCall` via `ctx.scheduler.runAfter(0, ...)` to place the call (kept in Node runtime).
+  - **NEW**: Patches call record with availability metadata (offeredSlotsISO, agencyAvailabilityWindows, futureMeetings).
+  - Schedules `internal.vapi.startPhoneCall` with meeting metadata via `ctx.scheduler.runAfter(0, ...)`.
   - Returns: { callId, vapiCallId: "pending" }
 
 - updateStatusFromWebhook (internalMutation)
@@ -49,8 +64,8 @@ Indexes:
 
 - appendTranscriptChunk (internalMutation)
   - Lookup by `vapiCallId` and push a transcript fragment onto `transcript[]`.
-  - Defense-in-depth: ignores `source: 'transcript-partial'` fragments.
-  - Adds short-window dedupe to prevent repeated final lines: compares incoming text (normalized) against the last 3 fragments for the same role.
+  - Upstream webhook performs partial filtering so only speech or finalized transcript fragments reach this mutation.
+  - Appends the fragment and updates `lastWebhookAt`; no additional dedupe is performed.
 
 - finalizeReport (internalMutation)
   - Lookup by `vapiCallId` and persist `summary`, `recordingUrl`, `endedReason`, `billingSeconds`, and mark status as completed.
@@ -58,14 +73,21 @@ Indexes:
 - getCallById, getCallsByOpportunity (queries)
   - Convenience read endpoints for the dashboard.
 
+- **NEW**: getCallByIdInternal, getCallByVapiId (internalQuery)
+  - Internal queries for accessing call data from actions.
+
+- **NEW**: updateBookingAnalysis (internalMutation)
+  - Updates call record with AI analysis results from transcript processing.
+
 #### Vapi Node Runtime (convex/vapi.ts)
 - startPhoneCall (internalAction)
-  - Args: { callId, customerNumber, assistant }
+  - Args: { callId, customerNumber, assistant, **NEW**: offeredSlotsISO?, agencyAvailabilityWindows?, futureMeetings? }
   - Reads `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_WEBHOOK_SECRET`, and `CONVEX_SITE_URL` (or `SITE_URL`) from `process.env`.
   - Injects secure `server: { url: `${CONVEX_SITE_URL}/api/vapi-webhook`, secret: VAPI_WEBHOOK_SECRET }` and default `serverMessages` inside Node (not in public mutation).
-  - Finals-only transcripts: sets `serverMessages` to `["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`.
+  - **NEW**: Merges meeting availability metadata into `assistant.metadata` for Vapi context.
+  - Default `serverMessages`: `["status-update", "speech-update", "transcript", "end-of-call-report"]` so we get live fragments plus finals; override per-call if needed.
   - POSTs to `https://api.vapi.ai/call/phone` with the inline assistant (squad.members[0].assistant = inlineAssistant).
-  - On success, calls `internal.calls._attachVapiDetails` to patch the `calls` row with `vapiCallId`, `phoneNumberId`, and optional `monitor.listenUrl`.
+  - On success, calls `internal.call.calls._attachVapiDetails` to patch the `calls` row with `vapiCallId`, `phoneNumberId`, and optional `monitor.listenUrl`.
 
 - attachVapiCallDetails (internalMutation)
   - Args: { callId, vapiCallId, phoneNumberId, listenUrl? }
@@ -82,8 +104,10 @@ Indexes:
   - type=transcript →
     - If `payload.messages || payload.data?.messages` array exists, append each `{ role, text }` as `source: 'transcript'`.
     - Else if `payload.transcript` exists and `transcriptType !== 'partial'`, append a single fragment `{ role: payload.role || 'assistant', text: payload.transcript, source: 'transcript' }`.
-    - Partials are dropped defensively.
-  - type=end-of-call-report → `internal.calls.finalizeReport` with `summary`, `recordingUrl`, `endedReason`, `billingSeconds` pulled from root or `data`.
+    - Partials are detected via `transcriptType === "partial"` or type strings containing "partial"; they are skipped but logged for debugging.
+  - type=end-of-call-report → `internal.call.calls.finalizeReport` with `summary`, `recordingUrl`, `endedReason`, `billingSeconds` pulled from root, `data`, `artifact`, or duration fields (seconds or ms). Values are rounded to the nearest second before storage.
+  - **NEW**: After finalizing call report, triggers `internal.call.ai.processCallTranscript` via scheduler to analyze transcript for meeting bookings.
+  - Logging: transcript fragments (including skipped partials) emit `[Vapi Webhook] Transcript fragment...`; billing extraction logs `[Vapi Webhook] Billing seconds extracted` showing raw vs stored values.
 - Responds with `200 ok` quickly; logs errors without leaking details.
 
 ### Inline Assistant Construction
@@ -95,6 +119,7 @@ We generate the assistant payload dynamically per call:
   - one of agency.approvedClaims
   - agency.guardrails (comma-separated)
   - opportunity.fit_reason (the gap we reference in the opener)
+  - **NEW**: Available meeting times with instructions to suggest times and accept alternatives
 - voice: PlayHT (jennifer, PlayDialog)
 - transcriber: Deepgram (nova-3-general)
 - firstMessageMode: "assistant-speaks-first"
@@ -103,31 +128,34 @@ We generate the assistant payload dynamically per call:
 - serverMessages: must be an array of string enums supported by Vapi (not objects). We currently request live updates plus finals:
   - `["status-update", "speech-update", "transcript", "end-of-call-report"]`
   - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted".
-- metadata: convexOpportunityId, convexAgencyId, leadGenFlowId
+- metadata: convexOpportunityId, convexAgencyId, leadGenFlowId, **NEW**: offeredSlotsISO, agencyAvailabilityWindows, futureMeetings
 
 ### Call Lifecycle
-1) Client calls `api.calls.startCall({ opportunityId, agencyId })`.
-2) A `calls` row is created with status="initiated"; assistant snapshot recorded.
-3) `internal.vapi.startPhoneCall` runs (Node) and calls the Vapi `call/phone` API.
-4) Webhooks stream in:
+1) Client calls `api.call.calls.startCall({ opportunityId, agencyId })`.
+2) **NEW**: System fetches available meeting slots using Luxon timezone calculations.
+3) A `calls` row is created with status="initiated"; assistant snapshot and availability metadata recorded.
+4) `internal.vapi.startPhoneCall` runs (Node) with meeting context and calls the Vapi `call/phone` API.
+5) Webhooks stream in:
    - status updates (queued, ringing, in-progress, ended, failed, no-answer)
    - speech-update (optional partials)
    - transcript (final messages)
    - end-of-call-report (summary, recordingUrl, duration)
-5) The `calls` row is updated in real-time for UI consumption.
+6) The `calls` row is updated in real-time for UI consumption.
+7) **NEW**: After call completion, AI analyzes transcript for meeting bookings and rejections.
+8) **NEW**: If meeting booked, creates `meetings` record and updates opportunity status to "Booked".
 
 ### Usage Examples
 
 Start a call (client or server-side):
 ```ts
-await api.calls.startCall({ opportunityId, agencyId });
+await api.call.calls.startCall({ opportunityId, agencyId });
 ```
 
 Subscribe to progress:
 ```ts
-const call = useQuery(api.calls.getCallById, { callId });
+const call = useQuery(api.call.calls.getCallById, { callId });
 // or
-const calls = useQuery(api.calls.getCallsByOpportunity, { opportunityId });
+const calls = useQuery(api.call.calls.getCallsByOpportunity, { opportunityId });
 ```
 
 ### Testing and Troubleshooting
@@ -191,4 +219,145 @@ Common issues:
 - Enrich transcript with speaker labels/timestamps if provided.
 - Derive `outcome` and next-step automations (calendar, email).
 
+
+
+## Post-Call AI Meeting Booking (IMPLEMENTED)
+
+This section describes the implemented post-call AI meeting booking system that automatically detects meeting bookings from call transcripts and manages the scheduling workflow.
+
+### ✅ Implemented Components
+
+#### Availability Management (convex/call/availability.ts)
+- **getAvailableSlots** (internalQuery): Generates 15-minute time slots for next 5-7 business days
+  - Uses Luxon for precise timezone handling with agency-specific timezones
+  - Parses availability strings like "Tue 10:00-12:00" into actual DateTime slots
+  - Filters out conflicts with existing meetings using buffer time
+  - Returns structured slots with ISO timestamps and human-readable labels
+
+- **validateSlot** (internalQuery): Validates AI-suggested meeting times against current availability
+  - Real-time validation with 1-minute tolerance for slot matching
+  - Used by transcript analysis to verify booking feasibility
+
+#### AI Transcript Analysis (convex/call/ai.ts)
+- **processCallTranscript** (internalAction): Analyzes call transcripts using atlasAgentGroq
+  - Aggregates transcript fragments in chronological order
+  - Uses structured JSON prompts with confidence scoring (0-100)
+  - Validates suggested slots against real-time availability
+  - Applies 70% confidence threshold for booking actions
+  - Detects both meeting bookings and explicit rejections
+  - Persists analysis results with reasoning for observability
+
+#### Meeting Finalization (convex/call/meetings.ts)
+- **finalizeBooking** (internalMutation): Creates confirmed meeting records
+  - Race condition protection via atomic slot validation
+  - Updates call outcome and opportunity status to "Booked"
+  - Schedules follow-up confirmation workflows
+  - Comprehensive error handling and rollback on conflicts
+
+- **getMeetingById** (internalQuery): Retrieves meeting data for follow-up processes
+
+#### Follow-up System (convex/call/sendFollowUp.ts)
+- **sendBookingConfirmation** (internalAction): Processes successful bookings
+  - Structured logging with meeting details and timezone formatting
+  - Placeholder for email confirmation and calendar integration
+  - Agency notification preparation
+
+- **sendRejectionFollowUp** (internalAction): Handles detected rejections
+  - Categorizes rejection reasons for analysis
+  - Prepares follow-up workflows for future engagement
+
+### Current Workflow
+1. **Call Initiation**: System fetches available slots and includes them in AI prompt
+2. **During Call**: Assistant suggests meeting times and accepts alternatives
+3. **Post-Call**: Webhook triggers AI transcript analysis after 5-second delay
+4. **AI Processing**: Analyzes conversation with confidence scoring and slot validation
+5. **Booking**: Creates meeting record if booking detected with high confidence
+6. **Updates**: Updates opportunity status and triggers follow-up workflows
+
+### Key Features
+- **Timezone-Aware**: Full Luxon integration for agency-specific timezone handling
+- **Conflict Prevention**: Real-time slot validation with buffer time management  
+- **AI Confidence**: 70% threshold with detailed reasoning for transparency
+- **Race Protection**: Atomic booking operations prevent double-bookings
+- **Comprehensive Logging**: Structured observability throughout the pipeline
+- **Error Recovery**: Graceful handling of invalid slots and low confidence
+
+---
+
+## 🚀 Future Enhancements
+
+### Email Confirmation System
+**Implementation Location:** `convex/call/sendFollowUp.ts` (replace TODOs)
+
+**Required Environment Variables:**
+```bash
+RESEND_API_KEY=your_resend_api_key
+```
+
+**Schema Additions:**
+```typescript
+// Add to client_opportunities table
+email: v.optional(v.string()), // Prospect email for confirmations
+
+// Add to agency_profile table  
+email: v.string(), // Agency contact email
+```
+
+**Features to Implement:**
+- ICS calendar file generation for meeting invitations
+- Automated email confirmations to prospects with meeting details
+- Agency notification emails for new bookings
+- Branded email templates with company-specific styling
+- Email delivery tracking and bounce handling
+
+### Agency Notification System
+**Implementation Location:** `convex/call/sendFollowUp.ts`
+
+**Features to Implement:**
+- Real-time Slack/Teams notifications for new bookings
+- Email alerts with prospect details and call summary
+- Dashboard notifications with booking analytics
+- Customizable notification preferences per agency
+- Integration with existing agency communication tools
+
+### Calendar Integration
+**Implementation Location:** New file `convex/call/calendar.ts`
+
+**Required Environment Variables:**
+```bash
+GOOGLE_CALENDAR_CLIENT_ID=your_google_client_id
+GOOGLE_CALENDAR_CLIENT_SECRET=your_google_client_secret
+OUTLOOK_CLIENT_ID=your_outlook_client_id (optional)
+```
+
+**Features to Implement:**
+- Google Calendar API integration for automatic event creation
+- Outlook/Office 365 calendar support
+- Two-way calendar sync with conflict detection
+- Automated calendar invites with video call links
+- Buffer time management around meetings
+- Calendar availability checking before booking confirmation
+
+### Reminder Scheduler
+**Implementation Location:** New file `convex/call/reminders.ts`
+
+**Features to Implement:**
+- 24-hour advance email reminders with meeting details
+- 1-hour advance SMS/email notifications
+- Post-meeting follow-up for no-shows with rescheduling options
+- Automated meeting preparation emails with agenda items
+- Customizable reminder timing and content per agency
+- Integration with SMS services (Twilio) for text reminders
+
+**Required Environment Variables:**
+```bash
+TWILIO_ACCOUNT_SID=your_twilio_sid (for SMS)
+TWILIO_AUTH_TOKEN=your_twilio_token
+```
+
+### Implementation Priority
+1. **Phase 1 (Weeks 1-2)**: Email confirmation system with ICS files
+2. **Phase 2 (Weeks 3-4)**: Calendar integration with Google Calendar
+3. **Phase 3 (Month 2)**: Reminder scheduler and agency notifications
+4. **Phase 4 (Month 3+)**: Advanced features like multi-calendar sync and SMS reminders
 

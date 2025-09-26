@@ -139,7 +139,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
     switch (type) {
       case "status-update": {
         const status = p?.status ?? p?.data?.status ?? "unknown";
-        await ctx.runMutation(internal.calls.updateStatusFromWebhook, { vapiCallId, status });
+        await ctx.runMutation(internal.call.calls.updateStatusFromWebhook, { vapiCallId, status });
         break;
       }
       case "speech-update": {
@@ -157,7 +157,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         } catch (logErr) {
           console.warn("[Vapi Webhook] Failed to stringify speech fragment", logErr);
         }
-        await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+        await ctx.runMutation(internal.call.calls.appendTranscriptChunk, { vapiCallId, fragment });
         break;
       }
       case "transcript":
@@ -194,7 +194,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
               } catch (logErr) {
                 console.warn("[Vapi Webhook] Failed to stringify transcript message fragment", logErr);
               }
-              await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+              await ctx.runMutation(internal.call.calls.appendTranscriptChunk, { vapiCallId, fragment });
             }
           } else if (typeof p?.transcript === "string") {
             const fragment = {
@@ -211,7 +211,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
             } catch (logErr) {
               console.warn("[Vapi Webhook] Failed to stringify transcript single fragment", logErr);
             }
-            await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+            await ctx.runMutation(internal.call.calls.appendTranscriptChunk, { vapiCallId, fragment });
           }
         }
         break;
@@ -258,7 +258,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
           console.warn("[Vapi Webhook] Failed to stringify billing seconds payload", logErr);
         }
 
-        await ctx.runMutation(internal.calls.finalizeReport, {
+        await ctx.runMutation(internal.call.calls.finalizeReport, {
           vapiCallId,
           summary,
           recordingUrl,
@@ -266,6 +266,22 @@ const vapiWebhook = httpAction(async (ctx, req) => {
           billingSeconds,
           messages: (p?.messages ?? p?.data?.messages ?? []) as unknown[],
         });
+
+        // Phase 3: Trigger transcript analysis after finalizing the call
+        try {
+          // Look up the call record to get the callId
+          const callRecord = await ctx.runQuery(internal.call.calls.getCallByVapiId, { vapiCallId });
+          if (callRecord) {
+            console.log(`[Vapi Webhook] Scheduling transcript analysis for call ${callRecord._id}`);
+            await ctx.scheduler.runAfter(5000, internal.call.ai.processCallTranscript, {
+              callId: callRecord._id,
+            });
+          } else {
+            console.warn(`[Vapi Webhook] Call record not found for vapiCallId: ${vapiCallId}`);
+          }
+        } catch (analysisError) {
+          console.error("[Vapi Webhook] Failed to schedule transcript analysis:", analysisError);
+        }
         break;
       }
       

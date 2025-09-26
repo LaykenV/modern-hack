@@ -72,19 +72,30 @@
 //create phone number
 //create plan from google docs and double check it
 
-timer not stopping on complete and render summary 
+//timer not stopping on complete and render summary 
 //dont show/accept partial transcript
 //listen not working
 
-calendar plan?
-create table, check availability before call, book meeting func
-update system prompts
+twilio phone number
+test billingSeconds
+deploy
+
+//calendar plan?
+//create table, check availability before call, book meeting func
+
+test booking
+
+update system prompts and model
+get email in leadgen
 resend emails with ics and recap
+
+test emails
 
 increase max 10 pages on agency crawl filter? crawl should start right away in ui and takes too long
 update system prompts?
 remove lower tiers, manage sub, dialogpay from dialog
 
+create sidebar and routes
 ui
 
 test everything

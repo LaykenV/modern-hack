@@ -11,7 +11,11 @@
 import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
 import type * as autumn from "../autumn.js";
-import type * as calls from "../calls.js";
+import type * as call_ai from "../call/ai.js";
+import type * as call_availability from "../call/availability.js";
+import type * as call_calls from "../call/calls.js";
+import type * as call_meetings from "../call/meetings.js";
+import type * as call_sendFollowUp from "../call/sendFollowUp.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as firecrawlActions from "../firecrawlActions.js";
 import type * as http from "../http.js";
@@ -67,7 +71,11 @@ declare const fullApi: ApiFromModules<{
   agent: typeof agent;
   auth: typeof auth;
   autumn: typeof autumn;
-  calls: typeof calls;
+  "call/ai": typeof call_ai;
+  "call/availability": typeof call_availability;
+  "call/calls": typeof call_calls;
+  "call/meetings": typeof call_meetings;
+  "call/sendFollowUp": typeof call_sendFollowUp;
   firecrawl: typeof firecrawl;
   firecrawlActions: typeof firecrawlActions;
   http: typeof http;

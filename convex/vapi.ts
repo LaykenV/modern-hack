@@ -126,9 +126,15 @@ export const startPhoneCall = internalAction({
       ),
       metadata: v.optional(v.record(v.string(), v.any())),
     }),
+    // Meeting booking metadata (Phase 2)
+    offeredSlotsISO: v.optional(v.array(v.string())),
+    agencyAvailabilityWindows: v.optional(v.array(v.string())),
+    futureMeetings: v.optional(v.array(v.object({
+      iso: v.string(),
+    }))),
   },
   returns: v.null(),
-  handler: async (ctx, { callId, customerNumber, assistant }) => {
+  handler: async (ctx, { callId, customerNumber, assistant, offeredSlotsISO, agencyAvailabilityWindows, futureMeetings }) => {
     const token = process.env.VAPI_API_KEY ?? "";
     const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID ?? "";
     const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL ?? process.env.SITE_URL ?? "";
@@ -136,7 +142,7 @@ export const startPhoneCall = internalAction({
     if (!token || !phoneNumberId) throw new Error("Missing Vapi env configuration");
     if (!CONVEX_SITE_URL || !WEBHOOK_SECRET) throw new Error("Missing CONVEX_SITE_URL (or SITE_URL) or VAPI_WEBHOOK_SECRET");
 
-    // Inject secure server config only in Node runtime
+    // Inject secure server config and merge availability metadata
     const inlineAssistant: InlineAssistant = {
       ...assistant,
       server: { url: `${CONVEX_SITE_URL.replace(/\/$/, "")}/api/vapi-webhook`, secret: WEBHOOK_SECRET },
@@ -146,10 +152,16 @@ export const startPhoneCall = internalAction({
         "transcript",
         "end-of-call-report",
       ],
+      metadata: {
+        ...(assistant.metadata ?? {}),
+        ...(offeredSlotsISO && { offeredSlotsISO }),
+        ...(agencyAvailabilityWindows && { agencyAvailabilityWindows }),
+        ...(futureMeetings && { futureMeetings }),
+      },
     } as InlineAssistant;
 
     const response = await createPhoneCall(token, phoneNumberId, customerNumber, inlineAssistant);
-    await ctx.runMutation((internal as typeof internal).calls._attachVapiDetails, {
+    await ctx.runMutation((internal as typeof internal).call.calls._attachVapiDetails, {
       callId,
       vapiCallId: response.id,
       phoneNumberId,
