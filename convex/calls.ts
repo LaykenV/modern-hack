@@ -182,29 +182,7 @@ export const appendTranscriptChunk = internalMutation({
       .withIndex("by_vapi_call_id", (q) => q.eq("vapiCallId", vapiCallId))
       .unique();
     if (!record) return null;
-    const transcript = [...(record.transcript ?? [])];
-
-    // Defense-in-depth: skip storing partials
-    if ((fragment.source ?? "") === "transcript-partial") {
-      await ctx.db.patch(record._id, { lastWebhookAt: Date.now() });
-      return null;
-    }
-
-    // Short-window dedupe for finals: compare against last 3 fragments of same role
-    const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-    const incomingNormalized = normalize(fragment.text);
-    const recentWindow = transcript.slice(-3);
-    const isDuplicate = recentWindow.some((f) => {
-      const isFinal = (f.source ?? "") === "transcript";
-      const sameRole = (f.role ?? "") === (fragment.role ?? "");
-      return isFinal && sameRole && normalize(f.text) === incomingNormalized;
-    });
-    if (isDuplicate) {
-      await ctx.db.patch(record._id, { lastWebhookAt: Date.now() });
-      return null;
-    }
-
-    transcript.push(fragment);
+    const transcript = [...(record.transcript ?? []), fragment];
     await ctx.db.patch(record._id, { transcript, lastWebhookAt: Date.now() });
     return null;
   },

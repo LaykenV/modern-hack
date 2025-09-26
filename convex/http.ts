@@ -103,7 +103,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
 
     const shouldLogPayload =
       typeof type === "string" &&
-      (type.toLowerCase().includes("transcript") || type === "end-of-call-report");
+      (type.toLowerCase().includes("transcript") || type === "speech-update" || type === "end-of-call-report");
 
     if (shouldLogPayload) {
       try {
@@ -137,37 +137,19 @@ const vapiWebhook = httpAction(async (ctx, req) => {
           timestamp: Date.now(),
           source: "speech",
         } as { role: string; text: string; timestamp?: number; source?: string };
+        try {
+          console.log(
+            "[Vapi Webhook] Transcript fragment",
+            JSON.stringify({ type, vapiCallId, fragment })
+          );
+        } catch (logErr) {
+          console.warn("[Vapi Webhook] Failed to stringify speech fragment", logErr);
+        }
         await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
         break;
       }
       case "transcript":
-      case "transcript-final": {
-        const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
-        if (Array.isArray(messages) && messages.length > 0) {
-          for (const m of messages) {
-            const fragment = {
-              role: m.role ?? "assistant",
-              text: m.text ?? "",
-              timestamp: Date.now(),
-              source: "transcript",
-            } as { role: string; text: string; timestamp?: number; source?: string };
-            await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
-          }
-        } else if (typeof p?.transcript === "string") {
-          // Drop partial single-fragment transcripts; accept only finals
-          if (p?.transcriptType === "partial") {
-            break;
-          }
-          const fragment = {
-            role: (p?.role as string | undefined) ?? "assistant",
-            text: p.transcript,
-            timestamp: Date.now(),
-            source: "transcript",
-          } as { role: string; text: string; timestamp?: number; source?: string };
-          await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
-        }
-        break;
-      }
+      case "transcript-final":
       default: {
         if (typeof type === "string" && type.toLowerCase().includes("transcript")) {
           const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
@@ -179,18 +161,33 @@ const vapiWebhook = httpAction(async (ctx, req) => {
                 timestamp: Date.now(),
                 source: type,
               } as { role: string; text: string; timestamp?: number; source?: string };
+              try {
+                console.log(
+                  "[Vapi Webhook] Transcript fragment",
+                  JSON.stringify({ type, vapiCallId, fragment })
+                );
+              } catch (logErr) {
+                console.warn("[Vapi Webhook] Failed to stringify transcript message fragment", logErr);
+              }
               await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
             }
-          } else if (typeof (p as Record<string, unknown>).transcript === "string") {
+          } else if (typeof p?.transcript === "string") {
             const fragment = {
-              role: (p as Record<string, string | undefined>).role ?? "assistant",
-              text: (p as Record<string, string>).transcript,
+              role: (p?.role as string | undefined) ?? "assistant",
+              text: p.transcript,
               timestamp: Date.now(),
               source: type,
             } as { role: string; text: string; timestamp?: number; source?: string };
+            try {
+              console.log(
+                "[Vapi Webhook] Transcript fragment",
+                JSON.stringify({ type, vapiCallId, fragment })
+              );
+            } catch (logErr) {
+              console.warn("[Vapi Webhook] Failed to stringify transcript single fragment", logErr);
+            }
             await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
           }
-          break;
         }
         break;
       }

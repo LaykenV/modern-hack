@@ -100,8 +100,8 @@ We generate the assistant payload dynamically per call:
 - firstMessageMode: "assistant-speaks-first"
 - server: injected in `internal.vapi.startPhoneCall` from env in Node as `{ url, secret }`.
   - url: `${CONVEX_SITE_URL}/api/vapi-webhook` (preferred). Do not point to a Next.js/Vercel URL; use Convex’s URL so the Convex httpAction receives requests.
-- serverMessages: must be an array of string enums supported by Vapi (not objects). We default to finals-only:
-  - `["status-update", "transcript[transcriptType=\"final\"]", "end-of-call-report"]`
+- serverMessages: must be an array of string enums supported by Vapi (not objects). We currently request live updates plus finals:
+  - `["status-update", "speech-update", "transcript", "end-of-call-report"]`
   - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted".
 - metadata: convexOpportunityId, convexAgencyId, leadGenFlowId
 
