@@ -1,8 +1,9 @@
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { internal, components } from "../_generated/api";
 import { atlasAgentGroq } from "../agent";
 import type { Doc } from "../_generated/dataModel";
+import { createThread } from "@convex-dev/agent";
 
 type BookingAnalysis = {
   meetingBooked: boolean;
@@ -108,10 +109,16 @@ VALIDATION RULES:
     try {
       console.log(`[AI Analysis] Sending transcript to AI for analysis (${transcriptText.length} chars)`);
       
-      // Generate analysis using atlasAgentGroq
+      // Create a proper Convex thread and use it (don't fabricate thread ids)
+      const threadId = await createThread(ctx, components.agent, {
+        userId: agency.userId,
+        title: `Call analysis for ${opportunity.name}`,
+        summary: `Post-call booking detection for call ${String(callId)}`,
+      });
+
       const response = await atlasAgentGroq.generateText(
         ctx,
-        { threadId: `call-analysis-${callId}` },
+        { threadId },
         { prompt }
       );
 

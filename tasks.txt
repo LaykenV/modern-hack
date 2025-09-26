@@ -85,7 +85,9 @@
 
 test booking
 
-update system prompts and model
+//update system prompts and model
+
+
 get email in leadgen
 resend emails with ics and recap
 
