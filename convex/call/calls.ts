@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, mutation, query } from ".././_generated/server";
+import { internalMutation, internalQuery, query, action } from ".././_generated/server";
 import { v } from "convex/values";
 import { internal } from ".././_generated/api";
 import type { Doc, Id } from ".././_generated/dataModel";
@@ -40,13 +40,28 @@ type AssistantPayload = {
   metadata?: Record<string, unknown>;
 };
 
-export const startCall = mutation({
+export const startCall = action({
   args: {
     opportunityId: v.id("client_opportunities"),
     agencyId: v.id("agency_profile"),
   },
   returns: v.object({ callId: v.id("calls"), vapiCallId: v.string() }),
   handler: async (ctx, { opportunityId, agencyId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Authentication required to start a call");
+    }
+
+    const customerId = identity.subject;
+    const preflight: { allowed: boolean; balance: number; error?: string } = await ctx.runAction(
+      internal.call.billing.ensureAiCallCredits,
+      { customerId, requiredMinutes: 1 },
+    );
+
+    if (!preflight.allowed) {
+      throw new Error("Insufficient credits for AI call");
+    }
+
     // Capture initiating user (if authenticated)
     const authUser = await authComponent.getAuthUser(ctx);
 
@@ -193,23 +208,31 @@ After they confirm, think to yourself [BOOK_SLOT: <exact_ISO_timestamp>] but nev
     };
 
     // Create DB call row (initiated)
-    const callId: Id<"calls"> = await ctx.db.insert("calls", {
+    const callId: Id<"calls"> = await ctx.runMutation(internal.call.calls._createInitiatedCall, {
       opportunityId,
       agencyId,
       dialedNumber: opportunity.phone!,
       assistantSnapshot: inlineAssistant,
-      status: "initiated",
-      startedAt: Date.now(),
-      currentStatus: "queued",
-      startedByUserId: authUser?._id,
+      startedByUserId: authUser?._id as string | undefined,
       startedByEmail: authUser?.email,
+      metadata: {
+        billingCustomerId: customerId,
+        aiCallPreflight: {
+          requiredMinutes: 1,
+          balance: preflight.balance,
+          checkedAt: Date.now(),
+        },
+      },
     });
 
     // Patch call record with availability metadata
-    await ctx.db.patch(callId, {
-      offeredSlotsISO: recommendedSlots.map((slot: { iso: string }) => slot.iso),
-      agencyAvailabilityWindows: availabilityData.availabilityWindows,
-      futureMeetings: futureMeetings,
+    await ctx.runMutation(internal.call.calls._patchCallMetadata, {
+      callId,
+      metadata: {
+        offeredSlotsISO: recommendedSlots.map((slot: { iso: string }) => slot.iso),
+        agencyAvailabilityWindows: availabilityData.availabilityWindows,
+        futureMeetings: futureMeetings,
+      },
     });
 
     // Schedule Vapi action to place the call (keeps Node-only code in vapi.ts)
@@ -233,6 +256,9 @@ export const _createInitiatedCall = internalMutation({
     agencyId: v.id("agency_profile"),
     dialedNumber: v.string(),
     assistantSnapshot: v.any(),
+    startedByUserId: v.optional(v.string()),
+    startedByEmail: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.any())),
   },
   returns: v.id("calls"),
   handler: async (ctx, args) => {
@@ -245,6 +271,9 @@ export const _createInitiatedCall = internalMutation({
       status: "initiated",
       startedAt: now,
       currentStatus: "queued",
+      startedByUserId: args.startedByUserId,
+      startedByEmail: args.startedByEmail,
+      metadata: args.metadata,
     });
   },
 });
@@ -335,6 +364,12 @@ export const finalizeReport = internalMutation({
       currentStatus: "completed",
       lastWebhookAt: Date.now(),
     });
+
+    if (typeof safeBillingSeconds === "number" && safeBillingSeconds > 0) {
+      await ctx.scheduler.runAfter(0, internal.call.billing.meterAiCallUsage, {
+        callId: record._id,
+      });
+    }
     return null;
   },
 });
@@ -395,6 +430,22 @@ export const updateBookingAnalysis = internalMutation({
   returns: v.null(),
   handler: async (ctx, { callId, bookingAnalysis }) => {
     await ctx.db.patch(callId, { bookingAnalysis });
+    return null;
+  },
+});
+
+export const _patchCallMetadata = internalMutation({
+  args: {
+    callId: v.id("calls"),
+    metadata: v.record(v.string(), v.any()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { callId, metadata }) => {
+    const existing = await ctx.db.get(callId);
+    if (!existing) return null;
+    const currentMetadata = (existing.metadata ?? {}) as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...currentMetadata, ...metadata };
+    await ctx.db.patch(callId, { metadata: merged });
     return null;
   },
 });

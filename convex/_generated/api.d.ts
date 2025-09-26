@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as autumn from "../autumn.js";
 import type * as call_ai from "../call/ai.js";
 import type * as call_availability from "../call/availability.js";
+import type * as call_billing from "../call/billing.js";
 import type * as call_calls from "../call/calls.js";
 import type * as call_meetings from "../call/meetings.js";
 import type * as call_sendFollowUp from "../call/sendFollowUp.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   autumn: typeof autumn;
   "call/ai": typeof call_ai;
   "call/availability": typeof call_availability;
+  "call/billing": typeof call_billing;
   "call/calls": typeof call_calls;
   "call/meetings": typeof call_meetings;
   "call/sendFollowUp": typeof call_sendFollowUp;

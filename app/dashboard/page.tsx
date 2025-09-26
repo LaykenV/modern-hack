@@ -47,7 +47,7 @@ function DashboardContent() {
   const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
   const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
   const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
-  const { refetch: refetchCustomer } = useCustomer();
+  const { customer, refetch: refetchCustomer, isLoading: isCustomerLoading } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
   const startVapiCall = useMutation(api.call.calls.startCall);
   
@@ -94,6 +94,7 @@ function DashboardContent() {
   const [activeCallByOpportunity, setActiveCallByOpportunity] = useState<Record<string, Id<"calls">>>({});
   const [startingCallOppId, setStartingCallOppId] = useState<Id<"client_opportunities"> | null>(null);
   const [callErrorByOpp, setCallErrorByOpp] = useState<Record<string, string>>({});
+  const atlasCreditsBalance = customer?.features?.atlas_credits?.balance ?? 0;
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const [nowTs, setNowTs] = useState<number>(Date.now());
   const [listenModalOpen, setListenModalOpen] = useState(false);
@@ -491,7 +492,7 @@ function DashboardContent() {
             {/* Paused Status Banner */}
             {leadGenJob.status === "paused_for_upgrade" && billingBlock && (
               <div className="mb-4 p-3 bg-orange-100 dark:bg-orange-900/30 rounded border border-orange-300 dark:border-orange-700">
-                <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-orange-800 dark:text-orange-200">
                       ⏸️ Workflow Paused - Upgrade Required
@@ -696,6 +697,7 @@ function DashboardContent() {
                           const isReady = oppStatusUpper === "READY";
                           const isBooked = oppStatusUpper === "BOOKED";
                           const isRejected = oppStatusUpper === "REJECTED";
+                          const hasCredits = atlasCreditsBalance >= 1;
                           if (isReady && sellerBrain) {
                             return (
                           <div>
@@ -713,6 +715,7 @@ function DashboardContent() {
                                     agencyId: sellerBrain.agencyProfileId,
                                   });
                                   setActiveCallByOpportunity((prev) => ({ ...prev, [oppKey]: result.callId }));
+                                  await refetchCustomer();
                                 } catch (err) {
                                   console.error("Start call failed", err);
                                   const message = err instanceof Error ? err.message : "Failed to start call";
@@ -721,10 +724,20 @@ function DashboardContent() {
                                   setStartingCallOppId(null);
                                 }
                               }}
-                              disabled={startingCallOppId === opp._id}
+                              disabled={startingCallOppId === opp._id || isCustomerLoading || !hasCredits}
                               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 py-2 rounded"
                             >
                               {startingCallOppId === opp._id ? "Starting call…" : "Call"}
+                            </button>
+                            {!hasCredits && (
+                              <p className="text-sm text-orange-600 mt-2">Need at least 1 credit to start a call.</p>
+                            )}
+                            <button
+                              onClick={() => setPaywallOpen(true)}
+                              className="ml-2 text-sm underline"
+                              disabled={hasCredits}
+                            >
+                              Open Paywall
                             </button>
                             {callErrorByOpp[oppKey] && (
                               <p className="text-sm text-red-600 mt-2">{callErrorByOpp[oppKey]}</p>

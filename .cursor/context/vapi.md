@@ -134,17 +134,19 @@ We generate the assistant payload dynamically per call:
 
 ### Call Lifecycle
 1) Client calls `api.call.calls.startCall({ opportunityId, agencyId })`.
-2) **NEW**: System fetches available meeting slots using Luxon timezone calculations.
-3) A `calls` row is created with status="initiated"; assistant snapshot and availability metadata recorded.
-4) `internal.vapi.startPhoneCall` runs (Node) with meeting context and calls the Vapi `call/phone` API.
-5) Webhooks stream in:
+2) **NEW**: A preflight Autumn check via `internal.call.billing.ensureAiCallCredits` ensures the caller has at least 1 `atlas_credits` minute available. If not, the client surfaces the paywall and the call is blocked.
+3) System fetches available meeting slots using Luxon timezone calculations.
+4) A `calls` row is created with status="initiated"; assistant snapshot, availability metadata, and billing metadata (`billingCustomerId`, preflight balance) recorded.
+5) `internal.vapi.startPhoneCall` runs (Node) with meeting context and calls the Vapi `call/phone` API.
+6) Webhooks stream in:
    - status updates (queued, ringing, in-progress, ended, failed, no-answer)
    - speech-update (optional partials)
    - transcript (final messages)
    - end-of-call-report (summary, recordingUrl, duration)
-6) The `calls` row is updated in real-time for UI consumption.
-7) **NEW**: After call completion, AI analyzes transcript for meeting bookings and rejections.
-8) **NEW**: If meeting booked, creates `meetings` record and updates opportunity status to "Booked".
+7) The `calls` row is updated in real-time for UI consumption.
+8) **NEW**: After the end-of-call webhook stores `billingSeconds`, `internal.call.billing.meterAiCallUsage` re-reads the call, clamps billable minutes to remaining balance, meters via Autumn, and persists `metadata.aiCallMetering = { requestedMinutes, billedMinutes, balanceAtCheck, trackedAt }` for idempotence.
+9) **NEW**: After metering, AI analyzes the transcript for meeting bookings and rejections.
+10) **NEW**: If meeting booked, creates `meetings` record and updates opportunity status to "Booked".
 
 ### Usage Examples
 
@@ -200,6 +202,8 @@ Common issues:
   - Signature mismatch; double-check the raw body and secret match and header name `X-Vapi-Signature`.
 - No status updates
   - Confirm `SITE_URL` matches the externally reachable domain; Vapi must hit Convex webhook path.
+- Credit metering skipped
+  - Ensure the call has `billingSeconds > 0` and metadata contains `billingCustomerId`. The metering action logs `[AI Call Billing]` messages for missing data or API errors.
 
 ### Security Considerations
 - Secrets (API key, webhook secret) never leave Node.

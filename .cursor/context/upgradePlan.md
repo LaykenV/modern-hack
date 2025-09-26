@@ -1,32 +1,41 @@
-## Lead Gen Email Capture Upgrade
+## AI Call Credit Metering Plan
 
-### Goal
-- Enrich each `client_opportunities` record with a best-effort contact email discovered during the existing audit/dossier phase.
-- Ensure crawl + filtering steps always surface a contact page so AI has the necessary context.
+- **Backend billing utilities (`convex/call/billing.ts`)**
+  - Add a module housing Convex `internalAction`s so credit logic stays modular. Follow the `convex/leadGen/billing.ts` pattern with an ephemeral Autumn client that accepts an explicit `customerId`.
+  - `ensureAiCallCredits` (args: `customerId`, `requiredMinutes` = 1) calls `autumn.check`. It returns `{ allowed, balance, error? }`, logging errors but never throwing to avoid leaking secrets; callers decide how to react.
+  - `meterAiCallUsage` (args: `callId`) re-loads the call document, verifies `billingSeconds > 0`, and uses `metadata.billingCustomerId` captured up front. Compute `requestedMinutes = Math.ceil(billingSeconds / 60)`; if zero, exit early.
+  - Before tracking, run another `autumn.check` to read the latest balance. Clamp to `billableMinutes = Math.min(requestedMinutes, balance)` so we never bill more than the user has left.
+  - Only call `autumn.track` when `billableMinutes > 0`. Persist metering info back onto the call via `ctx.db.patch`, writing `metadata.aiCallMetering = { requestedMinutes, billedMinutes, balanceAtCheck, trackedAt }` to reuse the existing `metadata` field (no schema change).
+  - Short-circuit if the call already has `metadata.aiCallMetering?.trackedAt` to keep the action idempotent, since the webhook path may re-run.
 
-### Schema & Types
-- Add optional `email` field to `client_opportunities` in `convex/schema.ts`; keep optional for backward compatibility.
-- When persisting new opportunities (`persistClientOpportunities`), initialize `email` to `undefined` so resumes retain a consistent document shape.
-- Update generated types/validators that touch `client_opportunities` (status utils, marketing queries) to include `email`.
+- **Preflight enforcement in `startCall` (`convex/call/calls.ts`)**
+  - Require an authenticated identity (`await ctx.auth.getUserIdentity()`); if absent, throw.
+  - Extract `customerId = identity.subject`. Immediately call `ctx.runAction(internal.call.billing.ensureAiCallCredits, { customerId, requiredMinutes: 1 })`.
+  - If the response marks `allowed === false`, throw an error like `"Insufficient credits for AI call"` so the client can surface the paywall.
+  - When inserting the call row, include `billingCustomerId` and the preflight balance inside `metadata`. Merge with existing metadata rather than overwriting.
 
-### Crawl & URL Selection
-- Keep Firecrawl include rules for `/contact` paths and ensure exclusions do not remove them.
-- Update `filterRelevantUrls` prompt (`convex/leadGen/audit.ts`) to explicitly request at least one contact-style page in the shortlist.
+- **Metering after webhook completion**
+  - In `finalizeReport`, after patching `billingSeconds`, schedule `ctx.scheduler.runAfter(0, internal.call.billing.meterAiCallUsage, { callId })`.
+  - The action will load the call, read `billingSeconds`, `status`, and `metadata.billingCustomerId`, and meter if the call is completed. Handle missing data gracefully (log + drop).
 
+- **UI safeguards in `app/dashboard/page.tsx`**
+  - Update the `useCustomer` call to capture `customer` and `refetch` alongside `isLoading`.
+  - Derive `atlasCreditsBalance = customer?.features?.atlas_credits?.balance ?? 0`.
+  - When rendering the Call button:
+    - Disable it if the balance is `< 1`, add helper text (“Need at least 1 credit to start a call”), and render a secondary “Open Paywall” button that simply calls `setPaywallOpen(true)`.
+    - While `isLoading`, optionally keep the button disabled to avoid flicker.
+  - After a successful call (or on relevant state changes), call `refetchCustomer()` so the UI reflects the new balance.
 
-### Dossier AI Enhancement
-- Extend the dossier prompt in `generateDossierAndFitReasonHelper` so the AI returns `primary_email` (best contact email) alongside existing fields; require a clear null/empty value when not found.
-- Parse the AI JSON to capture the returned email.
+- **Paywall dialog interaction (`components/autumn/paywall-dialog.tsx`)**
+  - No structural change is required. Ensure it remains the single source of upgrade flows. Optionally allow a custom message prop if we want AI-call-specific context, but not mandatory for the first pass.
 
-### Persistence Flow
-- Extend `createAuditDossier` args to accept an optional `email`.
-- Inside the mutation, continue inserting the dossier, then patch the linked opportunity’s `email` when a new value exists and differs from the stored value.
-- Maintain idempotency: repeated runs with the same email should no-op.
+- **Documentation touch-up (`.cursor/context/vapi.md`)**
+  - Add a short “Credit Metering” subsection covering the 1-credit preflight check, post-call billing based on `billingSeconds`, balance clamping, and the disabled call button behavior.
 
-### UI / Query Updates
-- Update lead-gen queries (`convex/leadGen/queries.ts`, `convex/marketing.ts`, etc.) to surface the `email` field so dashboards can display it with phone info.
-
-### Documentation
-- Revise `leadGen.md` and `leadGenPlan.md` to cover the new schema field, contact-page requirement, and AI email extraction step.
-
+- **Testing & monitoring**
+  - Manual test cases:
+    - User with 0 credits: button disabled, paywall opens; attempting to call via API yields error.
+    - User with ≥1 credit: preflight succeeds, short call (<60 s) bills 1 credit max.
+    - Limited credits scenario: user with 2 credits, 3-minute call → only 2 credits deducted.
+  - Confirm Autumn dashboard reflects deductions and that repeated webhook deliveries do not double-bill (thanks to idempotence check).
 
