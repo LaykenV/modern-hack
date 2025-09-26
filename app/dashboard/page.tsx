@@ -1,6 +1,6 @@
 "use client";
 
-import { Authenticated, Unauthenticated, useQuery, useAction, useMutation } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { api } from "@/convex/_generated/api";
@@ -49,7 +49,7 @@ function DashboardContent() {
   const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
   const { customer, refetch: refetchCustomer, isLoading: isCustomerLoading } = useCustomer();
   const onboardingStatus = useQuery(api.onboarding.queries.getOnboardingStatus, { onboardingFlowId: sellerBrain?.onboardingFlowId });
-  const startVapiCall = useMutation(api.call.calls.startCall);
+  const startVapiCall = useAction(api.call.calls.startCall);
   
   // State for lead generation
   const [currentJobId, setCurrentJobId] = useState<Id<"lead_gen_flow"> | null>(null);
