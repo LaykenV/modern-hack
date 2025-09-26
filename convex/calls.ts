@@ -77,7 +77,7 @@ export const startCall = mutation({
       firstMessageMode: "assistant-speaks-first",
       serverMessages: [
         "status-update",
-        "transcript[transcriptType=\"final\"]",
+        "transcript",
         "end-of-call-report",
       ],
       metadata: {
