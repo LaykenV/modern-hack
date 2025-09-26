@@ -20,6 +20,7 @@
 - `client_opportunities`
   - Link: `leadGenFlowId: Id<'lead_gen_flow'>`
   - Status lifecycle: "SOURCED" → (no website → "DATA_READY") or (audit path) "AUDITING" → "READY"
+  - Booked meeting timestamp: `meeting_time?: number` (Unix ms; set when a meeting is booked)
   - Campaign fields: `targetVertical`, `targetGeography`; ranking: `qualificationScore`; badges: `signals[]`
   - Indexes: `by_agency`, `by_place_id`, `by_agency_and_campaign`, `by_leadGenFlow`, `by_agency_and_domain`, `by_leadGenFlow_and_domain`
 - `audit_jobs` (updated with upgrade plan)

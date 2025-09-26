@@ -238,6 +238,7 @@ export const getOpportunityById = internalQuery({
       source: v.string(),
       fit_reason: v.optional(v.string()),
       status: v.string(),
+      meeting_time: v.optional(v.number()),
       leadGenFlowId: v.optional(v.id("lead_gen_flow")),
       targetVertical: v.string(),
       targetGeography: v.string(),

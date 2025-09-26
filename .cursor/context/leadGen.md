@@ -47,6 +47,7 @@ export default defineSchema({
     source: v.string(), // "google_places"
     fit_reason: v.optional(v.string()),
     status: v.string(), // e.g., "SOURCED", "AUDITING", "READY", "CONTACTED"
+    meeting_time: v.optional(v.number()), // Unix ms timestamp for booked meetings
 
     // --- NEW & ENHANCED FIELDS ---
     // For campaign tracking & filtering (Point 5)

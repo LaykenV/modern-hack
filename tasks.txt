@@ -85,6 +85,8 @@
 
 test booking
 
+timer not working still
+
 //update system prompts and model
 
 
