@@ -2,6 +2,7 @@ import { internalMutation, internalQuery, mutation, query } from ".././_generate
 import { v } from "convex/values";
 import { internal } from ".././_generated/api";
 import type { Doc, Id } from ".././_generated/dataModel";
+import { authComponent } from "../auth";
 
 type AssistantMessage = { role: "system"; content: string };
 type AssistantPayload = {
@@ -46,6 +47,9 @@ export const startCall = mutation({
   },
   returns: v.object({ callId: v.id("calls"), vapiCallId: v.string() }),
   handler: async (ctx, { opportunityId, agencyId }) => {
+    // Capture initiating user (if authenticated)
+    const authUser = await authComponent.getAuthUser(ctx);
+
     // Load opportunity and agency
     const opportunity: Doc<"client_opportunities"> | null = await ctx.runQuery(
       internal.leadGen.queries.getOpportunityById,
@@ -197,6 +201,8 @@ After they confirm, think to yourself [BOOK_SLOT: <exact_ISO_timestamp>] but nev
       status: "initiated",
       startedAt: Date.now(),
       currentStatus: "queued",
+      startedByUserId: authUser?._id,
+      startedByEmail: authUser?.email,
     });
 
     // Patch call record with availability metadata

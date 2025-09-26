@@ -298,6 +298,10 @@ export default defineSchema({
       }),
     ),
 
+    // Initiating user context
+    startedByUserId: v.optional(v.string()),
+    startedByEmail: v.optional(v.string()),
+
     // Meeting booking metadata (Phase 2)
     offeredSlotsISO: v.optional(v.array(v.string())),
     agencyAvailabilityWindows: v.optional(v.array(v.string())),

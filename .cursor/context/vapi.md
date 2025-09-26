@@ -27,6 +27,7 @@ We extended the `calls` table to track the Vapi lifecycle and meeting booking.
 - startedAt, lastWebhookAt, currentStatus: Operational.
 - assistantSnapshot: any? — Inline assistant payload used for the call (audit/debug).
 - monitorUrls: { listenUrl? }? — Optional listen URL from Vapi monitor.
+ - startedByUserId, startedByEmail: string? — User context captured at call start.
 
 #### Meeting Booking Fields (NEW):
 - offeredSlotsISO: string[]? — ISO timestamps of meeting slots offered during call.
@@ -55,6 +56,7 @@ Indexes:
   - **NEW**: Fetches available meeting slots using `internal.call.availability.getAvailableSlots`.
   - Builds the inline assistant prompt from agency-approved claims, guardrails, core offer, target geography, opportunity's fit_reason, **and available meeting times**.
   - Inserts a `calls` row with status="initiated" and the assistant snapshot.
+  - **NEW**: Captures initiating user context (`startedByUserId`, `startedByEmail`) via Better Auth when available.
   - **NEW**: Patches call record with availability metadata (offeredSlotsISO, agencyAvailabilityWindows, futureMeetings).
   - Schedules `internal.vapi.startPhoneCall` with meeting metadata via `ctx.scheduler.runAfter(0, ...)`.
   - Returns: { callId, vapiCallId: "pending" }
@@ -259,6 +261,7 @@ This section describes the implemented post-call AI meeting booking system that 
 #### Follow-up System (convex/call/sendFollowUp.ts)
 - **sendBookingConfirmation** (internalAction): Processes successful bookings
   - Structured logging with meeting details and timezone formatting
+  - **NEW**: Logs `triggeredByEmail` from the originating call (`startedByEmail`) instead of fetching auth in action context.
   - Placeholder for email confirmation and calendar integration
   - Agency notification preparation
 
