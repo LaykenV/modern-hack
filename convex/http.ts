@@ -95,6 +95,25 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       return new Response("ok", { status: 200 });
     }
 
+    if (type === "transcript" || type === "end-of-call-report") {
+      try {
+        console.log(
+          "[Vapi Webhook] Debug payload",
+          type,
+          JSON.stringify({
+            headers: {
+              "x-vapi-signature": signature ?? null,
+              "x-vapi-secret": shared ?? null,
+              "x-call-id": headerCallId,
+            },
+            body: p,
+          }),
+        );
+      } catch (logErr) {
+        console.warn("[Vapi Webhook] Failed to stringify payload", logErr);
+      }
+    }
+
     switch (type) {
       case "status-update": {
         const status = p?.status ?? p?.data?.status ?? "unknown";
