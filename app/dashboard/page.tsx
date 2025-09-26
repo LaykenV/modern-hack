@@ -265,7 +265,7 @@ function DashboardContent() {
         </button>
         <Link href="/dashboard/subscription">Subscription</Link>
       </div>
-      <p className="mb-2">You are signed in.</p>
+      <p className="mb-2">You are signed inn.</p>
       <p className="mb-2">Email: {user?.email}</p>
       <p className="mb-2">Name: {user?.name}</p>
       <p className="mb-2">ID: {user?._id}</p>
