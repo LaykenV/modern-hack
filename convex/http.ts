@@ -95,9 +95,15 @@ const vapiWebhook = httpAction(async (ctx, req) => {
       return new Response("ok", { status: 200 });
     }
 
+    try {
+      console.log("[Vapi Webhook] Incoming event type", type);
+    } catch {
+      console.log("[Vapi Webhook] Incoming event type <non-serializable>");
+    }
+
     const shouldLogPayload =
-      type === "end-of-call-report" ||
-      (typeof type === "string" && type.toLowerCase().includes("transcript"));
+      typeof type === "string" &&
+      (type.toLowerCase().includes("transcript") || type === "end-of-call-report");
 
     if (shouldLogPayload) {
       try {
@@ -134,7 +140,8 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
         break;
       }
-      case "transcript": {
+      case "transcript":
+      case "transcript-final": {
         const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
         if (Array.isArray(messages) && messages.length > 0) {
           for (const m of messages) {
@@ -161,6 +168,32 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         }
         break;
       }
+      default: {
+        if (typeof type === "string" && type.toLowerCase().includes("transcript")) {
+          const messages = (p?.messages ?? p?.data?.messages ?? []) as TranscriptMessage[];
+          if (Array.isArray(messages) && messages.length > 0) {
+            for (const m of messages) {
+              const fragment = {
+                role: m.role ?? "assistant",
+                text: m.text ?? "",
+                timestamp: Date.now(),
+                source: type,
+              } as { role: string; text: string; timestamp?: number; source?: string };
+              await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+            }
+          } else if (typeof (p as Record<string, unknown>).transcript === "string") {
+            const fragment = {
+              role: (p as Record<string, string | undefined>).role ?? "assistant",
+              text: (p as Record<string, string>).transcript,
+              timestamp: Date.now(),
+              source: type,
+            } as { role: string; text: string; timestamp?: number; source?: string };
+            await ctx.runMutation(internal.calls.appendTranscriptChunk, { vapiCallId, fragment });
+          }
+          break;
+        }
+        break;
+      }
       case "end-of-call-report": {
         const summary = (p?.summary as string | undefined) ?? p?.data?.summary;
         const recordingUrl = (p?.recordingUrl as string | undefined) ?? p?.data?.recordingUrl;
@@ -176,10 +209,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         });
         break;
       }
-      default: {
-        // ignore unknown types for now
-        break;
-      }
+      
     }
   } catch (err) {
     console.error("[Vapi Webhook] Error:", err);
