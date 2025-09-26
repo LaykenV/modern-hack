@@ -4,6 +4,7 @@
   - **Add Call action** on each `client_opportunities` row when `status === "READY"`.
   - **Start a Vapi call** via `api.calls.startCall`.
   - **Stream and display** live call status and transcript within the dashboard.
+  - **Handle outcomes**: after a call, the opportunity `status` updates to `BOOKED` or `REJECTED` (may appear as `Booked`/`Rejected`). Hide the Call button for these and show an outcome chip.
 
 - **UI placement**
   - File: `app/dashboard/page.tsx`.
@@ -22,7 +23,7 @@
 
 - **Live status & transcript rendering**
   - Status chip from `currentStatus ?? status` with colors for queued/ringing/in-progress/completed/failed.
-  - Duration: use `duration` else compute `now - startedAt` ticking every second.
+  - Duration: only tick while `status === "in-progress"` using `now - startedAt`. After the call stops, prefer `billingSeconds * 1000` from the DB; if absent, fall back to any static `duration` value. Do not tick during `queued`/`ringing`/terminal states.
   - Optional "Listen" link from `monitorUrls.listenUrl`.
   - Transcript: render `transcript[]` fragments (role, text, source), autoscroll on update.
 
@@ -30,9 +31,10 @@
   - Multiple calls per opportunity: prefer latest by `_creationTime`; consider history dropdown later.
   - Webhook delays: keep UI responsive; show “Waiting for connection…” while queued.
   - Refresh mid-call: on row expand, pick the latest call if `activeCallByOpportunity` is empty.
+  - Outcome race: if the opportunity flips to `BOOKED`/`REJECTED` while call webhooks lag, the timer still stops because ticking is tied strictly to `in-progress`.
 
 - **Testing scenarios**
-  - Happy path: READY → start → queued → ringing → in-progress → end-of-call-report; transcript and status update live.
+  - Happy path: READY → start → queued → ringing → in-progress → completed; opportunity updates to `BOOKED` or `REJECTED`; transcript and status update live; duration switches from ticking to `billingSeconds`.
   - No answer / failed: ensure status reaches a terminal state and transcript area remains minimal.
   - Multiple rows: start calls for two opportunities and verify independent live updates.
   - Refresh during call: state and transcript resume correctly upon reload.

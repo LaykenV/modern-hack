@@ -83,15 +83,16 @@
 //calendar plan?
 //create table, check availability before call, book meeting func
 
-test booking
+//test booking
 
-timer not working still
+//timer not working still - booked status
+//rejected status?
 
 //update system prompts and model
 
 
-get email in leadgen
-test email log
+//get email in leadgen
+//test email log
 
 
 resend emails with ics and recap

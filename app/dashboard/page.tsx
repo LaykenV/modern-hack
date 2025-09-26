@@ -181,11 +181,31 @@ function DashboardContent() {
     }
   }, [billingBlock, paywallOpen, paywallDismissed]);
 
-  // Ticking clock for live duration
+  // Ticking clock for live duration: only while selected call is in-progress
   useEffect(() => {
-    const id = setInterval(() => setNowTs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (!expandedOpportunityId) return;
+    if (!Array.isArray(callsForExpanded) || callsForExpanded.length === 0) return;
+    const typedCalls = callsForExpanded as Array<CallRow>;
+    const oppKey = String(expandedOpportunityId);
+    const activeId = activeCallByOpportunity[oppKey];
+
+    let selected = activeId
+      ? typedCalls.find((call) => call._id === activeId) ?? null
+      : null;
+
+    if (!selected) {
+      selected = typedCalls
+        .slice()
+        .sort((a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0))[0] ?? null;
+    }
+
+    const status: string = selected ? (selected.currentStatus ?? selected.status ?? "unknown") : "unknown";
+    if (status === "in-progress" && selected?.startedAt) {
+      const id = setInterval(() => setNowTs(Date.now()), 1000);
+      return () => clearInterval(id);
+    }
+    return;
+  }, [callsForExpanded, expandedOpportunityId, activeCallByOpportunity]);
 
   // Types for Calls UI
   type TranscriptFragment = { role?: string; text?: string; timestamp?: number; source?: string };
@@ -671,7 +691,13 @@ function DashboardContent() {
                     {isExpanded && (
                       <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-4">
                         {/* Call Controls */}
-                        {opp.status === "READY" && sellerBrain && (
+                        {(() => {
+                          const oppStatusUpper = typeof opp.status === "string" ? opp.status.toUpperCase() : "";
+                          const isReady = oppStatusUpper === "READY";
+                          const isBooked = oppStatusUpper === "BOOKED";
+                          const isRejected = oppStatusUpper === "REJECTED";
+                          if (isReady && sellerBrain) {
+                            return (
                           <div>
                             <button
                               onClick={async () => {
@@ -704,7 +730,21 @@ function DashboardContent() {
                               <p className="text-sm text-red-600 mt-2">{callErrorByOpp[oppKey]}</p>
                             )}
                           </div>
-                        )}
+                            );
+                          }
+                          if (isBooked || isRejected) {
+                            const cls = isBooked
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-red-100 text-red-700";
+                            const label = isBooked ? "Booked" : "Rejected";
+                            return (
+                              <div className="text-sm">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 ${cls}`}>{label}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
 
                         {/* Live Call Panel */}
                         {expandedOpportunityId === opp._id && Array.isArray(callsForExpanded) && callsForExpanded.length > 0 && (() => {
@@ -718,17 +758,19 @@ function DashboardContent() {
                           if (!selected) return null;
                           const status: string = selected.currentStatus ?? selected.status ?? "unknown";
                           const startedAt: number | undefined = selected.startedAt;
-                          const isCompleted = status === "completed";
-                          const completedDurationMs: number | undefined =
+                          const isInProgress = status === "in-progress";
+                          const billingDurationMs: number | undefined =
                             typeof selected.billingSeconds === "number"
                               ? Math.max(0, selected.billingSeconds * 1000)
                               : undefined;
-                          const durationMs: number | undefined =
-                            selected.duration ?? (isCompleted
-                              ? completedDurationMs
-                              : startedAt
-                              ? Math.max(0, nowTs - startedAt)
-                              : undefined);
+                          let durationMs: number | undefined = undefined;
+                          if (typeof billingDurationMs === "number") {
+                            durationMs = billingDurationMs;
+                          } else if (isInProgress && startedAt) {
+                            durationMs = Math.max(0, nowTs - startedAt);
+                          } else if (typeof selected.duration === "number") {
+                            durationMs = selected.duration;
+                          }
                           const statusClass =
                             status === "in-progress" ? "bg-green-100 text-green-700" :
                             status === "ringing" ? "bg-blue-100 text-blue-700" :
