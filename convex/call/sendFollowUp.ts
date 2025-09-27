@@ -1,8 +1,16 @@
+"use node";
+
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { internal, components } from "../_generated/api";
 import { DateTime } from "luxon";
 import type { Doc } from "../_generated/dataModel";
+import { Resend } from "@convex-dev/resend";
+
+export const resend: Resend = new Resend(components.resend, {
+  apiKey: process.env.RESEND_API_KEY,
+  testMode: false,
+});
 
 export const sendBookingConfirmation = internalAction({
   args: {
@@ -67,6 +75,28 @@ export const sendBookingConfirmation = internalAction({
         timeZone: agencyTimeZone,
         source: meeting.source,
         callDuration: call.billingSeconds ? `${call.billingSeconds}s` : "unknown"
+      });
+
+      if (!prospectEmail) {
+        console.error(`[Follow-up] Prospect email not found for meeting ${meetingId}`);
+        return null;
+      }
+
+      await resend.sendEmail(ctx, {
+        from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
+        to: prospectEmail,
+        subject: "Meeting Booking Confirmation",
+        html: `
+        <p>Hello ${opportunity.name},</p>
+        <p>Thank you for booking your meeting with ${agency.companyName}.</p>
+        <p>The meeting will be held on ${formattedTime} in ${agencyTimeZone}.</p>
+        <p>The meeting details are as follows:</p>
+        <ul>
+          <li>Meeting Time: ${formattedTime}</li>
+          <li>Meeting Location: ${agency.companyName}</li>
+        </ul>
+        <p>Thank you for your time.</p>
+        `,
       });
 
       // TODO: Future implementation will include:
