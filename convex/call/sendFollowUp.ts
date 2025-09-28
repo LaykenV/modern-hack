@@ -207,6 +207,7 @@ async function sendAgencyEmail(
     agencyEmail,
   );
   let storageRef: Id<"_storage"> | undefined;
+  let icsUrl: string | null = null;
   
   if (icsContent) {
     try {
@@ -214,10 +215,19 @@ async function sendAgencyEmail(
       const blob = new Blob([icsContent], { type: "text/calendar" });
       storageRef = await ctx.storage.store(blob);
       console.log(`[Follow-up] ICS file stored with ref: ${storageRef}`);
+
+      icsUrl = await ctx.storage.getUrl(storageRef);
+      if (!icsUrl) {
+        console.error(`[Follow-up] Failed to generate ICS download URL for ref: ${storageRef}`);
+      }
     } catch (error) {
       console.error(`[Follow-up] Failed to store ICS file:`, error);
     }
   }
+
+  const icsLinkHtml = icsUrl
+    ? `<p><strong>Calendar invite:</strong> <a href="${icsUrl}">Download .ics</a></p>`
+    : '<p><em>Note: Calendar invite could not be generated.</em></p>';
 
   const emailHTML = `
     <h2>New Meeting Booked - ${opportunity.name}</h2>
@@ -249,7 +259,7 @@ async function sendAgencyEmail(
       <li><strong>Initiated by:</strong> ${call.startedByEmail || "System"}</li>
     </ul>
 
-    ${icsContent ? '<p><strong>Calendar invite is attached as an ICS file.</strong></p>' : '<p><em>Note: Calendar invite could not be generated.</em></p>'}
+    ${icsLinkHtml}
 
     <p>This meeting was automatically booked through Atlas Outbound AI calling system.</p>
   `;
@@ -274,12 +284,6 @@ async function sendAgencyEmail(
       bcc: string;
       subject: string;
       html: string;
-      attachments?: Array<{
-        filename: string;
-        content: string;
-        contentType: string;
-        encoding: string;
-      }>;
     } = {
       from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
       to: agencyEmail,
@@ -287,16 +291,6 @@ async function sendAgencyEmail(
       subject: `New Meeting Booked - ${opportunity.name}`,
       html: emailHTML,
     };
-
-    // Attach ICS file if available
-    if (icsContent) {
-      emailData.attachments = [{
-        filename: `meeting-${opportunity.name.replace(/[^a-zA-Z0-9]/g, '-')}.ics`,
-        content: Buffer.from(icsContent).toString('base64'),
-        contentType: "text/calendar",
-        encoding: "base64",
-      }];
-    }
 
     // Send email using Resend component
     await resend.sendEmail(ctx, emailData);
