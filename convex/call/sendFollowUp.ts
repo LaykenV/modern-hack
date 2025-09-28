@@ -270,7 +270,7 @@ async function sendAgencyEmail(
     agencyId: agency._id,
     from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
     to: agencyEmail,
-    bcc: agencyEmail, // BCC the agency's Google OAuth email as required
+    // TODO: Restore BCC once Resend validator adds support
     subject: `New Meeting Booked - ${opportunity.name}`,
     html: emailHTML,
     type: "agency_summary",
@@ -281,13 +281,11 @@ async function sendAgencyEmail(
     const emailData: {
       from: string;
       to: string;
-      bcc: string;
       subject: string;
       html: string;
     } = {
       from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
       to: agencyEmail,
-      bcc: agencyEmail,
       subject: `New Meeting Booked - ${opportunity.name}`,
       html: emailHTML,
     };

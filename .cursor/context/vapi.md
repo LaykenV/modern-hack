@@ -268,6 +268,7 @@ This section describes the implemented post-call AI meeting booking system that 
   - **NEW**: Logs `triggeredByEmail` from the originating call (`startedByEmail`) instead of fetching auth in action context.
   - **NEW**: Calendar invite (`.ics`) uses `call.startedByEmail` as organizer/attendee, falling back to `notifications@scheduler.atlasoutbound.app` if unavailable.
   - **NEW**: Instead of attaching the `.ics` (Resend validator disallows attachments), stores in Convex storage and links the signed URL in the email body.
+  - **Note**: Resend’s current validator has no `bcc` support; we omit it and plan to restore once available.
   - Placeholder for email confirmation and calendar integration
   - Agency notification preparation
 - **emailMutations** helpers move to `convex/call/emailMutations.ts`
