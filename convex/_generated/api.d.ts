@@ -15,6 +15,7 @@ import type * as call_ai from "../call/ai.js";
 import type * as call_availability from "../call/availability.js";
 import type * as call_billing from "../call/billing.js";
 import type * as call_calls from "../call/calls.js";
+import type * as call_emailMutations from "../call/emailMutations.js";
 import type * as call_meetings from "../call/meetings.js";
 import type * as call_sendFollowUp from "../call/sendFollowUp.js";
 import type * as firecrawl from "../firecrawl.js";
@@ -76,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   "call/availability": typeof call_availability;
   "call/billing": typeof call_billing;
   "call/calls": typeof call_calls;
+  "call/emailMutations": typeof call_emailMutations;
   "call/meetings": typeof call_meetings;
   "call/sendFollowUp": typeof call_sendFollowUp;
   firecrawl: typeof firecrawl;

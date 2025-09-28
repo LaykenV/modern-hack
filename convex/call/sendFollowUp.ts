@@ -1,6 +1,6 @@
 "use node";
 
-import { internalAction, internalMutation } from "../_generated/server";
+import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { internal, components } from "../_generated/api";
 import { DateTime } from "luxon";
@@ -12,65 +12,6 @@ import { Resend } from "@convex-dev/resend";
 export const resend: Resend = new Resend(components.resend, {
   apiKey: process.env.RESEND_API_KEY,
   testMode: false,
-});
-
-/**
- * Helper mutation to create a queued email record
- */
-export const createQueuedEmail = internalMutation({
-  args: {
-    opportunityId: v.id("client_opportunities"),
-    agencyId: v.optional(v.id("agency_profile")),
-    from: v.string(),
-    to: v.string(),
-    bcc: v.optional(v.string()),
-    subject: v.string(),
-    html: v.string(),
-    type: v.union(v.literal("prospect_confirmation"), v.literal("agency_summary")),
-    storageRef: v.optional(v.id("_storage")),
-  },
-  returns: v.id("emails"),
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("emails", {
-      ...args,
-      status: "queued",
-    });
-  },
-});
-
-/**
- * Helper mutation to mark email as sent
- */
-export const markEmailSent = internalMutation({
-  args: {
-    emailId: v.id("emails"),
-  },
-  returns: v.null(),
-  handler: async (ctx, { emailId }) => {
-    await ctx.db.patch(emailId, {
-      status: "sent",
-      sent_at: Date.now(),
-    });
-    return null;
-  },
-});
-
-/**
- * Helper mutation to mark email as failed
- */
-export const markEmailFailed = internalMutation({
-  args: {
-    emailId: v.id("emails"),
-    error: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, { emailId, error }) => {
-    await ctx.db.patch(emailId, {
-      status: "failed",
-      error,
-    });
-    return null;
-  },
 });
 
 /**
@@ -185,7 +126,7 @@ async function sendProspectEmail(
     });
 
   // Create queued email record
-  const emailId = await ctx.runMutation(internal.call.sendFollowUp.createQueuedEmail, {
+  const emailId = await ctx.runMutation(internal.call.emailMutations.createQueuedEmail, {
     opportunityId: opportunity._id,
     agencyId: agency._id,
     from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
@@ -219,13 +160,13 @@ async function sendProspectEmail(
     });
 
     // Mark as sent
-    await ctx.runMutation(internal.call.sendFollowUp.markEmailSent, { emailId });
+    await ctx.runMutation(internal.call.emailMutations.markEmailSent, { emailId });
     console.log(`[Follow-up] Prospect confirmation email sent to ${opportunity.email}`);
     
   } catch (error) {
     // Mark as failed
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await ctx.runMutation(internal.call.sendFollowUp.markEmailFailed, { 
+    await ctx.runMutation(internal.call.emailMutations.markEmailFailed, { 
       emailId, 
       error: errorMessage 
     });
@@ -314,7 +255,7 @@ async function sendAgencyEmail(
   `;
 
   // Create queued email record
-  const emailId = await ctx.runMutation(internal.call.sendFollowUp.createQueuedEmail, {
+  const emailId = await ctx.runMutation(internal.call.emailMutations.createQueuedEmail, {
     opportunityId: opportunity._id,
     agencyId: agency._id,
     from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
@@ -361,13 +302,13 @@ async function sendAgencyEmail(
     await resend.sendEmail(ctx, emailData);
 
     // Mark as sent
-    await ctx.runMutation(internal.call.sendFollowUp.markEmailSent, { emailId });
+    await ctx.runMutation(internal.call.emailMutations.markEmailSent, { emailId });
     console.log(`[Follow-up] Agency summary email sent to ${agencyEmail}`);
     
   } catch (error) {
     // Mark as failed
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await ctx.runMutation(internal.call.sendFollowUp.markEmailFailed, { 
+    await ctx.runMutation(internal.call.emailMutations.markEmailFailed, { 
       emailId, 
       error: errorMessage 
     });

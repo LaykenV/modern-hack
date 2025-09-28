@@ -269,6 +269,10 @@ This section describes the implemented post-call AI meeting booking system that 
   - **NEW**: Calendar invite (`.ics`) uses `call.startedByEmail` as organizer/attendee, falling back to `notifications@scheduler.atlasoutbound.app` if unavailable.
   - Placeholder for email confirmation and calendar integration
   - Agency notification preparation
+- **emailMutations** helpers move to `convex/call/emailMutations.ts`
+  - `createQueuedEmail`, `markEmailSent`, `markEmailFailed`
+  - Keeps Node-only action files clean of mutations per Convex deployment rules
+
 
 - **sendRejectionFollowUp** (internalAction): Handles detected rejections
   - Categorizes rejection reasons for analysis
