@@ -266,6 +266,7 @@ This section describes the implemented post-call AI meeting booking system that 
 - **sendBookingConfirmation** (internalAction): Processes successful bookings
   - Structured logging with meeting details and timezone formatting
   - **NEW**: Logs `triggeredByEmail` from the originating call (`startedByEmail`) instead of fetching auth in action context.
+  - **NEW**: Calendar invite (`.ics`) uses `call.startedByEmail` as organizer/attendee, falling back to `notifications@scheduler.atlasoutbound.app` if unavailable.
   - Placeholder for email confirmation and calendar integration
   - Agency notification preparation
 

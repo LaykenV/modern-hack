@@ -107,10 +107,12 @@ export const meterAiCallUsage = internalAction({
     const trackedAt = Date.now();
 
     if (billableMinutes > 0) {
+      console.log("[AI Call Billing] Tracking usage", billableMinutes);
       const { error: trackError } = await billingClient.track(ctx, {
         featureId: FEATURE_ID,
         value: billableMinutes,
       });
+      console.log("[AI Call Billing] Tracked usage", trackError);
 
       if (trackError) {
         console.error("[AI Call Billing] Failed to track usage", trackError);

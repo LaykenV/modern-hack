@@ -332,14 +332,23 @@ export default defineSchema({
     source: v.optional(v.string()), // default "ai_call"
   }).index("by_agency_and_time", ["agencyId", "meetingTime"]),
 
-  // Email records
+  // Email records with lifecycle tracking
   emails: defineTable({
     opportunityId: v.id("client_opportunities"),
+    agencyId: v.optional(v.id("agency_profile")), // For dashboard queries
+    from: v.string(),
+    to: v.string(),
+    bcc: v.optional(v.string()),
     subject: v.string(),
     html: v.string(),
-    status: v.optional(v.string()),
+    type: v.union(v.literal("prospect_confirmation"), v.literal("agency_summary")),
+    status: v.union(v.literal("queued"), v.literal("sent"), v.literal("failed")),
+    storageRef: v.optional(v.id("_storage")), // For ICS attachments
+    error: v.optional(v.string()), // Error details for failed emails
     sent_at: v.optional(v.number()),
-  }).index("by_opportunity", ["opportunityId"]),
+  })
+    .index("by_opportunity", ["opportunityId"])
+    .index("by_agency", ["agencyId"]),
 
   onboarding_flow: defineTable({
     userId: v.string(),

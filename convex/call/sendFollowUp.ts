@@ -1,10 +1,12 @@
 "use node";
 
-import { internalAction } from "../_generated/server";
+import { internalAction, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { internal, components } from "../_generated/api";
 import { DateTime } from "luxon";
-import type { Doc } from "../_generated/dataModel";
+import { createEvent } from "ics";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
 import { Resend } from "@convex-dev/resend";
 
 export const resend: Resend = new Resend(components.resend, {
@@ -12,6 +14,370 @@ export const resend: Resend = new Resend(components.resend, {
   testMode: false,
 });
 
+/**
+ * Helper mutation to create a queued email record
+ */
+export const createQueuedEmail = internalMutation({
+  args: {
+    opportunityId: v.id("client_opportunities"),
+    agencyId: v.optional(v.id("agency_profile")),
+    from: v.string(),
+    to: v.string(),
+    bcc: v.optional(v.string()),
+    subject: v.string(),
+    html: v.string(),
+    type: v.union(v.literal("prospect_confirmation"), v.literal("agency_summary")),
+    storageRef: v.optional(v.id("_storage")),
+  },
+  returns: v.id("emails"),
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("emails", {
+      ...args,
+      status: "queued",
+    });
+  },
+});
+
+/**
+ * Helper mutation to mark email as sent
+ */
+export const markEmailSent = internalMutation({
+  args: {
+    emailId: v.id("emails"),
+  },
+  returns: v.null(),
+  handler: async (ctx, { emailId }) => {
+    await ctx.db.patch(emailId, {
+      status: "sent",
+      sent_at: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Helper mutation to mark email as failed
+ */
+export const markEmailFailed = internalMutation({
+  args: {
+    emailId: v.id("emails"),
+    error: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { emailId, error }) => {
+    await ctx.db.patch(emailId, {
+      status: "failed",
+      error,
+    });
+    return null;
+  },
+});
+
+/**
+ * Generate ICS calendar file for meeting
+ */
+function generateICSFile(
+  meetingTime: number,
+  agencyTimeZone: string,
+  agency: Doc<"agency_profile">,
+  opportunity: Doc<"client_opportunities">,
+  call: Doc<"calls">,
+  agencyEmail: string,
+): string | null {
+  try {
+    const meetingDateTime = DateTime.fromMillis(meetingTime, { zone: agencyTimeZone });
+    
+    // Convert to array format required by ICS: [year, month, day, hour, minute]
+    const start: [number, number, number, number, number] = [
+      meetingDateTime.year,
+      meetingDateTime.month,
+      meetingDateTime.day,
+      meetingDateTime.hour,
+      meetingDateTime.minute,
+    ];
+
+    const description = `
+Call Summary: ${call.summary || "No summary available"}
+
+Prospect Details:
+- Company: ${opportunity.name}
+- Phone: ${call.dialedNumber || opportunity.phone || "Not available"}
+- Email: ${opportunity.email || "Not available"}
+
+Meeting arranged through Atlas Outbound AI call.
+Call Duration: ${call.billingSeconds ? `${Math.round(call.billingSeconds / 60)} minutes` : "Unknown"}
+    `.trim();
+
+    const organizerEmail = agencyEmail || "notifications@scheduler.atlasoutbound.app";
+
+    const event = {
+      start,
+      duration: { minutes: 15 }, // Fixed 15-minute duration as per requirement
+      title: `Discovery Call - ${opportunity.name}`,
+      description,
+      location: "Phone Call",
+      organizer: { 
+        name: agency.companyName,
+        email: organizerEmail,
+      },
+      attendees: [
+        { 
+          name: agency.companyName,
+          email: organizerEmail,
+        }
+      ],
+      status: "CONFIRMED",
+      categories: ["Business Meeting", "Discovery Call"],
+      alarms: [
+        {
+          action: "display",
+          trigger: { minutes: 15, before: true },
+          description: "Meeting reminder - Discovery call starting in 15 minutes"
+        }
+      ]
+    };
+
+    // Use synchronous call without callback
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = createEvent(event as any);
+    
+    if (result && typeof result === 'object' && result !== null) {
+      const resultObj = result as { error?: Error | null; value?: string };
+      if (resultObj.error) {
+        console.error(`[Follow-up] ICS generation error:`, resultObj.error);
+        return null;
+      }
+      return resultObj.value || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[Follow-up] ICS generation failed:`, error);
+    return null;
+  }
+}
+
+/**
+ * Send prospect confirmation email with meeting details
+ */
+async function sendProspectEmail(
+  ctx: ActionCtx,
+  opportunity: Doc<"client_opportunities">,
+  agency: Doc<"agency_profile">,
+  call: Doc<"calls">,
+  meetingTime: number,
+  agencyTimeZone: string
+): Promise<void> {
+  if (!opportunity.email) {
+    console.error(`[Follow-up] No prospect email available for opportunity ${opportunity._id}`);
+    return;
+  }
+
+  const formattedTime = DateTime.fromMillis(meetingTime, { zone: agencyTimeZone })
+    .toLocaleString({
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
+  // Create queued email record
+  const emailId = await ctx.runMutation(internal.call.sendFollowUp.createQueuedEmail, {
+    opportunityId: opportunity._id,
+    agencyId: agency._id,
+    from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
+    to: opportunity.email,
+    subject: `Meeting Confirmation - ${agency.companyName}`,
+    html: `
+      <p>Hello ${opportunity.name},</p>
+      <p>Thank you for booking your meeting with ${agency.companyName}.</p>
+      <p>Visit our website <a href="${agency.sourceUrl}">here</a>.</p>
+      <p>The meeting will be held on ${formattedTime}.</p>
+      <p>We will give you a call back at ${call.dialedNumber || opportunity.phone}.</p>
+      <p>Thank you for your time, and we look forward to speaking with you!</p>
+    `,
+    type: "prospect_confirmation",
+  });
+
+  try {
+    // Send email using Resend component
+    await resend.sendEmail(ctx, {
+      from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
+      to: opportunity.email,
+      subject: `Meeting Confirmation - ${agency.companyName}`,
+      html: `
+        <p>Hello ${opportunity.name},</p>
+        <p>Thank you for booking your meeting with ${agency.companyName}.</p>
+        <p>Visit our website <a href="${agency.sourceUrl}">here</a>.</p>
+        <p>The meeting will be held on ${formattedTime}.</p>
+        <p>We will give you a call back at ${call.dialedNumber || opportunity.phone}.</p>
+        <p>Thank you for your time, and we look forward to speaking with you!</p>
+      `,
+    });
+
+    // Mark as sent
+    await ctx.runMutation(internal.call.sendFollowUp.markEmailSent, { emailId });
+    console.log(`[Follow-up] Prospect confirmation email sent to ${opportunity.email}`);
+    
+  } catch (error) {
+    // Mark as failed
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await ctx.runMutation(internal.call.sendFollowUp.markEmailFailed, { 
+      emailId, 
+      error: errorMessage 
+    });
+    console.error(`[Follow-up] Failed to send prospect email:`, error);
+  }
+}
+
+/**
+ * Send agency summary email with ICS attachment
+ */
+async function sendAgencyEmail(
+  ctx: ActionCtx,
+  opportunity: Doc<"client_opportunities">,
+  agency: Doc<"agency_profile">,
+  call: Doc<"calls">,
+  meetingTime: number,
+  agencyTimeZone: string,
+  agencyEmail: string
+): Promise<void> {
+  const formattedTime = DateTime.fromMillis(meetingTime, { zone: agencyTimeZone })
+    .toLocaleString({
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
+  // Generate ICS file
+  const icsContent = generateICSFile(
+    meetingTime,
+    agencyTimeZone,
+    agency,
+    opportunity,
+    call,
+    agencyEmail,
+  );
+  let storageRef: Id<"_storage"> | undefined;
+  
+  if (icsContent) {
+    try {
+      // Store ICS file in Convex storage
+      const blob = new Blob([icsContent], { type: "text/calendar" });
+      storageRef = await ctx.storage.store(blob);
+      console.log(`[Follow-up] ICS file stored with ref: ${storageRef}`);
+    } catch (error) {
+      console.error(`[Follow-up] Failed to store ICS file:`, error);
+    }
+  }
+
+  const emailHTML = `
+    <h2>New Meeting Booked - ${opportunity.name}</h2>
+    
+    <h3>Meeting Details</h3>
+    <ul>
+      <li><strong>Time:</strong> ${formattedTime}</li>
+      <li><strong>Duration:</strong> 15 minutes</li>
+      <li><strong>Contact:</strong> ${call.dialedNumber || opportunity.phone}</li>
+      <li><strong>Email:</strong> ${opportunity.email || "Not available"}</li>
+    </ul>
+
+    <h3>Prospect Information</h3>
+    <ul>
+      <li><strong>Company:</strong> ${opportunity.name}</li>
+      <li><strong>Location:</strong> ${opportunity.address || "Not available"}</li>
+      <li><strong>Phone:</strong> ${opportunity.phone || "Not available"}</li>
+      <li><strong>Rating:</strong> ${opportunity.rating ? `${opportunity.rating}/5` : "Not available"}</li>
+      <li><strong>Reviews:</strong> ${opportunity.reviews_count || "Not available"}</li>
+    </ul>
+
+    <h3>Call Summary</h3>
+    <p>${call.summary || "No summary available"}</p>
+
+    <h3>Call Details</h3>
+    <ul>
+      <li><strong>Duration:</strong> ${call.billingSeconds ? `${Math.round(call.billingSeconds / 60)} minutes` : "Unknown"}</li>
+      <li><strong>Outcome:</strong> ${call.outcome || "Meeting Booked"}</li>
+      <li><strong>Initiated by:</strong> ${call.startedByEmail || "System"}</li>
+    </ul>
+
+    ${icsContent ? '<p><strong>Calendar invite is attached as an ICS file.</strong></p>' : '<p><em>Note: Calendar invite could not be generated.</em></p>'}
+
+    <p>This meeting was automatically booked through Atlas Outbound AI calling system.</p>
+  `;
+
+  // Create queued email record
+  const emailId = await ctx.runMutation(internal.call.sendFollowUp.createQueuedEmail, {
+    opportunityId: opportunity._id,
+    agencyId: agency._id,
+    from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
+    to: agencyEmail,
+    bcc: agencyEmail, // BCC the agency's Google OAuth email as required
+    subject: `New Meeting Booked - ${opportunity.name}`,
+    html: emailHTML,
+    type: "agency_summary",
+    storageRef,
+  });
+
+  try {
+    const emailData: {
+      from: string;
+      to: string;
+      bcc: string;
+      subject: string;
+      html: string;
+      attachments?: Array<{
+        filename: string;
+        content: string;
+        contentType: string;
+        encoding: string;
+      }>;
+    } = {
+      from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
+      to: agencyEmail,
+      bcc: agencyEmail,
+      subject: `New Meeting Booked - ${opportunity.name}`,
+      html: emailHTML,
+    };
+
+    // Attach ICS file if available
+    if (icsContent) {
+      emailData.attachments = [{
+        filename: `meeting-${opportunity.name.replace(/[^a-zA-Z0-9]/g, '-')}.ics`,
+        content: Buffer.from(icsContent).toString('base64'),
+        contentType: "text/calendar",
+        encoding: "base64",
+      }];
+    }
+
+    // Send email using Resend component
+    await resend.sendEmail(ctx, emailData);
+
+    // Mark as sent
+    await ctx.runMutation(internal.call.sendFollowUp.markEmailSent, { emailId });
+    console.log(`[Follow-up] Agency summary email sent to ${agencyEmail}`);
+    
+  } catch (error) {
+    // Mark as failed
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await ctx.runMutation(internal.call.sendFollowUp.markEmailFailed, { 
+      emailId, 
+      error: errorMessage 
+    });
+    console.error(`[Follow-up] Failed to send agency email:`, error);
+  }
+}
+
+/**
+ * Main booking confirmation handler with dual email flow
+ */
 export const sendBookingConfirmation = internalAction({
   args: {
     meetingId: v.id("meetings"),
@@ -49,19 +415,10 @@ export const sendBookingConfirmation = internalAction({
         return null;
       }
 
-      // Format meeting time for human-readable display
       const agencyTimeZone = agency.timeZone ?? "America/New_York";
-      const meetingDateTime = DateTime.fromMillis(meeting.meetingTime, { zone: agencyTimeZone });
-      const formattedTime = meetingDateTime.toLocaleString({
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZoneName: 'short'
-      });
-      const prospectEmail = opportunity.email;
+      
+      // Extract agency email from Google OAuth (from startedByEmail or fallback)
+      const agencyEmail = call.startedByEmail || "notifications@scheduler.atlasoutbound.app";
 
       // Log structured confirmation details
       console.log(`[Follow-up] Meeting Booking Confirmed:`, {
@@ -69,45 +426,32 @@ export const sendBookingConfirmation = internalAction({
         agency: agency.companyName,
         prospect: opportunity.name,
         prospectPhone: opportunity.phone,
-        prospectEmail: prospectEmail,
-        triggeredByEmail: call.startedByEmail ?? "system",
-        meetingTime: formattedTime,
+        prospectEmail: opportunity.email,
+        agencyEmail: agencyEmail,
+        meetingTime: DateTime.fromMillis(meeting.meetingTime, { zone: agencyTimeZone }).toISO(),
         timeZone: agencyTimeZone,
+        agencyUrl: agency.sourceUrl,
         source: meeting.source,
         callDuration: call.billingSeconds ? `${call.billingSeconds}s` : "unknown"
       });
 
-      if (!prospectEmail) {
-        console.error(`[Follow-up] Prospect email not found for meeting ${meetingId}`);
-        return null;
-      }
+      // Send both emails in parallel for efficiency
+      const emailPromises = [];
 
-      await resend.sendEmail(ctx, {
-        from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
-        to: prospectEmail,
-        subject: "Meeting Booking Confirmation",
-        html: `
-        <p>Hello ${opportunity.name},</p>
-        <p>Thank you for booking your meeting with ${agency.companyName}.</p>
-        <p>The meeting will be held on ${formattedTime} in ${agencyTimeZone}.</p>
-        <p>The meeting details are as follows:</p>
-        <ul>
-          <li>Meeting Time: ${formattedTime}</li>
-          <li>Meeting Location: ${agency.companyName}</li>
-        </ul>
-        <p>Thank you for your time.</p>
-        `,
-      });
+      // 1. Send prospect confirmation email
+      emailPromises.push(
+        sendProspectEmail(ctx, opportunity, agency, call, meeting.meetingTime, agencyTimeZone)
+      );
 
-      // TODO: Future implementation will include:
-      // 1. Send email confirmation to prospect (via Resend)
-      // 2. Generate and attach ICS calendar file
-      // 3. Send notification to agency
-      // 4. Create calendar event in agency's calendar system
-      // 5. Set up reminder notifications
+      // 2. Send agency summary email with ICS attachment
+      emailPromises.push(
+        sendAgencyEmail(ctx, opportunity, agency, call, meeting.meetingTime, agencyTimeZone, agencyEmail)
+      );
 
-      console.log(`[Follow-up] TODO: Implement email confirmation and calendar integration`);
-      console.log(`[Follow-up] Meeting details logged for future integration`);
+      // Wait for both emails to complete
+      await Promise.all(emailPromises);
+
+      console.log(`[Follow-up] Booking confirmation flow completed for meeting ${meetingId}`);
 
     } catch (error) {
       console.error(`[Follow-up] Error processing booking confirmation:`, error);
@@ -118,7 +462,7 @@ export const sendBookingConfirmation = internalAction({
 });
 
 /**
- * Placeholder for future rejection follow-up
+ * Rejection follow-up handler
  */
 export const sendRejectionFollowUp = internalAction({
   args: {
@@ -158,16 +502,18 @@ export const sendRejectionFollowUp = internalAction({
         agency: agency.companyName,
         prospect: opportunity.name,
         reason: reason ?? "Not specified",
-        callDuration: call.billingSeconds ? `${call.billingSeconds}s` : "unknown"
+        callDuration: call.billingSeconds ? `${call.billingSeconds}s` : "unknown",
+        initiatedBy: call.startedByEmail || "system"
       });
 
       // TODO: Future implementation:
-      // 1. Log rejection reason for analysis
+      // 1. Log rejection reason for analysis in emails table
       // 2. Update lead scoring/qualification
-      // 3. Potentially schedule future follow-up
+      // 3. Schedule future follow-up workflows
       // 4. Send internal notification to agency
+      // 5. Potentially send follow-up email to prospect for future consideration
 
-      console.log(`[Follow-up] TODO: Implement rejection analysis and follow-up workflow`);
+      console.log(`[Follow-up] Rejection analysis logged. Future workflows not yet implemented.`);
 
     } catch (error) {
       console.error(`[Follow-up] Error processing rejection follow-up:`, error);
