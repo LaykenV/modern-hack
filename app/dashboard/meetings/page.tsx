@@ -1,5 +1,9 @@
+"use client";
+
+import MeetingsCalendar from "@/components/meetings/Calendar";
+
 export default function MeetingsPage() {
-  return <div>Meetings</div>;
+  return <MeetingsCalendar />;
 }
 
 
