@@ -236,7 +236,7 @@ function Content() {
                         setLoadingPortal(true);
                         try {
                           await openBillingPortal({ returnUrl });
-                        } catch (error) {
+                        } catch {
                           toast.error("Failed to open billing portal", {
                             description: "Please try again later.",
                           });
@@ -261,7 +261,7 @@ function Content() {
                             dialog: CheckoutDialog,
                             successUrl,
                           });
-                        } catch (error) {
+                        } catch {
                           toast.error(`Failed to upgrade to ${plan.name}`, {
                             description: "Please try again later.",
                           });

@@ -191,7 +191,6 @@ function Content() {
             const Icon = s.icon;
             const isCompleted = s.actual < onboardingState.currentStep;
             const isCurrent = s.actual === onboardingState.currentStep;
-            const isUpcoming = s.actual > onboardingState.currentStep;
 
             return (
               <div key={s.actual} className="flex items-center flex-1">
