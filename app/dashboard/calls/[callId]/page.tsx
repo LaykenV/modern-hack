@@ -10,7 +10,7 @@ import LiveListen from "@/components/LiveListen";
 import Link from "next/link";
 
 type Props = {
-  params: { callId: string };
+  params: Promise<{ callId: string }>;
 };
 
 type TranscriptFragment = { 
@@ -21,14 +21,21 @@ type TranscriptFragment = {
 };
 
 export default function CallWorkspacePage({ params }: Props) {
-  const callId = params.callId as Id<"calls">;
   const { customer } = useCustomer();
   const [nowTs, setNowTs] = useState<number>(Date.now());
   const [listenModalOpen, setListenModalOpen] = useState(false);
+  const [callId, setCallId] = useState<Id<"calls"> | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
+  // Handle the Promise params
+  useEffect(() => {
+    params.then(({ callId: callIdString }) => {
+      setCallId(callIdString as Id<"calls">);
+    });
+  }, [params]);
+
   // Query for call data
-  const call = useQuery(api.call.calls.getCallById, { callId });
+  const call = useQuery(api.call.calls.getCallById, callId ? { callId } : "skip");
 
   // Query for related opportunity data
   const opportunity = useQuery(
@@ -68,6 +75,17 @@ export default function CallWorkspacePage({ params }: Props) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
+
+  if (!callId) {
+    return (
+      <div className="max-w-4xl mx-auto w-full">
+        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-12 text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-600 dark:text-slate-400">Loading call...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!call) {
