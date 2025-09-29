@@ -109,6 +109,8 @@ resend emails with ics and recap
 ui / ux
 
 edit agency
+call linking
+add color in few places
 
 paywall dialog return url
 percentage on resume

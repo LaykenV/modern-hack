@@ -329,6 +329,48 @@ export const finalizeOnboardingPublic = mutation({
   },
 });
 
+export const updateAgencyProfile = mutation({
+  args: {
+    summary: v.optional(v.string()),
+    coreOffer: v.optional(v.string()),
+    approvedClaims: v.optional(ClaimsValidator),
+    guardrails: v.optional(v.array(v.string())),
+    tone: v.optional(v.string()),
+    targetVertical: v.optional(v.string()),
+    targetGeography: v.optional(v.string()),
+    leadQualificationCriteria: v.optional(v.array(v.string())),
+    timeZone: v.optional(v.string()),
+    availability: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+    
+    const existing = await ctx.db
+      .query("agency_profile")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    
+    if (!existing) throw new Error("Agency profile not found");
+    
+    const updates: Record<string, unknown> = {};
+    if (typeof args.summary !== "undefined") updates.summary = args.summary;
+    if (typeof args.coreOffer !== "undefined") updates.coreOffer = args.coreOffer;
+    if (typeof args.approvedClaims !== "undefined") updates.approvedClaims = args.approvedClaims;
+    if (typeof args.guardrails !== "undefined") updates.guardrails = args.guardrails;
+    if (typeof args.tone !== "undefined") updates.tone = args.tone;
+    if (typeof args.targetVertical !== "undefined") updates.targetVertical = args.targetVertical;
+    if (typeof args.targetGeography !== "undefined") updates.targetGeography = args.targetGeography;
+    if (typeof args.leadQualificationCriteria !== "undefined") updates.leadQualificationCriteria = args.leadQualificationCriteria;
+    if (typeof args.timeZone !== "undefined") updates.timeZone = args.timeZone;
+    if (typeof args.availability !== "undefined") updates.availability = args.availability;
+    
+    await ctx.db.patch(existing._id, updates);
+    return null;
+  },
+});
+
 export const startManualOnboarding = mutation({
   args: { companyName: v.string() },
   returns: v.object({ agencyProfileId: v.id("agency_profile") }),
