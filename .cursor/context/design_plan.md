@@ -1,23 +1,23 @@
-## Atlas Design System (v3 - Warm & Bold)
+## Atlas Design System (v4 - Clean & Vibrant)
 
 ### Goals
-- Elevate visual impact with a vibrant red-orange palette and warm neutrals.
-- Replace cold blue/purple tints with beautiful off-white and off-black bases.
-- Create cohesive gradients using warm tones that flow naturally throughout the app.
-- Maintain high contrast and accessibility while feeling energetic and modern.
-- **Enhanced Light Mode**: Dramatically increased contrast ratios, deeper saturated primary colors, and clearly defined surface hierarchy for stunning visual impact.
+- Create a refined, modern aesthetic with clean off-white and off-black bases.
+- Use a vibrant orange/red as the hero accent that commands attention.
+- Maintain subtle warmth in neutrals without feeling brown or muddy.
+- Ensure excellent contrast and readability in both light and dark modes.
+- Let the orange accent be the star - neutrals should be elegant and understated.
 
 ### Brand Anchors
-- **Ember Red-Orange**: Intensely vibrant, confident primary for actions and focus (`hsl(12 94% 52%)` light, `hsl(15 88% 60%)` dark).
-- **Warm Amber**: Rich analogous accent for gradients and highlights, creating smooth transitions.
-- **Cream (Off-White)**: Warm, inviting neutrals with enhanced saturation for light mode structure.
-- **Charcoal (Off-Black)**: Rich, deep darks with minimal warm tint for sophisticated dark mode.
+- **Vibrant Orange**: Pure, electric hero color for actions and focus (`hsl(14 100% 55%)` light, `hsl(16 98% 62%)` dark).
+- **Off-White**: Clean, barely-there warm white for light mode (`hsl(30 8% 98%)`).
+- **Off-Black**: Rich, sophisticated dark for dark mode (`hsl(20 8% 7%)`).
+- **Neutral Grays**: Desaturated warm grays (6-10% saturation) for surfaces and text.
 
-Supporting neutrals derive from warm hues (no blue/purple/gray tints):
-- Cream raises (lightens) for surfaces and cards with increased saturation.
-- Charcoal deepens for dark cards and outlines with enhanced contrast.
-- Red-Orange 52% with 94% saturation for powerful primary fill in light mode, 60% in dark mode.
-- Warm tones flow from peach → orange → red-orange with higher saturation for gradient variety.
+Color Philosophy:
+- Backgrounds and neutrals stay desaturated (6-10% saturation max) to feel clean, not brown.
+- Only the primary orange uses high saturation (95-100%) to create stunning visual impact.
+- Subtle warm hue (20-30°) in neutrals prevents coldness without muddiness.
+- Gradients flow within tight hue ranges for cohesion (14° → 20° → 26°).
 
 ### Semantic Token Map
 Tokens live in `:root` and `.dark` within `app/globals.css`.
@@ -39,58 +39,66 @@ Tokens live in `:root` and `.dark` within `app/globals.css`.
 - Radial overlays: `--radial-1`, `--radial-2`, `--radial-3` for subtle warm glows.
 
 #### Light Mode Values
-- Background: `32 45% 99%` - crisp warm off-white with enhanced warmth
-- Foreground: `20 30% 6%` - rich deep charcoal for maximum contrast
-- Primary: `12 94% 52%` - intensely vibrant red-orange
-- Ring: `14 95% 48%` - vivid red-orange for focus states
-- Border: `25 32% 62%` - visible warm borders with strong definition
-- Surface-muted: `30 40% 92%` - distinct secondary surfaces
-- Muted-foreground: `22 25% 32%` - clear supporting text with strong contrast
-- Radials: Red-orange `12°` → Amber `25°` → Gold `38°` with enhanced saturation
+- Background: `30 8% 98%` - pristine off-white with whisper of warmth
+- Foreground: `20 10% 10%` - rich near-black for crisp text
+- Primary: `14 100% 55%` - electric vibrant orange
+- Ring: `14 100% 52%` - vivid orange for focus states
+- Border: `30 8% 70%` - subtle warm gray borders
+- Surface-raised: `30 8% 97%` - barely elevated surface
+- Surface-muted: `30 6% 94%` - recessed secondary surface
+- Muted-foreground: `20 6% 40%` - clear supporting text
+- Radials: Orange `14°` → Warm Orange `20°` → Amber `26°` with full saturation
 
 #### Dark Mode Values
-- Background: `20 15% 8%` - rich dark with subtle warm tint
-- Foreground: `30 10% 96%` - clean off-white
-- Primary: `15 88% 60%` - bright red-orange (lifted saturation)
-- Ring: `18 92% 62%` - vivid red-orange for focus
-- Radials: Red-orange `15°` → Amber `25°` → Gold `35°` for warm overlays
+- Background: `20 8% 7%` - sophisticated near-black
+- Foreground: `30 6% 95%` - clean off-white
+- Primary: `16 98% 62%` - brilliant orange (brighter for dark backgrounds)
+- Ring: `16 100% 58%` - vivid orange for focus
+- Border: `20 6% 26%` - refined dark gray
+- Surface-raised: `20 8% 9%` - slightly lifted surface
+- Surface-muted: `20 6% 12%` - deeper recessed surface
+- Muted-foreground: `25 5% 65%` - comfortable supporting text
+- Radials: Orange `16°` → Warm Orange `22°` → Amber `28°` with high saturation
 
 ### Layout Surfaces
-- **Landing Page**: Vertical blends with large, faint warm radial accents; cards rest on `--surface-raised`. Header uses gradient tokens for a crisp edge.
+- **Landing Page**: Clean off-white base with subtle radial orange accents; cards rest on `--surface-raised` with minimal gradient. Header uses gradient tokens for definition.
 - **Dashboard**:
-  - Sidebar: Warm gradient (cream → light amber) with subtle inner edge glow; `--sidebar-border` separates content.
-  - Header: Slim, sticky bar using header gradient tokens; 1px border-bottom for definition.
-  - Content Area: Vertical gradient from warm cream to slightly deeper peach so cards pop.
+  - Sidebar: Gentle gray gradient (off-white → slightly darker) with refined border; orange accents only on active states.
+  - Header: Slim, sticky bar with subtle gradient; crisp 1px border for separation.
+  - Content Area: Very subtle gradient from light gray to slightly deeper - keeps focus on content and orange CTAs.
 - Spacing rooted in Tailwind defaults; base radius `--radius: 0.625rem`.
+- Orange color reserved for interactive elements (buttons, links, active states) to maximize impact.
 
 Use utilities for surfaces:
-- `bg-sidebar-gradient` or `bg-sidebar-gradient-radial` for the shell.
+- `bg-sidebar-gradient` or `bg-sidebar-gradient-radial` for the sidebar shell.
 - `bg-header-gradient` or `bg-header-gradient-radial` for top bars.
-- `bg-page-gradient` or `bg-page-gradient-radial` for content areas.
+- `bg-page-gradient` or `bg-page-gradient-radial` for main content areas.
+- Radial overlays use orange hues but at very low opacity (10-14%) to add energy without overwhelming.
 
 ### Component Guidelines
 - **Cards**
-  - Default card: Soft warm gradient (cream → lighter cream) with `--shadow-soft`.
-  - Featured card: Adds an Ember red-orange border and faint radial accent; use `--shadow-strong` sparingly.
+  - Default card: Subtle gray gradient (raised → muted) with `--shadow-soft`.
+  - Featured card: Adds vibrant orange border and minimal radial accent; use `--shadow-strong` for emphasis.
   - Content cards respect padding scale (`p-6` default, `p-4` compact).
+  - Cards stay neutral to let orange CTAs and active states shine.
 - **Buttons**
-  - Primary (`.btn-primary`): Matches active tab aesthetic with primary gradient (24%-42% opacity), inset ring shadow, and subtle lift on hover. This is the main CTA button style used throughout the app.
-  - Secondary: Warm neutral fill with muted background; hover raises contrast.
-  - Ghost / tertiary: Transparent background, emphasize text + focus ring.
-  - Destructive: Red tone derived from palette (`hsl(0 74% 52%)` light, `hsl(0 84% 64%)` dark).
-  - States: Focus ring uses `--ring`; disabled lowers opacity and removes elevation.
+  - Primary (`.btn-primary`): Vibrant orange gradient (24%-42% opacity) over primary color, inset ring shadow, subtle lift on hover. This is the star CTA throughout the app.
+  - Secondary: Clean gray fill with muted background; hover increases contrast slightly.
+  - Ghost / tertiary: Transparent background with orange text on hover, emphasize focus ring.
+  - Destructive: Red tone derived from palette (`hsl(0 84% 55%)` light, `hsl(0 86% 64%)` dark).
+  - States: Focus ring uses vivid `--ring` (orange); disabled lowers opacity and removes elevation.
   - Legacy: `.btn-contrast` is aliased to `.btn-primary` for backwards compatibility.
 - **Inputs & Selects**
-  - Base fill `--surface-muted`, inner shadow to hint depth, 2px focus ring.
+  - Base fill `--surface-muted`, inner shadow for depth, vibrant orange 2px focus ring.
   - For grouped fields, use soft 1px dividers and consistent padding.
 - **Badges & Pills**
-  - Primary badge: Primary→accent gradient with white text; secondary badge uses warm muted with `--muted-foreground`.
+  - Primary badge: Orange gradient with white text; secondary badge uses neutral gray with `--muted-foreground`.
 - **Navigation Tabs / Chips**
-  - Use accent surface with active state shifting toward primary gradient and slight expansion.
+  - Neutral gray default with active state using full orange gradient treatment and slight expansion.
 - **Alerts & Banners**
-  - Info: Accent gradient with red-orange border.
-  - Success: Subtle green (`hsl(150 42% 42%)`).
-  - Warning / Destructive: Align with red/orange derived tokens.
+  - Info: Neutral gray with orange accent border.
+  - Success: Subtle green (`hsl(150 65% 42%)` light, `hsl(150 55% 62%)` dark).
+  - Warning / Destructive: Align with orange/red derived tokens.
 
 ### Motion & Interaction
 - Standard transition speed: 180ms cubic-bezier(0.22, 0.61, 0.36, 1).
@@ -99,12 +107,12 @@ Use utilities for surfaces:
 - Use `prefers-reduced-motion` queries to reduce transforms and rely on opacity.
 
 ### Gradient Philosophy
-Warm gradients flow naturally using hue shifts:
-- **Subtle**: Shift 5-10° within the warm spectrum (25° → 30° → 35°).
-- **Moderate**: Shift 10-20° for more dynamic blends (12° → 25° → 38°).
-- **Bold**: Use primary red-orange with radial overlays at slightly warmer hues.
+Clean, refined gradients that enhance without overwhelming:
+- **Neutral Surfaces**: Very tight hue range (28° → 30° → 32°) with low saturation (6-10%) for subtle depth.
+- **Orange Accents**: Focused hue range (14° → 20° → 26°) with high saturation (90-100%) for vibrant CTAs.
+- **Radial Overlays**: Orange hues at very low opacity (10-16%) to add energy without competing with content.
 
-Avoid jumping from warm to cool tones; maintain warmth throughout for cohesion.
+Key principle: Neutrals stay quiet and elegant, orange bursts with energy. No muddy in-between browns.
 
 ### Implementation Notes
 - `app/globals.css` contains tokens, base resets, and shared utilities. Component utilities should be authored per feature folder using this plan.
@@ -116,23 +124,26 @@ Avoid jumping from warm to cool tones; maintain warmth throughout for cohesion.
 #### Light Mode
 | Token | HSL | Purpose |
 |-------|-----|---------|
-| Background | `32 45% 99%` | Crisp warm off-white base |
-| Foreground | `20 30% 6%` | Rich charcoal text (high contrast) |
-| Primary | `12 94% 52%` | Intensely vibrant ember red-orange |
-| Accent | `28 75% 86%` | Rich warm amber accent |
-| Border | `25 32% 62%` | Strong visible warm borders |
-| Surface-raised | `32 42% 96%` | Elevated card surface |
-| Surface-muted | `30 40% 92%` | Recessed/secondary surface |
-| Muted-foreground | `22 25% 32%` | Supporting text (strong contrast) |
+| Background | `30 8% 98%` | Pristine off-white base |
+| Foreground | `20 10% 10%` | Rich near-black text (maximum contrast) |
+| Primary | `14 100% 55%` | Electric vibrant orange hero color |
+| Accent | `30 10% 88%` | Subtle warm gray accent |
+| Border | `30 8% 70%` | Refined warm gray borders |
+| Surface-raised | `30 8% 97%` | Barely elevated card surface |
+| Surface-muted | `30 6% 94%` | Recessed/secondary surface |
+| Muted-foreground | `20 6% 40%` | Supporting text (clear hierarchy) |
 
 #### Dark Mode
 | Token | HSL | Purpose |
 |-------|-----|---------|
-| Background | `20 15% 8%` | Rich off-black |
-| Foreground | `30 10% 96%` | Clean off-white |
-| Primary | `15 88% 60%` | Bright red-orange |
-| Accent | `20 50% 22%` | Deep warm accent |
-| Border | `20 12% 28%` | Warm dark borders |
+| Background | `20 8% 7%` | Sophisticated near-black |
+| Foreground | `30 6% 95%` | Clean off-white |
+| Primary | `16 98% 62%` | Brilliant orange (optimized for dark) |
+| Accent | `20 8% 20%` | Deep neutral accent |
+| Border | `20 6% 26%` | Refined dark gray borders |
+| Surface-raised | `20 8% 9%` | Slightly elevated surface |
+| Surface-muted | `20 6% 12%` | Deeper recessed surface |
+| Muted-foreground | `25 5% 65%` | Comfortable supporting text |
 
 ### Dashboard Page Patterns & Reusable Components
 
