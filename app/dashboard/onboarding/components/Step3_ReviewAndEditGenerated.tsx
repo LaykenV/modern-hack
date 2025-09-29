@@ -5,6 +5,14 @@ import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { GuardrailsInput } from "./GuardrailsInput";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, ArrowRight, AlertCircle, Plus, Trash2, FileText, Shield, Target } from "lucide-react";
 
 interface ClaimDraft {
   id?: string;
@@ -112,115 +120,134 @@ export function ReviewAndEditGenerated({
 
   return (
     <div className="max-w-4xl mx-auto w-full">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">Review & Edit Generated Content</h1>
-        <p className="text-sm text-slate-500">
-          {mode === "manual" ? "Step 2 of 3" : "Step 3 of 4"}: Review and edit the content
+      <div className="card-warm-static p-6 md:p-8 mb-6 md:mb-8 text-center">
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight mb-3">
+          Review & Edit Content
+        </h1>
+        <p className="text-base md:text-lg text-muted-foreground">
+          Review and edit the generated content to ensure accuracy
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* Summary Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Business Summary</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+        <div className="card-warm-static p-4 sm:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-5 w-5 text-primary" />
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">Business Summary</h2>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Edit the generated summary of your business to ensure accuracy.
           </p>
-          <textarea
+          <Textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="Enter a summary of your business, services, and value proposition..."
-            className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-3 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             rows={6}
             required
           />
         </div>
 
         {/* Core Offer Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Core Offer</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+        <div className="card-warm-static p-4 sm:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-5 w-5 text-primary" />
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">Core Offer</h2>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Describe your main service offering or value proposition.
           </p>
-          <textarea
+          <Textarea
             value={coreOffer}
             onChange={(e) => setCoreOffer(e.target.value)}
             placeholder="Describe your main service offering, what problems you solve, and how you help clients..."
-            className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-3 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             rows={4}
             required
           />
         </div>
 
         {/* Guardrails Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Guardrails</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+        <div className="card-warm-static p-4 sm:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">Guardrails</h2>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Add rules or guidelines for your AI assistant to follow when engaging with prospects.
           </p>
           <GuardrailsInput guardrails={guardrails} onGuardrailsChange={setGuardrails} />
         </div>
 
         {/* Claims Section */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Business Claims</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+        <div className="card-warm-static p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">💼</span>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">Business Claims</h2>
+            </div>
+            {claims.length > 0 && (
+              <Badge variant="secondary">{claims.length} claim{claims.length !== 1 ? 's' : ''}</Badge>
+            )}
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Edit or add claims about your business that can be used to engage prospects. 
             Claims should be specific, measurable, and verifiable.
           </p>
+          <Separator className="my-4" />
 
           {/* Existing Claims */}
           {claims.length > 0 && (
-            <div className="space-y-4 mb-6">
+            <div className="space-y-3 sm:space-y-4 mb-6">
               {claims.map((claim, index) => (
-                <div key={claim.id || index} className="border border-slate-200 dark:border-slate-700 rounded-md p-4">
+                <div key={claim.id || index} className="border border-border rounded-lg p-3 sm:p-4 bg-surface-raised hover:border-ring/40 transition-colors">
                   <div className="flex items-start justify-between mb-3">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <Badge variant="outline" className="text-xs">
                       Claim {index + 1}
-                    </span>
-                    <button
+                    </Badge>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleRemoveClaim(index)}
-                      className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                       aria-label={`Remove claim ${index + 1}`}
                     >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                   
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      <Label className="text-xs font-medium text-muted-foreground">
                         Claim Text
-                      </label>
-                      <textarea
+                      </Label>
+                      <Textarea
                         value={claim.text}
                         onChange={(e) => handleEditClaim(index, "text", e.target.value)}
-                        className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         rows={2}
                         required
+                        className="mt-1"
                       />
                     </div>
                     
                     {mode !== "manual" && (
                       <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        <Label className="text-xs font-medium text-muted-foreground">
                           Source URL (optional)
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                           type="url"
                           value={claim.source_url || ""}
                           onChange={(e) => handleEditClaim(index, "source_url", e.target.value)}
                           placeholder="https://example.com/source"
-                          className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="mt-1"
                         />
                       </div>
                     )}
@@ -231,75 +258,86 @@ export function ReviewAndEditGenerated({
           )}
 
           {/* Add New Claim */}
-          <div className="border border-dashed border-slate-300 dark:border-slate-600 rounded-md p-4">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+          <div className="border border-dashed border-border rounded-lg p-3 sm:p-4 bg-surface-raised/50 hover:bg-surface-raised/80 transition-colors">
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Plus className="h-4 w-4" />
               Add New Claim
             </h3>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <Label className="text-xs font-medium text-muted-foreground">
                   Claim Text
-                </label>
-                <textarea
+                </Label>
+                <Textarea
                   value={newClaimText}
                   onChange={(e) => setNewClaimText(e.target.value)}
                   placeholder="e.g., We helped 50+ businesses increase their revenue by 30% in 6 months"
-                  className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={2}
+                  className="mt-1"
                 />
               </div>
               
               {mode !== "manual" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
                     Source URL (optional)
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     type="url"
                     value={newClaimSourceUrl}
                     onChange={(e) => setNewClaimSourceUrl(e.target.value)}
                     placeholder="https://example.com/case-study"
-                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="mt-1"
                   />
                 </div>
               )}
               
-              <button
+              <Button
                 type="button"
                 onClick={handleAddClaim}
                 disabled={!newClaimText.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-sm font-medium rounded-md transition-colors disabled:cursor-not-allowed"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
               >
+                <Plus className="h-4 w-4 mr-2" />
                 Add Claim
-              </button>
+              </Button>
             </div>
           </div>
 
           {claims.length === 0 && (
-            <div className="text-center py-6 text-slate-500 text-sm">
-              No claims added yet. Add claims to help your AI assistant engage prospects effectively.
-            </div>
+            <Alert className="mt-4">
+              <FileText className="h-4 w-4" />
+              <AlertDescription>
+                No claims added yet. Add claims to help your AI assistant engage prospects effectively.
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 
         {/* Submit Button */}
-        <div className="text-center pt-4">
-          <button
+        <div className="text-center pt-2">
+          <Button
             type="submit"
             disabled={loading || !summary.trim() || !coreOffer.trim()}
-            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium rounded-md transition-colors duration-200 disabled:cursor-not-allowed"
+            size="lg"
+            className="w-full sm:w-auto px-8 py-6 text-base font-semibold"
           >
             {loading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Saving Content...
-              </div>
+              </>
             ) : (
-              "Save & Continue"
+              <>
+                Save & Continue
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </>
             )}
-          </button>
-          <p className="text-xs text-slate-500 mt-2">
+          </Button>
+          <p className="text-xs text-muted-foreground mt-3">
             This will save your reviewed content and proceed to final configuration
           </p>
         </div>

@@ -32,6 +32,8 @@ import {
   Mail,
   CreditCard,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -48,6 +50,19 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isOnboarding = pathname === "/dashboard/onboarding";
+
+  // For onboarding, render without sidebar
+  if (isOnboarding) {
+    return (
+      <div className="min-h-screen bg-page-gradient-radial overflow-hidden">
+        <OnboardingHeader />
+        {children}
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <Sidebar className="sidebar-surface">
@@ -77,9 +92,10 @@ export default function DashboardLayout({
                 onClick={async () => {
                   await authClient.signOut();
                 }}
+                aria-label="Sign out"
               >
                 <span>Sign out</span>
-                <LogOut className="size-4" />
+                <LogOut className="size-4" aria-hidden="true" />
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -149,10 +165,19 @@ function CollapsedFloatingControls() {
   return (
     <div className="fixed left-2 top-2 z-40">
       <div className="bg-sidebar-gradient-radial border border-[hsl(var(--sidebar-border))] rounded-md shadow-sm p-1 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-1">
-          <SidebarTrigger className="size-9 rounded-md" />
-          <ThemeToggle className="size-9" />
-        </div>
+        <TooltipProvider>
+          <div className="flex flex-col items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarTrigger className="size-9 rounded-md" aria-label="Toggle sidebar" />
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Toggle sidebar</p>
+              </TooltipContent>
+            </Tooltip>
+            <ThemeToggle className="size-9" />
+          </div>
+        </TooltipProvider>
       </div>
     </div>
   );
@@ -162,15 +187,28 @@ function MobileHeader() {
   const { isMobile } = useSidebar();
   if (!isMobile) return null;
   return (
-    <div className="sticky top-0 z-40 flex items-center justify-between p-4 bg-header-gradient-radial border-b border-[hsl(var(--border)/0.6)] backdrop-blur-sm">
+    <header className="sticky top-0 z-40 flex items-center justify-between p-4 bg-header-gradient-radial border-b border-[hsl(var(--border)/0.6)] backdrop-blur-sm">
       <div className="flex items-center gap-3">
-        <SidebarTrigger className="size-9 rounded-md hover:bg-accent/20 transition-colors" />
+        <SidebarTrigger className="size-9 rounded-md hover:bg-accent/20 transition-colors" aria-label="Toggle sidebar" />
         <span className="text-lg font-bold tracking-tight text-foreground">
           Atlas Outbound
         </span>
       </div>
       <ThemeToggle />
-    </div>
+    </header>
+  );
+}
+
+function OnboardingHeader() {
+  return (
+    <header className="sticky top-0 z-40 flex items-center justify-between p-4 bg-header-gradient-radial border-b border-[hsl(var(--border)/0.6)] backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <span className="text-lg font-bold tracking-tight text-foreground">
+          Atlas Outbound
+        </span>
+      </div>
+      <ThemeToggle />
+    </header>
   );
 }
 

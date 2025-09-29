@@ -454,4 +454,30 @@
     white-space: nowrap;
     border-width: 0;
   }
+
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Opportunity card gradient */
+  .opp-card-gradient {
+    position: relative;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--surface-raised)) 0%,
+      hsl(var(--surface-overlay)) 40%,
+      hsl(var(--surface-muted)) 100%
+    );
+  }
+
+  /* Touch-friendly interaction targets (minimum 44x44px) */
+  .touch-target {
+    min-height: 44px;
+  }
 }

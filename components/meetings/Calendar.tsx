@@ -3,7 +3,32 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { DateTime } from "luxon";
+import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  ChevronLeft, 
+  ChevronRight,
+  Video,
+  CheckCircle2,
+  Globe,
+  ExternalLink,
+  CalendarX2,
+  Settings,
+  Info
+} from "lucide-react";
 
 // Minimal doc shape for display purposes
 export type MeetingDoc = {
@@ -66,6 +91,7 @@ function minutesToLabel(minutes: number): string {
 }
 
 export default function MeetingsCalendar() {
+  const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -126,9 +152,33 @@ export default function MeetingsCalendar() {
 
   const isCurrentWeek = weekOffset === 0;
 
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="card-warm-static p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/40">
+              <div className="flex-1">
+                <Skeleton className="h-7 w-48 mb-2" />
+                <Skeleton className="h-5 w-64" />
+              </div>
+              <Skeleton className="h-6 w-12" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <main className="min-h-full p-4 sm:p-6 md:p-8 flex flex-col gap-6">
-      <div className="max-w-6xl mx-auto w-full space-y-6">
+    <TooltipProvider>
+      <main className="min-h-full p-4 sm:p-6 md:p-8 flex flex-col gap-6">
+        <div className="max-w-6xl mx-auto w-full space-y-6">
         {/* Hero Section */}
         <div className="card-warm-static p-6 md:p-8">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -141,84 +191,122 @@ export default function MeetingsCalendar() {
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-4">
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  <Clock className="w-4 h-4" />
                   {tz}
                 </span>
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20">
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                  <CalendarIcon className="w-3 h-3 mr-1" />
                   {totalMeetings} {totalMeetings === 1 ? 'meeting' : 'meetings'}
-                </span>
+                </Badge>
               </div>
             </div>
 
             {/* Navigation Controls */}
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <button
-                onClick={() => setWeekOffset((w) => w - 1)}
-                className="px-3 sm:px-4 py-2 rounded-lg border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border transition-all text-foreground font-medium text-sm"
-              >
-                ← Prev
-              </button>
-              <button
-                onClick={() => setWeekOffset(0)}
-                className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                  isCurrentWeek
-                    ? 'bg-primary text-primary-foreground border border-primary/30 shadow-sm'
-                    : 'border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border text-foreground'
-                }`}
-              >
-                This Week
-              </button>
-              <button
-                onClick={() => setWeekOffset((w) => w + 1)}
-                className="px-3 sm:px-4 py-2 rounded-lg border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border transition-all text-foreground font-medium text-sm"
-              >
-                Next →
-              </button>
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset((w) => w - 1)}
+                    aria-label="Previous week"
+                  >
+                    <ChevronLeft className="w-4 h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Prev</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Previous week</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isCurrentWeek ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setWeekOffset(0)}
+                    aria-label="Go to current week"
+                  >
+                    This Week
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Jump to current week</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset((w) => w + 1)}
+                    aria-label="Next week"
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="w-4 h-4 sm:ml-1" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Next week</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
           {/* Availability Legend */}
           {Array.isArray(agencyProfile?.availability) && agencyProfile.availability.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-border/40">
-              <p className="text-sm font-semibold text-foreground mb-3">Your Availability</p>
-              <div className="flex flex-wrap gap-2">
-                {agencyProfile.availability.map((slot, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/30 text-accent-foreground text-sm font-medium border border-accent-foreground/20"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    {slot}
-                  </span>
-                ))}
+            <>
+              <Separator className="my-6" />
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-3">Your Availability</p>
+                <div className="flex flex-wrap gap-2">
+                  {agencyProfile.availability.map((slot, i) => (
+                    <Badge
+                      key={i}
+                      variant="secondary"
+                      className="bg-accent/30 text-accent-foreground border-accent-foreground/20"
+                    >
+                      <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                      {slot}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
+        {/* Info Alert for Availability */}
+        {agencyProfile && (!agencyProfile.availability || agencyProfile.availability.length === 0) && (
+          <Alert variant="default" className="border-blue-500/50 bg-blue-500/10">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-900 dark:text-blue-100">Set Your Availability</AlertTitle>
+            <AlertDescription className="text-blue-800 dark:text-blue-200">
+              Configure your availability in settings to allow prospects to schedule meetings with you automatically.
+              <Button variant="link" className="p-0 h-auto ml-1 text-blue-600" asChild>
+                <a href="/dashboard/settings">Go to Settings</a>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Meetings List */}
         {meetings === undefined ? (
-          <div className="card-warm-static p-12 text-center">
-            <div className="inline-flex items-center gap-3 text-muted-foreground">
-              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              <span className="text-base font-medium">Loading meetings…</span>
-            </div>
-          </div>
+          <LoadingSkeleton />
         ) : visibleDays.length === 0 ? (
           <div className="card-warm-static p-12 text-center">
             <div className="max-w-md mx-auto">
-              <div className="text-5xl mb-4">📅</div>
+              <CalendarX2 className="mx-auto h-16 w-16 text-muted-foreground/40 mb-4" />
               <h3 className="text-xl font-bold text-foreground mb-2">No Availability Set</h3>
-              <p className="text-muted-foreground">
-                Configure your availability in settings to start scheduling meetings.
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure your availability in settings to start scheduling meetings automatically.
               </p>
+              <Button className="btn-primary" asChild>
+                <a href="/dashboard/settings">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Go to Settings
+                </a>
+              </Button>
             </div>
           </div>
         ) : (
@@ -228,6 +316,7 @@ export default function MeetingsCalendar() {
               const dayMeetings = meetingsByDay[weekday] || [];
               const dayAvailability = availabilityByDay[weekday] || [];
               const isToday = day.hasSame(nowTz, 'day');
+              const hasMeetings = dayMeetings.length > 0;
 
               return (
                 <div
@@ -237,21 +326,21 @@ export default function MeetingsCalendar() {
                   }`}
                 >
                   {/* Day Header */}
-                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/40">
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
-                        {day.toFormat("cccc, MMMM d")}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-4 border-b border-border/40">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-lg sm:text-xl font-bold text-foreground">
+                          {day.toFormat("cccc, MMMM d")}
+                        </h3>
                         {isToday && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary font-semibold border border-primary/30">
+                          <Badge variant="default" className="text-xs">
                             Today
-                          </span>
+                          </Badge>
                         )}
-                      </h3>
+                      </div>
                       {dayAvailability.length > 0 && (
-                        <p className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
-                          <svg className="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
+                        <p className="text-sm text-muted-foreground mt-2 flex flex-wrap items-center gap-2">
+                          <Clock className="w-4 h-4" />
                           {dayAvailability.map((avail, i) => (
                             <span key={i}>
                               {minutesToLabel(avail.startMinutes)} - {minutesToLabel(avail.endMinutes)}
@@ -261,14 +350,22 @@ export default function MeetingsCalendar() {
                         </p>
                       )}
                     </div>
-                    <div className="text-right">
-                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground">
-                        {dayMeetings.length}
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </span>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge 
+                          variant="secondary" 
+                          className={`self-start sm:self-center ${
+                            hasMeetings ? 'bg-primary/15 text-primary border-primary/25' : ''
+                          }`}
+                        >
+                          <CalendarIcon className="w-3 h-3 mr-1" />
+                          {dayMeetings.length}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{dayMeetings.length} {dayMeetings.length === 1 ? 'meeting' : 'meetings'} scheduled</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
 
                   {/* Meetings */}
@@ -276,48 +373,68 @@ export default function MeetingsCalendar() {
                     <div className="space-y-2">
                       {dayMeetings.map((meeting) => {
                         const dt = DateTime.fromMillis(meeting.meetingTime, { zone: tz });
+                        const isPast = dt < nowTz;
                         return (
-                          <div
-                            key={meeting._id}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-primary/40 hover:bg-accent/10 transition-all"
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="inline-flex items-center gap-2 text-base font-bold text-foreground">
-                                  <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                                  </svg>
-                                  {dt.toFormat("h:mm a")}
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 text-primary text-xs font-semibold border border-primary/25">
-                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                                  </svg>
-                                  {meeting.source || "meeting"}
-                                </span>
+                          <Tooltip key={meeting._id}>
+                            <TooltipTrigger asChild>
+                              <div
+                                onClick={() => meeting.callId && router.push(`/dashboard/calls/${meeting.callId}`)}
+                                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border transition-all cursor-pointer group ${
+                                  isPast 
+                                    ? 'bg-surface-overlay/30 border-border/20 hover:border-border/40 opacity-75' 
+                                    : 'bg-surface-overlay/50 border-border/40 hover:border-primary/40 hover:bg-accent/10 hover:shadow-md'
+                                }`}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if ((e.key === 'Enter' || e.key === ' ') && meeting.callId) {
+                                    e.preventDefault();
+                                    router.push(`/dashboard/calls/${meeting.callId}`);
+                                  }
+                                }}
+                                aria-label={`View meeting at ${dt.toFormat("h:mm a")}`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                                    <span className="inline-flex items-center gap-1.5 text-base font-bold text-foreground">
+                                      <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                                      {dt.toFormat("h:mm a")}
+                                    </span>
+                                    <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/25">
+                                      <Video className="w-3 h-3 mr-1" />
+                                      {meeting.source || "meeting"}
+                                    </Badge>
+                                    {isPast && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Completed
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {meeting.callId && (
+                                    <p className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                                      Call ID: {meeting.callId.slice(-8)}
+                                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant="outline" className="self-start sm:self-center flex-shrink-0">
+                                  <Globe className="w-3 h-3 mr-1" />
+                                  {dt.toFormat("ZZZZ")}
+                                </Badge>
                               </div>
-                              {meeting.callId && (
-                                <p className="text-sm text-muted-foreground mt-2 font-mono">
-                                  Call ID: {meeting.callId.slice(-8)}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground sm:text-right">
-                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-muted/50">
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {dt.toFormat("ZZZZ")}
-                              </span>
-                            </div>
-                          </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Click to view call details</p>
+                            </TooltipContent>
+                          </Tooltip>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="text-center py-6">
-                      <div className="text-3xl mb-2">✨</div>
+                    <div className="text-center py-8 px-4">
+                      <CalendarX2 className="mx-auto h-10 w-10 text-muted-foreground/40 mb-2" />
                       <p className="text-sm text-muted-foreground">No meetings scheduled</p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">Available slots are open for booking</p>
                     </div>
                   )}
                 </div>
@@ -325,7 +442,8 @@ export default function MeetingsCalendar() {
             })}
           </div>
         )}
-      </div>
-    </main>
+        </div>
+      </main>
+    </TooltipProvider>
   );
 }

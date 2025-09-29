@@ -9,6 +9,12 @@ import { InitialSetupForm } from "./components/Step1_InitialSetupForm";
 import { WorkflowWithApproval } from "./components/Step2_WorkflowWithApproval";
 import { ReviewAndEditGenerated } from "./components/Step3_ReviewAndEditGenerated";
 import { Step4FinalConfigurationForm } from "./components/Step4_FinalConfigurationForm";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { CheckCircle2, Rocket, Search, FileText, Settings } from "lucide-react";
 
 type OnboardingStep = 1 | 2 | 3 | 4;
 type Mode = "manual" | "automated";
@@ -22,7 +28,7 @@ interface OnboardingState {
 
 export default function OnboardingPage() {
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8 px-4">
+    <main className="min-h-full p-4 md:p-6 lg:p-8">
       <Unauthenticated>
         <RedirectToHome />
       </Unauthenticated>
@@ -44,7 +50,7 @@ function RedirectToHome() {
 function Content() {
   const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
-  console.log("agencyProfile", agencyProfile?.reviewedAt);
+  const isLoading = agencyProfile === undefined;
   
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({
     currentStep: 1,
@@ -134,98 +140,225 @@ function Content() {
     router.replace("/dashboard");
   };
 
-  // Step indicator component
+  // Step indicator component with enhanced UX
   const StepIndicator = () => {
     const isManual = onboardingState.mode === "manual";
+    
     // Define steps to render with actual and display numbers
     const steps = isManual
       ? [
-          { actual: 1 as OnboardingStep, display: 1, label: "Setup" },
-          { actual: 3 as OnboardingStep, display: 2, label: "Review" },
-          { actual: 4 as OnboardingStep, display: 3, label: "Configure" },
+          { actual: 1 as OnboardingStep, display: 1, label: "Setup", description: "Basic information", icon: Rocket },
+          { actual: 3 as OnboardingStep, display: 2, label: "Review", description: "Review content", icon: FileText },
+          { actual: 4 as OnboardingStep, display: 3, label: "Configure", description: "Final settings", icon: Settings },
         ]
       : [
-          { actual: 1 as OnboardingStep, display: 1, label: "Setup" },
-          { actual: 2 as OnboardingStep, display: 2, label: "Analysis" },
-          { actual: 3 as OnboardingStep, display: 3, label: "Review" },
-          { actual: 4 as OnboardingStep, display: 4, label: "Configure" },
+          { actual: 1 as OnboardingStep, display: 1, label: "Setup", description: "Basic information", icon: Rocket },
+          { actual: 2 as OnboardingStep, display: 2, label: "Analysis", description: "AI analysis", icon: Search },
+          { actual: 3 as OnboardingStep, display: 3, label: "Review", description: "Review content", icon: FileText },
+          { actual: 4 as OnboardingStep, display: 4, label: "Configure", description: "Final settings", icon: Settings },
         ];
 
+    const currentStepIndex = steps.findIndex(s => s.actual === onboardingState.currentStep);
+    const progressPercentage = ((currentStepIndex + 1) / steps.length) * 100;
+
     return (
-      <div className="flex items-center justify-center mb-8">
-        <div className="flex items-center space-x-4">
-          {steps.map((s, index) => (
-            <div key={s.actual} className="flex items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                  s.actual < onboardingState.currentStep
-                    ? 'bg-green-500 text-white'
-                    : s.actual === onboardingState.currentStep
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-300 text-slate-600'
-                }`}
-              >
-                {s.actual < onboardingState.currentStep ? (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  s.display
+      <div className="card-warm-static p-4 sm:p-6 md:p-8 mb-6 md:mb-8">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+              {steps[currentStepIndex]?.label || "Getting Started"}
+            </h1>
+            <Badge variant="secondary" className="text-xs sm:text-sm">
+              Step {currentStepIndex + 1} of {steps.length}
+            </Badge>
+          </div>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {steps[currentStepIndex]?.description || "Complete your profile setup"}
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-6">
+          <Progress value={progressPercentage} className="h-2" />
+        </div>
+
+        <Separator className="mb-6" />
+
+        {/* Desktop: Horizontal step indicators */}
+        <div className="hidden md:flex items-center justify-between">
+          {steps.map((s, index) => {
+            const Icon = s.icon;
+            const isCompleted = s.actual < onboardingState.currentStep;
+            const isCurrent = s.actual === onboardingState.currentStep;
+            const isUpcoming = s.actual > onboardingState.currentStep;
+
+            return (
+              <div key={s.actual} className="flex items-center flex-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex flex-col items-center gap-2 flex-1">
+                        <div
+                          className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+                            isCompleted
+                              ? 'bg-success text-success-foreground shadow-sm'
+                              : isCurrent
+                              ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-110'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="w-6 h-6" />
+                          ) : (
+                            <Icon className="w-6 h-6" />
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <p className={`text-sm font-semibold ${
+                            isCurrent ? 'text-primary' : isCompleted ? 'text-success' : 'text-muted-foreground'
+                          }`}>
+                            {s.label}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {s.description}
+                          </p>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isCompleted ? 'Completed' : isCurrent ? 'Current step' : 'Upcoming'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {index < steps.length - 1 && (
+                  <div className="flex items-center justify-center px-4">
+                    <div
+                      className={`h-0.5 w-full min-w-[40px] transition-all duration-300 ${
+                        s.actual < onboardingState.currentStep 
+                          ? 'bg-success' 
+                          : 'bg-border'
+                      }`}
+                    />
+                  </div>
                 )}
               </div>
-              <div className="ml-2 text-xs text-slate-600 dark:text-slate-400">
-                {s.label}
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`w-12 h-0.5 ml-2 ${
-                    s.actual < onboardingState.currentStep ? 'bg-green-500' : 'bg-slate-300'
-                  }`}
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {/* Mobile: Compact step indicators */}
+        <div className="flex md:hidden gap-2 justify-center">
+          {steps.map((s) => {
+            const Icon = s.icon;
+            const isCompleted = s.actual < onboardingState.currentStep;
+            const isCurrent = s.actual === onboardingState.currentStep;
+
+            return (
+              <TooltipProvider key={s.actual}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isCompleted
+                          ? 'bg-success text-success-foreground shadow-sm'
+                          : isCurrent
+                          ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-110'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-5 h-5" />
+                      ) : (
+                        <Icon className="w-5 h-5" />
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-semibold">{s.label}</p>
+                    <p className="text-xs">{s.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })}
         </div>
       </div>
     );
   };
 
+  // Loading skeleton
+  const LoadingSkeleton = () => (
+    <div className="max-w-7xl mx-auto w-full">
+      <div className="card-warm-static p-4 sm:p-6 md:p-8 mb-6 md:mb-8">
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <Skeleton className="h-5 w-64" />
+        </div>
+        <Skeleton className="h-2 w-full mb-6" />
+        <Separator className="mb-6" />
+        <div className="flex gap-4 justify-center">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="w-12 h-12 rounded-full" />
+          ))}
+        </div>
+      </div>
+      <div className="card-warm-static p-6 md:p-8">
+        <Skeleton className="h-10 w-full mb-4" />
+        <Skeleton className="h-10 w-full mb-4" />
+        <Skeleton className="h-10 w-full mb-4" />
+        <Skeleton className="h-12 w-32 mt-6" />
+      </div>
+    </div>
+  );
+
+  // Show loading state
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto w-full">
       <StepIndicator />
       
-      {onboardingState.currentStep === 1 && (
-        <InitialSetupForm onStarted={handleStarted} />
-      )}
+      {/* Step content with smooth transitions */}
+      <div className="animate-in fade-in duration-500">
+        {onboardingState.currentStep === 1 && (
+          <InitialSetupForm onStarted={handleStarted} />
+        )}
 
-      {onboardingState.currentStep === 2 && onboardingState.mode === "automated" && (
-        <WorkflowWithApproval
-          onCompleted={handleWorkflowCompleted}
-        />
-      )}
+        {onboardingState.currentStep === 2 && onboardingState.mode === "automated" && (
+          <WorkflowWithApproval
+            onCompleted={handleWorkflowCompleted}
+          />
+        )}
 
-      {onboardingState.currentStep === 3 && onboardingState.agencyProfileId && (
-        <ReviewAndEditGenerated
-          agencyProfileId={onboardingState.agencyProfileId}
-          mode={onboardingState.mode}
-          initialSummary={agencyProfile?.summary}
-          initialCoreOffer={agencyProfile?.coreOffer}
-          initialGuardrails={agencyProfile?.guardrails || []}
-          initialClaims={agencyProfile?.approvedClaims?.map(claim => ({
-            id: claim.id,
-            text: claim.text,
-            source_url: claim.source_url,
-          })) || []}
-          onSaved={handleContentReviewed}
-        />
-      )}
+        {onboardingState.currentStep === 3 && onboardingState.agencyProfileId && (
+          <ReviewAndEditGenerated
+            agencyProfileId={onboardingState.agencyProfileId}
+            mode={onboardingState.mode}
+            initialSummary={agencyProfile?.summary}
+            initialCoreOffer={agencyProfile?.coreOffer}
+            initialGuardrails={agencyProfile?.guardrails || []}
+            initialClaims={agencyProfile?.approvedClaims?.map(claim => ({
+              id: claim.id,
+              text: claim.text,
+              source_url: claim.source_url,
+            })) || []}
+            onSaved={handleContentReviewed}
+          />
+        )}
 
-      {onboardingState.currentStep === 4 && (
-        <Step4FinalConfigurationForm
-          mode={onboardingState.mode}
-          onComplete={handleOnboardingComplete}
-        />
-      )}
+        {onboardingState.currentStep === 4 && (
+          <Step4FinalConfigurationForm
+            mode={onboardingState.mode}
+            onComplete={handleOnboardingComplete}
+          />
+        )}
+      </div>
     </div>
   );
 }

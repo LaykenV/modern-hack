@@ -4,6 +4,35 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Mail,
+  Send,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Copy,
+  Check,
+  Calendar,
+  Search,
+  Filter,
+  FileQuestion,
+} from "lucide-react";
 
 type EmailListItem = {
   _id: Id<"emails">;
@@ -28,6 +57,7 @@ type EmailListItem = {
 };
 
 export default function EmailsPage() {
+  const isMobile = useIsMobile();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const emails = useQuery(
     api.call.emails.listByAgency,
@@ -35,6 +65,7 @@ export default function EmailsPage() {
   ) as EmailListItem[] | undefined;
 
   const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const selectedEmail = useQuery(
     api.call.emails.getEmailById,
     selectedEmailId ? { emailId: selectedEmailId } : "skip"
@@ -58,15 +89,32 @@ export default function EmailsPage() {
   }, [emails, typeFilter, statusFilter, queryStr]);
 
   const counts = useMemo(() => {
-    const base = { total: emails?.length ?? 0, queued: 0, sent: 0, failed: 0 } as const;
-    if (!emails) return base;
+    if (!emails) return { total: 0, queued: 0, sent: 0, failed: 0 };
     return {
       total: emails.length,
       queued: emails.filter((e) => e.status === "queued").length,
       sent: emails.filter((e) => e.status === "sent").length,
       failed: emails.filter((e) => e.status === "failed").length,
     };
-  }, [emails, typeFilter, statusFilter, queryStr]);
+  }, [emails]);
+
+  const handleEmailClick = (emailId: Id<"emails">) => {
+    setSelectedEmailId(emailId);
+    if (isMobile) {
+      setSheetOpen(true);
+    }
+  };
+
+  const handleCopy = async (text: string, type: "subject" | "html") => {
+    await navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(""), 1200);
+  };
+
+  // Loading state
+  if (agencyProfile === undefined || emails === undefined) {
+    return <EmailsPageSkeleton />;
+  }
 
   return (
     <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
@@ -82,69 +130,122 @@ export default function EmailsPage() {
             </div>
           </div>
 
-          {/* Stats Grid */}
+          {/* Stats Grid - 2 columns on mobile, 4 on desktop */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8">
-            <div className="stat-card-accent p-5">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Total Emails
-              </p>
-              <p className="text-3xl font-bold text-foreground mt-1">{counts.total}</p>
-              <p className="text-sm text-muted-foreground mt-2">All time</p>
-            </div>
-            <div className="stat-card-primary p-5">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Queued
-              </p>
-              <p className="text-3xl font-bold text-foreground mt-1">{counts.queued}</p>
-              <p className="text-sm text-muted-foreground mt-2">Pending send</p>
-            </div>
-            <div className="stat-card-accent p-5">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Sent
-              </p>
-              <p className="text-3xl font-bold text-foreground mt-1">{counts.sent}</p>
-              <p className="text-sm text-muted-foreground mt-2">Successfully delivered</p>
-            </div>
-            <div className="stat-card-accent p-5">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Failed
-              </p>
-              <p className="text-3xl font-bold text-foreground mt-1">{counts.failed}</p>
-              <p className="text-sm text-muted-foreground mt-2">Need attention</p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="stat-card-primary p-5 cursor-help">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Total Emails
+                    </p>
+                  </div>
+                  <p className="text-3xl font-bold text-foreground mt-1">{counts.total}</p>
+                  <p className="text-sm text-muted-foreground mt-2">All time</p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Total number of emails sent through the system</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="stat-card-accent p-5 cursor-help">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Queued
+                    </p>
+                  </div>
+                  <p className="text-3xl font-bold text-foreground mt-1">{counts.queued}</p>
+                  <p className="text-sm text-muted-foreground mt-2">Pending send</p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Emails waiting to be sent</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="stat-card-accent p-5 cursor-help">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Sent
+                    </p>
+                  </div>
+                  <p className="text-3xl font-bold text-foreground mt-1">{counts.sent}</p>
+                  <p className="text-sm text-muted-foreground mt-2">Successfully delivered</p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Emails successfully delivered</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="stat-card-accent p-5 cursor-help">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Failed
+                    </p>
+                  </div>
+                  <p className="text-3xl font-bold text-foreground mt-1">{counts.failed}</p>
+                  <p className="text-sm text-muted-foreground mt-2">Need attention</p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Emails that failed to send</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
         {/* Filters Section */}
         <div className="card-warm-static p-4 md:p-6">
           <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold text-foreground mb-2">Search & Filter</h2>
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-lg font-semibold text-foreground">Search & Filter</h2>
+            </div>
             <div className="flex flex-col md:flex-row gap-3">
-              <input
-                value={queryStr}
-                onChange={(e) => setQueryStr(e.target.value)}
-                placeholder="Search subject, recipient, prospect..."
-                className="flex-1 px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-              />
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-                className="px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-              >
-                <option value="all">All types</option>
-                <option value="prospect_confirmation">Prospect confirmation</option>
-                <option value="agency_summary">Agency summary</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-              >
-                <option value="all">All status</option>
-                <option value="queued">Queued</option>
-                <option value="sent">Sent</option>
-                <option value="failed">Failed</option>
-              </select>
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={queryStr}
+                  onChange={(e) => setQueryStr(e.target.value)}
+                  placeholder="Search subject, recipient, prospect..."
+                  className="pl-10"
+                />
+              </div>
+              
+              <Select value={typeFilter} onValueChange={(value: typeof typeFilter) => setTypeFilter(value)}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="prospect_confirmation">Prospect confirmation</SelectItem>
+                  <SelectItem value="agency_summary">Agency summary</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={(value: typeof statusFilter) => setStatusFilter(value)}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="All status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All status</SelectItem>
+                  <SelectItem value="queued">Queued</SelectItem>
+                  <SelectItem value="sent">Sent</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -170,14 +271,16 @@ export default function EmailsPage() {
                           ? "bg-primary/10 border-l-4 border-l-primary"
                           : "hover:bg-surface-overlay/50 border-l-4 border-l-transparent"
                       }`}
-                      onClick={() => setSelectedEmailId(e._id)}
+                      onClick={() => handleEmailClick(e._id)}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="flex flex-col gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <p className="font-semibold text-foreground truncate">{e.subject}</p>
-                            <TypeBadge type={e.type} />
-                            <StatusBadge status={e.status} />
+                            <p className="font-semibold text-foreground truncate flex-1 min-w-0">{e.subject}</p>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <TypeBadge type={e.type} />
+                              <StatusBadge status={e.status} />
+                            </div>
                           </div>
                           <div className="text-sm text-muted-foreground space-y-1">
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -193,126 +296,108 @@ export default function EmailsPage() {
                     </button>
                   ))
                 ) : (
-                  <div className="p-8 md:p-12 text-center">
-                    <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">📧</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No emails found</h3>
-                    <p className="text-muted-foreground">
-                      {queryStr || typeFilter !== "all" || statusFilter !== "all"
-                        ? "Try adjusting your filters"
-                        : "No emails to show yet"}
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={<FileQuestion className="h-12 w-12 text-muted-foreground" />}
+                    title="No emails found"
+                    description={
+                      queryStr || typeFilter !== "all" || statusFilter !== "all"
+                        ? "Try adjusting your filters to see more results"
+                        : "No emails to show yet. Emails will appear here once prospects schedule calls."
+                    }
+                  />
                 )}
               </div>
             </div>
           </div>
 
-          {/* Email Preview */}
-          <div className="lg:col-span-1">
-            <div className="card-warm-static p-6 sticky top-6">
-              {selectedEmail ? (
-                <div className="space-y-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-lg font-semibold text-foreground">Email Details</h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <TypeBadge type={selectedEmail.type} />
-                      <StatusBadge status={selectedEmail.status} />
-                    </div>
+          {/* Email Preview - Desktop */}
+          {!isMobile && (
+            <div className="lg:col-span-1">
+              <div className="card-warm-static p-6 sticky top-6">
+                {selectedEmail ? (
+                  <EmailDetails email={selectedEmail} copied={copied} onCopy={handleCopy} />
+                ) : (
+                  <EmptyState
+                    icon={<span className="text-4xl">👈</span>}
+                    title="Select an email"
+                    description="Click on an email from the list to view its details"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Email Preview - Mobile Sheet */}
+      {isMobile && (
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Email Details</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6">
+              {selectedEmail && <EmailDetails email={selectedEmail} copied={copied} onCopy={handleCopy} />}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+    </main>
+  );
+}
+
+// Loading Skeleton Component
+function EmailsPageSkeleton() {
+  return (
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Hero Skeleton */}
+        <div className="card-warm-static p-6 md:p-8">
+          <Skeleton className="h-10 w-64 mb-4" />
+          <Skeleton className="h-6 w-96" />
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+        </div>
+
+        {/* Filters Skeleton */}
+        <div className="card-warm-static p-4 md:p-6">
+          <Skeleton className="h-6 w-48 mb-4" />
+          <div className="flex flex-col md:flex-row gap-3">
+            <Skeleton className="flex-1 h-10" />
+            <Skeleton className="h-10 w-full md:w-[200px]" />
+            <Skeleton className="h-10 w-full md:w-[180px]" />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="lg:col-span-2">
+            <div className="card-warm-static">
+              <div className="p-4 md:p-6 border-b border-border/60">
+                <Skeleton className="h-8 w-48 mb-2" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <div className="divide-y divide-border/40">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="p-4 md:p-5">
+                    <Skeleton className="h-6 w-3/4 mb-3" />
+                    <Skeleton className="h-4 w-1/2 mb-2" />
+                    <Skeleton className="h-3 w-1/3" />
                   </div>
-
-                  <div className="space-y-4">
-                    {/* Subject */}
-                    <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                        Subject
-                      </p>
-                      <p className="text-sm text-foreground font-medium">{selectedEmail.subject}</p>
-                      <button
-                        className="mt-3 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(selectedEmail.subject);
-                          setCopied("subject");
-                          setTimeout(() => setCopied(""), 1200);
-                        }}
-                      >
-                        {copied === "subject" ? "✓ Copied" : "Copy subject"}
-                      </button>
-                    </div>
-
-                    {/* From/To Grid */}
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                          From
-                        </p>
-                        <p className="text-sm text-foreground break-all">{selectedEmail.from}</p>
-                      </div>
-                      <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                          To
-                        </p>
-                        <p className="text-sm text-foreground break-all">{selectedEmail.to}</p>
-                      </div>
-                    </div>
-
-                    {/* ICS Download */}
-                    {selectedEmail.icsUrl && (
-                      <a
-                        href={selectedEmail.icsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/40 hover:bg-accent/60 border border-border/40 text-sm font-semibold text-foreground transition-all"
-                      >
-                        📅 Download Calendar Event
-                      </a>
-                    )}
-
-                    {/* Error */}
-                    {selectedEmail.error && (
-                      <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-                        <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-2">
-                          Error
-                        </p>
-                        <p className="text-sm text-destructive">{selectedEmail.error}</p>
-                      </div>
-                    )}
-
-                    {/* HTML Content */}
-                    <div className="border-t border-border/60 pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          Email Preview
-                        </p>
-                        <button
-                          className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(selectedEmail.html);
-                            setCopied("html");
-                            setTimeout(() => setCopied(""), 1200);
-                          }}
-                        >
-                          {copied === "html" ? "✓ Copied" : "Copy HTML"}
-                        </button>
-                      </div>
-                      <div className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40 max-h-96 overflow-y-auto">
-                        <div
-                          className="prose prose-sm dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: selectedEmail.html }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">👈</span>
-                  </div>
-                  <p className="text-muted-foreground font-medium">Select an email to view details</p>
-                </div>
-              )}
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-1 hidden lg:block">
+            <div className="card-warm-static p-6">
+              <Skeleton className="h-6 w-32 mb-6" />
+              <Skeleton className="h-4 w-full mb-3" />
+              <Skeleton className="h-4 w-full mb-3" />
+              <Skeleton className="h-4 w-3/4" />
             </div>
           </div>
         </div>
@@ -321,32 +406,208 @@ export default function EmailsPage() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles = {
-    queued: "bg-accent/60 text-accent-foreground border-accent-foreground/20",
-    sent: "bg-success/20 text-success border-success/30",
-    failed: "bg-destructive/20 text-destructive border-destructive/30",
-  };
-  const style = styles[status as keyof typeof styles] || styles.queued;
-  
+// Empty State Component
+function EmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${style}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
+    <div className="text-center py-12">
+      <div className="flex items-center justify-center mb-4">{icon}</div>
+      <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">{description}</p>
+    </div>
+  );
+}
+
+// Email Details Component
+function EmailDetails({
+  email,
+  copied,
+  onCopy,
+}: {
+  email: EmailListItem & { html: string };
+  copied: "" | "subject" | "html";
+  onCopy: (text: string, type: "subject" | "html") => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-lg font-semibold text-foreground">Email Details</h3>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <TypeBadge type={email.type} />
+          <StatusBadge status={email.status} />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Subject */}
+        <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Subject</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCopy(email.subject, "subject")}
+                  className="h-7"
+                >
+                  {copied === "subject" ? (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy subject to clipboard</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <p className="text-sm text-foreground font-medium">{email.subject}</p>
+        </div>
+
+        {/* From/To */}
+        <div className="grid grid-cols-1 gap-3">
+          <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">From</p>
+            <p className="text-sm text-foreground break-all">{email.from}</p>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">To</p>
+            <p className="text-sm text-foreground break-all">{email.to}</p>
+          </div>
+        </div>
+
+        {/* ICS Download */}
+        {email.icsUrl && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="outline" className="w-full">
+                <a href={email.icsUrl} target="_blank" rel="noopener noreferrer">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Download Calendar Event
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add this event to your calendar</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Error */}
+        {email.error && (
+          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Error</p>
+            </div>
+            <p className="text-sm text-destructive">{email.error}</p>
+          </div>
+        )}
+
+        <Separator className="my-6" />
+
+        {/* HTML Content */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Email Preview</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => onCopy(email.html, "html")} className="h-7">
+                  {copied === "html" ? (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy HTML
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy HTML to clipboard</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40 max-h-96 overflow-y-auto">
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none"
+              dangerouslySetInnerHTML={{ __html: email.html }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Badge Components with icons
+function StatusBadge({ status }: { status: string }) {
+  const configs = {
+    queued: {
+      icon: <Clock className="h-3 w-3" />,
+      label: "Queued",
+      className: "bg-accent/60 text-accent-foreground border-accent-foreground/20",
+    },
+    sent: {
+      icon: <CheckCircle2 className="h-3 w-3" />,
+      label: "Sent",
+      className: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30",
+    },
+    failed: {
+      icon: <XCircle className="h-3 w-3" />,
+      label: "Failed",
+      className: "bg-destructive/20 text-destructive border-destructive/30",
+    },
+  };
+
+  const config = configs[status as keyof typeof configs] || configs.queued;
+
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.icon}
+      {config.label}
+    </Badge>
   );
 }
 
 function TypeBadge({ type }: { type: "prospect_confirmation" | "agency_summary" }) {
-  const label = type === "prospect_confirmation" ? "Prospect" : "Agency";
-  const style = type === "prospect_confirmation" 
-    ? "bg-primary/20 text-primary border-primary/30"
-    : "bg-accent/60 text-accent-foreground border-accent-foreground/20";
-  
+  const configs = {
+    prospect_confirmation: {
+      icon: <Send className="h-3 w-3" />,
+      label: "Prospect",
+      className: "bg-primary/20 text-primary border-primary/30",
+    },
+    agency_summary: {
+      icon: <Mail className="h-3 w-3" />,
+      label: "Agency",
+      className: "bg-accent/60 text-accent-foreground border-accent-foreground/20",
+    },
+  };
+
+  const config = configs[type];
+
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${style}`}>
-      {label}
-    </span>
+    <Badge variant="outline" className={config.className}>
+      {config.icon}
+      {config.label}
+    </Badge>
   );
 }
-
-

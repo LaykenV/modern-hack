@@ -4,6 +4,7 @@ import "./globals.css";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { AutumnWrapper } from "@/components/AutumnWrapper";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
         <ConvexClientProvider>
             <AutumnWrapper>{children}</AutumnWrapper>
           </ConvexClientProvider>
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>

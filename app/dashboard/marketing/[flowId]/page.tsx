@@ -8,6 +8,31 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useCustomer } from "autumn-js/react";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { 
+  Loader2, 
+  ChevronDown, 
+  ChevronUp, 
+  Phone, 
+  Sparkles, 
+  FileText, 
+  ExternalLink,
+  Globe,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Target,
+  Zap,
+  TrendingUp,
+  PlayCircle
+} from "lucide-react";
 
 type Props = {
   params: Promise<{ flowId: string }>;
@@ -99,6 +124,12 @@ export default function MarketingFlowPage({ params }: Props) {
     setPaywallDismissed(false);
   }, [flowId]);
 
+  // Show loading skeleton while data is loading
+  if (leadGenJob === undefined) {
+    return <PageLoadingSkeleton />;
+  }
+
+  // Show not found state
   if (!leadGenJob) {
     return (
       <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
@@ -109,9 +140,11 @@ export default function MarketingFlowPage({ params }: Props) {
             <p className="text-muted-foreground mb-6 text-lg">
               The campaign you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
-            <Link href="/dashboard/marketing" className="btn-contrast inline-flex items-center gap-2">
-              ← Back to Marketing
-            </Link>
+            <Button asChild variant="default">
+              <Link href="/dashboard/marketing" className="inline-flex items-center gap-2">
+                ← Back to Marketing
+              </Link>
+            </Button>
           </div>
         </div>
       </main>
@@ -120,17 +153,17 @@ export default function MarketingFlowPage({ params }: Props) {
 
   return (
     <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
-      <div className="max-w-6xl mx-auto w-full space-y-8">
-        {/* Header with Summary */}
+      <div className="max-w-6xl mx-auto w-full space-y-6">
+        {/* Compact Header */}
         <div className="card-warm-static p-6 md:p-8">
-          <div className="flex items-start justify-between gap-6 flex-col md:flex-row mb-8">
+          <Link
+            href="/dashboard/marketing"
+            className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 mb-4"
+          >
+            ← Back to Campaigns
+          </Link>
+          <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
             <div className="flex-1">
-              <Link
-                href="/dashboard/marketing"
-                className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 mb-4"
-              >
-                ← Back to Campaigns
-              </Link>
               <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
                 {leadGenJob.campaign.targetVertical}
               </h1>
@@ -144,197 +177,260 @@ export default function MarketingFlowPage({ params }: Props) {
                 </span>
               </div>
             </div>
-          </div>
-
-          {/* Campaign Summary */}
-          {leadGenCounts && (
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">Campaign Summary</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                <SummaryStatCard
-                  label="Total Leads"
-                  value={leadGenCounts.totalOpportunities}
-                  variant="primary"
-                />
-                <SummaryStatCard
-                  label="With Websites"
-                  value={leadGenCounts.opportunitiesWithWebsites}
-                  variant="accent"
-                />
-                <SummaryStatCard
-                  label="No Websites"
-                  value={leadGenCounts.opportunitiesWithoutWebsites}
-                  variant="accent"
-                />
-                <SummaryStatCard
-                  label="Ready to Call"
-                  value={leadGenCounts.readyOpportunities}
-                  variant="primary"
-                />
-                <SummaryStatCard
-                  label="Queued Audits"
-                  value={leadGenCounts.queuedAudits}
-                  variant="accent"
-                />
-                <SummaryStatCard
-                  label="Running Audits"
-                  value={leadGenCounts.runningAudits}
-                  variant="accent"
-                />
-                <SummaryStatCard
-                  label="Completed Audits"
-                  value={leadGenCounts.completedAudits}
-                  variant="accent"
-                />
+            {/* Key Stats */}
+            {leadGenCounts ? (
+              <div className="flex gap-3 w-full lg:w-auto">
+                <div className="stat-card-primary p-5 flex-1 lg:flex-initial lg:w-40">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    Total Leads
+                  </p>
+                  <p className="text-3xl font-bold text-foreground">{leadGenCounts.totalOpportunities}</p>
+                </div>
+                <div className="stat-card-primary p-5 flex-1 lg:flex-initial lg:w-40">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    Ready to Call
+                  </p>
+                  <p className="text-3xl font-bold text-foreground">{leadGenCounts.readyOpportunities}</p>
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex gap-3">
+                <Skeleton className="h-24 w-40" />
+                <Skeleton className="h-24 w-40" />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Paused Status Banner */}
         {leadGenJob.status === "paused_for_upgrade" && billingBlock && (
-          <div className="card-warm-accent p-6 md:p-8 border-2 border-primary/40">
-            <div className="flex items-start justify-between gap-6 flex-col sm:flex-row">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">⏸️</span>
-                  <h3 className="text-lg font-bold text-foreground">Campaign Paused</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Insufficient credits for <span className="font-semibold">{billingBlock.featureId.replace("_", " ")}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Phase: {billingBlock.phase.replace("_", " ")}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setPaywallDismissed(false);
-                  setPaywallOpen(true);
-                }}
-                className="btn-contrast whitespace-nowrap"
-              >
-                Upgrade Now
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Phase Progress */}
-        <div className="card-warm-static p-6 md:p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-foreground">Campaign Progress</h2>
-            {typeof leadGenProgress === "number" && (
-              <div className="text-right">
-                <span className="text-2xl font-bold text-foreground">{Math.round(leadGenProgress * 100)}%</span>
-                <p className="text-xs text-muted-foreground">Complete</p>
-              </div>
-            )}
-          </div>
-          
-          {/* Overall Progress Bar */}
-          {typeof leadGenProgress === "number" && (
-            <div className="mb-6">
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-3 rounded-full transition-all duration-500 relative overflow-hidden"
-                  style={{ 
-                    width: `${Math.round(leadGenProgress * 100)}%`,
-                    backgroundImage: 'linear-gradient(90deg, hsl(var(--primary) / 0.95) 0%, hsl(var(--primary) / 0.85) 60%, hsl(var(--accent) / 0.70) 100%)'
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Phase Details - Horizontal Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {leadGenJob.phases.map((phase) => {
-              const phaseIcon = PHASE_ICONS[phase.name as keyof typeof PHASE_ICONS] ?? "📋";
-              const isRunning = phase.status === "running";
-              const isComplete = phase.status === "complete";
-              const isError = phase.status === "error";
-              const isPaused = leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase;
-
-              return (
-                <div key={phase.name} className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
-                      isComplete ? "bg-success/20 border-2 border-success/50" :
-                      isRunning ? "bg-primary/20 border-2 border-primary/50 animate-pulse" :
-                      isError ? "bg-destructive/20 border-2 border-destructive/50" :
-                      isPaused ? "bg-accent/40 border-2 border-primary/40" :
-                      "bg-muted border-2 border-border"
-                    }`}>
-                      {phaseIcon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-foreground truncate">
-                        {PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}
-                      </h3>
-                    </div>
-                    {isRunning && (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
-                        Running
-                      </span>
-                    )}
-                    {isPaused && (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-accent/60 text-accent-foreground border border-accent-foreground/20">
-                        Paused
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          isComplete ? "bg-success" :
-                          isError ? "bg-destructive" :
-                          "bg-primary"
-                        }`}
-                        style={{ width: `${Math.round(phase.progress * 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                      {Math.round(phase.progress * 100)}%
-                    </span>
-                  </div>
-                  {isError && phase.errorMessage && (
-                    <p className="text-xs text-destructive bg-destructive/10 px-2 py-1 rounded-md mt-2">
-                      {phase.errorMessage}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Last Event */}
-          {leadGenJob.lastEvent && (
-            <div className="mt-6 p-3 rounded-lg bg-accent/20 border border-border/50">
-              <div className="flex items-start gap-2">
-                <span className="text-base">⚡</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground mb-1">
-                    {leadGenJob.lastEvent.message}
+          <Alert variant="default" className="border-2 border-primary/40 bg-accent/30">
+            <AlertCircle className="h-5 w-5" />
+            <AlertTitle className="text-lg font-bold flex items-center gap-2">
+              <span>⏸️</span>
+              Campaign Paused
+            </AlertTitle>
+            <AlertDescription className="mt-2">
+              <div className="flex items-start justify-between gap-6 flex-col sm:flex-row">
+                <div className="flex-1">
+                  <p className="text-sm mb-1">
+                    Insufficient credits for <span className="font-semibold">{billingBlock.featureId.replace("_", " ")}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(leadGenJob.lastEvent.timestamp).toLocaleString()}
+                    Phase: {billingBlock.phase.replace("_", " ")}
                   </p>
                 </div>
+                <Button
+                  onClick={() => {
+                    setPaywallDismissed(false);
+                    setPaywallOpen(true);
+                  }}
+                  className="whitespace-nowrap"
+                  aria-label="Upgrade to resume campaign"
+                >
+                  Upgrade Now
+                </Button>
               </div>
-            </div>
-          )}
-        </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Opportunities */}
-        {opportunities && opportunities.length > 0 && (
+        {/* Campaign Progress - Accordion */}
+        <Accordion type="single" collapsible defaultValue="progress">
+          <AccordionItem value="progress" className="card-warm-static border-0">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=closed]]:pb-6">
+              <div className="flex flex-col w-full pr-4 gap-3">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <span className="text-xl font-bold text-foreground">Campaign Progress</span>
+                  </div>
+                  {typeof leadGenProgress === "number" && (
+                    <div className="text-right">
+                      <span className="text-xl font-bold text-primary">{Math.round(leadGenProgress * 100)}%</span>
+                    </div>
+                  )}
+                </div>
+                {/* Show when collapsed */}
+                <div className="[&[data-state=open]]:hidden w-full space-y-3">
+                  {typeof leadGenProgress === "number" && (
+                    <Progress value={Math.round(leadGenProgress * 100)} className="h-2" />
+                  )}
+                  {leadGenJob.lastEvent && (
+                    <div className="flex items-start gap-2 text-left">
+                      <Zap className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-muted-foreground truncate">
+                          {leadGenJob.lastEvent.message}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6">
+              {/* Workflow Steps */}
+              <div className="space-y-3">
+                {leadGenJob.phases.map((phase, index) => {
+                  const phaseIcon = PHASE_ICONS[phase.name as keyof typeof PHASE_ICONS] ?? "📋";
+                  const isRunning = phase.status === "running";
+                  const isComplete = phase.status === "complete";
+                  const isError = phase.status === "error";
+                  const isPaused = leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase;
+                  const isActive = isRunning || isPaused;
+
+                  return (
+                    <div key={phase.name}>
+                      {/* Connector Line */}
+                      {index > 0 && (
+                        <div className="flex items-center gap-4 pl-4 pb-2">
+                          <div className={`w-0.5 h-6 ${
+                            isComplete || leadGenJob.phases[index - 1].status === "complete" 
+                              ? "bg-[hsl(var(--success))]" 
+                              : "bg-border"
+                          }`} />
+                        </div>
+                      )}
+                      
+                      {/* Step Card */}
+                      <div className={`rounded-lg border-2 transition-all ${
+                        isActive 
+                          ? "bg-primary/5 border-primary/40 shadow-lg shadow-primary/10" 
+                          : isComplete
+                          ? "bg-[hsl(var(--success))]/5 border-[hsl(var(--success))]/30"
+                          : isError
+                          ? "bg-destructive/5 border-destructive/30"
+                          : "bg-surface-overlay/30 border-border/40"
+                      }`}>
+                        <div className={`p-4 ${
+                          isActive ? "pb-4" : ""
+                        }`}>
+                          <div className="flex items-center gap-4">
+                            {/* Icon */}
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
+                              isComplete ? "bg-[hsl(var(--success))] text-white" :
+                              isActive ? "bg-primary text-white animate-pulse" :
+                              isError ? "bg-destructive text-white" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                              {isComplete ? "✓" : phaseIcon}
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-bold text-base text-foreground">
+                                  {PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}
+                                </h3>
+                                {isRunning && (
+                                  <Badge className="bg-primary/20 text-primary border-primary/30">
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                    Running
+                                  </Badge>
+                                )}
+                                {isPaused && (
+                                  <Badge variant="secondary" className="bg-accent/60">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    Paused
+                                  </Badge>
+                                )}
+                                {isComplete && (
+                                  <Badge className="bg-[hsl(var(--success))]/20 text-[hsl(var(--success))] border-[hsl(var(--success))]/30">
+                                    <CheckCircle className="mr-1 h-3 w-3" />
+                                    Complete
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Progress Bar for Active Steps */}
+                              {isActive && (
+                                <div className="flex items-center gap-3 mt-3">
+                                  <Progress 
+                                    value={Math.round(phase.progress * 100)} 
+                                    className="h-2.5 flex-1 [&>div]:bg-primary"
+                                  />
+                                  <span className="text-sm font-bold text-primary tabular-nums whitespace-nowrap">
+                                    {Math.round(phase.progress * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Minimized Progress for Non-Active */}
+                              {!isActive && !isComplete && (
+                                <div className="flex items-center gap-2 mt-2">
+                                  <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                                    <div 
+                                      className="h-full bg-border transition-all"
+                                      style={{ width: `${Math.round(phase.progress * 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground tabular-nums">
+                                    {Math.round(phase.progress * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Error Message */}
+                          {isError && phase.errorMessage && (
+                            <Alert variant="destructive" className="mt-3">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription className="text-sm">
+                                {phase.errorMessage}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Last Event */}
+              {leadGenJob.lastEvent && (
+                <div className="mt-6 p-4 rounded-lg bg-accent/20 border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <Zap className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground mb-1">
+                        Latest Activity
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {leadGenJob.lastEvent.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(leadGenJob.lastEvent.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        {/* Opportunities - Main Focus */}
+        {opportunities === undefined ? (
           <div className="card-warm-static p-6 md:p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
-              Opportunities <span className="text-muted-foreground">({opportunities.length})</span>
-            </h2>
+            <Skeleton className="h-8 w-64 mb-6" />
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-40" />
+              ))}
+            </div>
+          </div>
+        ) : opportunities && opportunities.length > 0 ? (
+          <div className="card-warm-static p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <PlayCircle className="h-6 w-6 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                Opportunities 
+                <Badge variant="secondary" className="text-base">{opportunities.length}</Badge>
+              </h2>
+            </div>
             <div className="space-y-4">
             {opportunities.map((opp) => {
               const job = auditJobMap.get(opp._id);
@@ -342,70 +438,84 @@ export default function MarketingFlowPage({ params }: Props) {
               const phaseProgress = job ? Math.round((completedPhases / job.phases.length) * 100) : 0;
               const isExpanded = expandedOpportunityId === opp._id;
               const oppKey = String(opp._id);
+              const oppStatusUpper = typeof opp.status === "string" ? opp.status.toUpperCase() : "";
+              const isReadyStatus = ["READY", "BOOKED", "COMPLETE"].includes(oppStatusUpper);
 
               return (
                 <div
                   key={opp._id}
-                  className="rounded-lg overflow-hidden border border-border/60 bg-surface-overlay/30 hover:border-border transition-all duration-200"
+                  className={`rounded-lg overflow-hidden border-2 transition-all duration-200 opp-card-gradient ${
+                    isReadyStatus
+                      ? "border-[hsl(var(--primary))]/40 hover:border-[hsl(var(--primary))]/60 hover:shadow-lg hover:shadow-[hsl(var(--primary))]/10"
+                      : "border-border/60 hover:border-border"
+                  }`}
                 >
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => setExpandedOpportunityId(isExpanded ? null : opp._id)}
-                    className="w-full text-left p-4 md:p-5 hover:bg-accent/10 transition-colors"
+                    className="w-full text-left p-5 hover:bg-transparent transition-colors h-auto justify-start"
+                    aria-expanded={isExpanded}
+                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for ${opp.name}`}
                   >
-                    <div className="flex justify-between items-start gap-4 flex-col sm:flex-row">
+                    <div className="flex justify-between items-start gap-4 flex-col sm:flex-row w-full">
                       <div className="flex-1 w-full">
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
-                          <h3 className="font-semibold text-lg text-foreground">{opp.name}</h3>
+                          <h3 className="font-bold text-lg text-foreground">{opp.name}</h3>
                           <OpportunityStatusBadge status={opp.status} />
+                          {isExpanded ? <ChevronUp className="h-5 w-5 ml-auto text-muted-foreground" /> : <ChevronDown className="h-5 w-5 ml-auto text-muted-foreground" />}
                         </div>
                         {opp.domain && (
-                          <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
-                            <span>🌐</span>
-                            <span className="font-mono">{opp.domain}</span>
-                          </p>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 cursor-help">
+                                  <Globe className="h-4 w-4 flex-shrink-0" />
+                                  <span className="font-mono truncate max-w-[300px]">{opp.domain}</span>
+                                </p>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{opp.domain}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                         {opp.signals.length > 0 && (
                           <div className="flex flex-wrap gap-2 mb-4">
                             {opp.signals.map((signal) => (
-                              <span
+                              <Badge 
                                 key={signal}
-                                className="inline-flex items-center rounded-full bg-accent/40 text-accent-foreground px-2.5 py-1 text-xs font-medium border border-border/30"
+                                variant="outline"
+                                className="bg-[hsl(var(--primary))]/10 border-[hsl(var(--primary))]/30 text-[hsl(var(--primary))]"
                               >
+                                <Target className="mr-1 h-3 w-3" />
                                 {signal.replace(/_/g, " ")}
-                              </span>
+                              </Badge>
                             ))}
                           </div>
                         )}
                         {job && (
                           <div className="flex items-center gap-3">
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-2 bg-success rounded-full transition-all duration-300"
-                                style={{ width: `${phaseProgress}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground font-medium tabular-nums whitespace-nowrap">
-                              {completedPhases}/{job.phases.length} phases
-                            </span>
+                            <Progress value={phaseProgress} className="h-2.5 flex-1 [&>div]:bg-[hsl(var(--success))]" />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground font-semibold tabular-nums whitespace-nowrap cursor-help">
+                                    {completedPhases}/{job.phases.length} phases
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Audit progress: {phaseProgress}% complete</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         )}
                       </div>
-                      <div className="text-left sm:text-right">
-                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/30">
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Score</span>
-                          <span className="text-lg font-bold text-primary">{Math.round(opp.qualificationScore * 100)}%</span>
-                        </div>
-                        {job && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Audit: <span className="font-medium">{job.status}</span>
-                          </p>
-                        )}
-                      </div>
                     </div>
-                  </button>
+                  </Button>
 
                   {isExpanded && (
-                    <div className="border-t border-border/60 bg-accent/5 p-4 md:p-6 space-y-6">
+                    <div className="border-t-2 border-border/40 p-5 md:p-6 space-y-5">
                       {/* Call Controls */}
                       {(() => {
                         const oppStatusUpper = typeof opp.status === "string" ? opp.status.toUpperCase() : "";
@@ -414,13 +524,21 @@ export default function MarketingFlowPage({ params }: Props) {
 
                         if (isReady && agencyProfile) {
                           return (
-                            <div className="p-4 rounded-lg bg-success/10 border border-success/30">
-                              <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xl">📞</span>
-                                <h4 className="font-semibold text-foreground">Ready to Call</h4>
+                            <div className="p-5 md:p-6 rounded-xl bg-gradient-to-br from-[hsl(var(--success))]/10 via-[hsl(var(--success))]/5 to-transparent border-2 border-[hsl(var(--success))]/30">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-5">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className="w-12 h-12 rounded-xl bg-[hsl(var(--success))] flex items-center justify-center shadow-lg shadow-[hsl(var(--success))]/20">
+                                    <Phone className="h-6 w-6 text-white" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-bold text-foreground text-lg mb-0.5">Ready to Call</h4>
+                                    <p className="text-sm text-muted-foreground">All research complete • Dossier ready</p>
+                                  </div>
+                                </div>
+                                <CheckCircle className="h-7 w-7 text-[hsl(var(--success))] hidden sm:block" />
                               </div>
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                <button
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                <Button
                                   onClick={async () => {
                                     setStartingCallOppId(opp._id);
                                     setCallErrorByOpp((prev) => {
@@ -444,19 +562,36 @@ export default function MarketingFlowPage({ params }: Props) {
                                     }
                                   }}
                                   disabled={startingCallOppId === opp._id || !hasCredits}
-                                  className="btn-contrast disabled:opacity-60 disabled:cursor-not-allowed"
+                                  className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white font-semibold px-6 py-2.5 rounded-lg transition-all hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-[hsl(var(--success))]/20"
+                                  aria-label="Start AI call"
                                 >
-                                  {startingCallOppId === opp._id ? "Starting call..." : "🚀 Start Call"}
-                                </button>
+                                  {startingCallOppId === opp._id ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Starting call...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Phone className="mr-2 h-5 w-5" />
+                                      Start Call
+                                    </>
+                                  )}
+                                </Button>
                                 {!hasCredits && (
-                                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
-                                    Need at least 1 credit to start a call
-                                  </p>
+                                  <Alert variant="destructive" className="flex-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription className="text-sm">
+                                      Need at least 1 credit to start a call
+                                    </AlertDescription>
+                                  </Alert>
                                 )}
                                 {callErrorByOpp[oppKey] && (
-                                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
-                                    {callErrorByOpp[oppKey]}
-                                  </p>
+                                  <Alert variant="destructive" className="flex-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription className="text-sm">
+                                      {callErrorByOpp[oppKey]}
+                                    </AlertDescription>
+                                  </Alert>
                                 )}
                               </div>
                             </div>
@@ -468,12 +603,14 @@ export default function MarketingFlowPage({ params }: Props) {
 
                       {/* Fit Reason */}
                       {opp.fit_reason && (
-                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="text-xl">✨</span>
-                            <h4 className="font-semibold text-foreground">Why This Lead Fits</h4>
+                        <div className="p-5 md:p-6 rounded-xl bg-gradient-to-br from-accent/40 to-accent/20 border border-border/30">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-9 h-9 rounded-lg bg-accent/60 flex items-center justify-center">
+                              <Sparkles className="h-4 w-4 text-foreground" />
+                            </div>
+                            <h4 className="font-bold text-foreground text-base">Why This Lead Fits</h4>
                           </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
+                          <p className="text-sm text-foreground/90 leading-relaxed">
                             {opp.fit_reason}
                           </p>
                         </div>
@@ -481,100 +618,192 @@ export default function MarketingFlowPage({ params }: Props) {
 
                       {/* Dossier */}
                       {job?.dossierId && (
-                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
-                          <div className="flex items-center gap-2 mb-4">
-                            <span className="text-xl">📋</span>
-                            <h4 className="font-semibold text-foreground">Research Dossier</h4>
-                          </div>
-                          {dossier ? (
-                            <div className="space-y-4">
-                              {dossier.summary && (
-                                <div className="p-3 bg-accent/10 rounded-md border border-border/30">
-                                  <h5 className="font-medium text-foreground mb-2">Summary</h5>
-                                  <p className="text-sm text-muted-foreground leading-relaxed">{dossier.summary}</p>
-                                </div>
-                              )}
-
-                              {dossier.identified_gaps.length > 0 && (
-                                <div className="p-3 bg-primary/5 rounded-md border border-primary/20">
-                                  <h5 className="font-medium text-foreground mb-3">Identified Opportunities</h5>
-                                  <ul className="space-y-2">
-                                    {dossier.identified_gaps.map((gap, idx) => (
-                                      <li key={`gap-${idx}`} className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
-                                        <span className="font-semibold text-foreground">{gap.key}:</span>
-                                        <span className="text-muted-foreground">{gap.value}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {dossier.talking_points.length > 0 && (
-                                <div className="p-3 bg-accent/10 rounded-md border border-border/30">
-                                  <h5 className="font-medium text-foreground mb-3">Talking Points</h5>
-                                  <ul className="space-y-2">
-                                    {dossier.talking_points.map((point, idx) => (
-                                      <li key={`tp-${idx}`} className="flex items-start gap-2 text-sm">
-                                        <span className="text-primary mt-0.5">•</span>
-                                        <span className="text-muted-foreground">{point.text}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                        <div className="rounded-xl bg-gradient-to-br from-accent/30 via-surface-raised to-surface-overlay border border-border/40 overflow-hidden shadow-sm">
+                          <div className="p-5 md:p-6 bg-gradient-to-r from-accent/20 to-transparent border-b border-border/30">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-accent/50 flex items-center justify-center">
+                                <FileText className="h-5 w-5 text-foreground" />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-foreground text-lg">Research Dossier</h4>
+                                <p className="text-xs text-muted-foreground">AI-generated insights & opportunities</p>
+                              </div>
                             </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Loading dossier...</p>
-                          )}
+                          </div>
+                          <div className="p-5 md:p-6">
+                            {dossier ? (
+                              <Accordion type="single" collapsible className="w-full space-y-3">
+                                {dossier.summary && (
+                                  <AccordionItem value="summary" className="border-none">
+                                    <AccordionTrigger className="text-sm font-semibold hover:no-underline p-4 rounded-lg bg-surface-raised/70 border border-border/30 hover:border-accent transition-colors [&[data-state=open]]:border-accent [&[data-state=open]]:bg-accent/20">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4 text-foreground" />
+                                        Summary
+                                      </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-4 pb-2">
+                                      <div className="p-4 rounded-lg bg-accent/10 border border-border/20">
+                                        <p className="text-sm text-foreground leading-relaxed">{dossier.summary}</p>
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                )}
+
+                                {dossier.identified_gaps.length > 0 && (
+                                  <AccordionItem value="opportunities" className="border-none">
+                                    <AccordionTrigger className="text-sm font-semibold hover:no-underline p-4 rounded-lg bg-surface-raised/70 border border-border/30 hover:border-accent transition-colors [&[data-state=open]]:border-accent [&[data-state=open]]:bg-accent/20">
+                                      <div className="flex items-center gap-2">
+                                        <Target className="h-4 w-4 text-foreground" />
+                                        Identified Opportunities
+                                        <Badge variant="secondary" className="ml-2 bg-accent/40 text-foreground border-border/30">
+                                          {dossier.identified_gaps.length}
+                                        </Badge>
+                                      </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-4 pb-2">
+                                      <div className="space-y-2">
+                                        {dossier.identified_gaps.map((gap, idx) => (
+                                          <div 
+                                            key={`gap-${idx}`} 
+                                            className="p-3 md:p-4 rounded-lg bg-gradient-to-r from-accent/20 to-surface-raised border border-border/30 hover:border-accent hover:bg-accent/10 transition-all"
+                                          >
+                                            <div className="flex flex-col gap-1.5">
+                                              <span className="font-semibold text-sm text-foreground">{gap.key}</span>
+                                              <span className="text-sm text-muted-foreground pl-0.5">{gap.value}</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                )}
+
+                                {dossier.talking_points.length > 0 && (
+                                  <AccordionItem value="talking-points" className="border-none">
+                                    <AccordionTrigger className="text-sm font-semibold hover:no-underline p-4 rounded-lg bg-surface-raised/70 border border-border/30 hover:border-accent transition-colors [&[data-state=open]]:border-accent [&[data-state=open]]:bg-accent/20">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle className="h-4 w-4 text-foreground" />
+                                        Talking Points
+                                        <Badge variant="secondary" className="ml-2 bg-accent/40 text-foreground border-border/30">
+                                          {dossier.talking_points.length}
+                                        </Badge>
+                                      </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-4 pb-2">
+                                      <div className="space-y-2">
+                                        {dossier.talking_points.map((point, idx) => (
+                                          <div 
+                                            key={`tp-${idx}`} 
+                                            className="flex items-start gap-3 p-3 rounded-lg bg-accent/10 border border-border/20 hover:bg-accent/15 transition-colors"
+                                          >
+                                            <div className="w-6 h-6 rounded-full bg-accent/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                              <CheckCircle className="h-3.5 w-3.5 text-foreground" />
+                                            </div>
+                                            <span className="text-sm text-foreground flex-1">{point.text}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                )}
+                              </Accordion>
+                            ) : (
+                              <div className="space-y-3">
+                                <Skeleton className="h-14" />
+                                <Skeleton className="h-14" />
+                                <Skeleton className="h-14" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {/* Sources Toggle */}
                       {job && (
-                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
-                          <button
+                        <div className="rounded-xl bg-surface-raised/70 border border-border/40 overflow-hidden shadow-sm">
+                          <Button
+                            variant="ghost"
                             onClick={() => setViewSourcesForAuditId(
                               viewSourcesForAuditId === job._id ? null : job._id
                             )}
-                            className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-2"
+                            className="w-full text-sm font-semibold text-foreground hover:bg-accent/30 transition-all flex items-center justify-between p-4 md:p-5 h-auto rounded-none"
+                            aria-expanded={viewSourcesForAuditId === job._id}
+                            aria-label={viewSourcesForAuditId === job._id ? "Hide scraped sources" : "View scraped sources"}
                           >
-                            <span>{viewSourcesForAuditId === job._id ? "▼" : "▶"}</span>
-                            <span>{viewSourcesForAuditId === job._id ? "Hide Sources" : "View Scraped Sources"}</span>
-                          </button>
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-accent/50 flex items-center justify-center">
+                                  <Globe className="h-4 w-4 text-foreground" />
+                                </div>
+                                <div className="text-left">
+                                  <div className="font-bold text-base">Scraped Sources</div>
+                                  <div className="text-xs text-muted-foreground font-normal">
+                                    {scrapedPages ? `${scrapedPages.length} page${scrapedPages.length !== 1 ? 's' : ''} analyzed` : 'Loading...'}
+                                  </div>
+                                </div>
+                              </div>
+                            {viewSourcesForAuditId === job._id ? 
+                              <ChevronUp className="h-5 w-5 text-muted-foreground" /> : 
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            }
+                          </Button>
 
                           {viewSourcesForAuditId === job._id && (
-                            <div className="mt-4 space-y-3">
+                            <div className="border-t border-border/30 p-4 md:p-5 bg-accent/5">
                               {scrapedPages ? (
                                 scrapedPages.length > 0 ? (
-                                  scrapedPages.map((page, idx) => (
-                                    <div
-                                      key={`scrape-${idx}`}
-                                      className="p-3 bg-accent/10 border border-border/30 rounded-md hover:bg-accent/15 transition-colors"
-                                    >
-                                      <p className="font-medium text-sm text-foreground mb-1">
-                                        {page.title || "Untitled Page"}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground font-mono mb-2 break-all">
-                                        {page.url}
-                                      </p>
-                                      {page.contentUrl && (
-                                        <a
-                                          href={page.contentUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
-                                        >
-                                          <span>Download content</span>
-                                          <span>→</span>
-                                        </a>
-                                      )}
-                                    </div>
-                                  ))
+                                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2 hide-scrollbar">
+                                    {scrapedPages.map((page, idx) => (
+                                      <div
+                                        key={`scrape-${idx}`}
+                                        className="group p-4 bg-surface-raised border border-border/30 rounded-lg hover:border-accent hover:bg-accent/10 transition-all"
+                                      >
+                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                          <p className="font-semibold text-sm text-foreground flex-1">
+                                            {page.title || "Untitled Page"}
+                                          </p>
+                                          {page.contentUrl && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              asChild
+                                              className="h-7 px-3 text-xs font-medium bg-accent/50 hover:bg-accent text-foreground transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                              <a
+                                                href={page.contentUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label="View page content"
+                                              >
+                                                <ExternalLink className="h-3 w-3 mr-1" />
+                                                View
+                                              </a>
+                                            </Button>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Globe className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                          <p className="text-xs text-muted-foreground font-mono truncate">
+                                            {page.url}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 ) : (
-                                  <p className="text-sm text-muted-foreground text-center py-4">No scraped pages recorded</p>
+                                  <div className="text-center py-8">
+                                    <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                                      <FileText className="h-6 w-6 text-muted-foreground" />
+                                    </div>
+                                    <p className="text-sm font-medium text-foreground mb-1">No Sources Found</p>
+                                    <p className="text-xs text-muted-foreground">No pages were scraped for this opportunity</p>
+                                  </div>
                                 )
                               ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">Loading sources...</p>
+                                <div className="space-y-3">
+                                  <Skeleton className="h-20" />
+                                  <Skeleton className="h-20" />
+                                  <Skeleton className="h-20" />
+                                </div>
                               )}
                             </div>
                           )}
@@ -587,7 +816,19 @@ export default function MarketingFlowPage({ params }: Props) {
             })}
           </div>
         </div>
-      )}
+        ) : (
+          <div className="card-warm-static p-8 md:p-12 text-center">
+            <div className="text-6xl mb-4">📭</div>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Opportunities Yet</h3>
+            <p className="text-muted-foreground mb-6">
+              Opportunities will appear here as the campaign progresses.
+            </p>
+            <Badge variant="outline" className="text-sm">
+              <Clock className="mr-2 h-3 w-3" />
+              Campaign is still discovering leads
+            </Badge>
+          </div>
+        )}
 
         {/* Paywall Dialog */}
         <PaywallDialog
@@ -618,6 +859,54 @@ export default function MarketingFlowPage({ params }: Props) {
 }
 
 // Helper Components
+function PageLoadingSkeleton() {
+  return (
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Header Skeleton */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="mb-8">
+            <Skeleton className="h-4 w-32 mb-4" />
+            <Skeleton className="h-10 w-64 mb-2" />
+            <Skeleton className="h-6 w-48 mb-4" />
+            <div className="flex gap-3">
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+          </div>
+          <Separator className="my-6" />
+          <Skeleton className="h-5 w-40 mb-4" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            {[...Array(7)].map((_, i) => (
+              <Skeleton key={i} className="h-24" />
+            ))}
+          </div>
+        </div>
+
+        {/* Progress Skeleton */}
+        <div className="card-warm-static p-6 md:p-8">
+          <Skeleton className="h-8 w-48 mb-6" />
+          <Skeleton className="h-3 w-full mb-6" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+        </div>
+
+        {/* Opportunities Skeleton */}
+        <div className="card-warm-static p-6 md:p-8">
+          <Skeleton className="h-8 w-48 mb-6" />
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-40" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 type StatusBadgeProps = {
   status: string;
   size?: "normal" | "large";
@@ -629,7 +918,8 @@ function StatusBadge({ status, size = "normal" }: StatusBadgeProps) {
       case "running":
         return "bg-primary/20 text-primary border-primary/30";
       case "completed":
-        return "bg-success/20 text-success border-success/30";
+      case "complete":
+        return "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-[hsl(var(--success))] font-semibold";
       case "paused_for_upgrade":
         return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
       case "failed":
@@ -640,12 +930,30 @@ function StatusBadge({ status, size = "normal" }: StatusBadgeProps) {
     }
   };
 
-  const sizeClass = size === "large" ? "px-3 py-1.5 text-sm font-semibold" : "px-2.5 py-1 text-xs font-semibold";
+  const getStatusIcon = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "running":
+        return <Loader2 className="mr-1 h-3 w-3 animate-spin" />;
+      case "completed":
+      case "complete":
+        return <CheckCircle className="mr-1 h-3 w-3" />;
+      case "paused_for_upgrade":
+        return <Clock className="mr-1 h-3 w-3" />;
+      case "failed":
+      case "error":
+        return <AlertCircle className="mr-1 h-3 w-3" />;
+      default:
+        return null;
+    }
+  };
 
   return (
-    <span className={`inline-flex items-center rounded-full border ${sizeClass} ${getStatusStyles(status)}`}>
+    <Badge 
+      className={`${getStatusStyles(status)} ${size === "large" ? "px-3 py-1.5 text-sm" : "text-xs"}`}
+    >
+      {getStatusIcon(status)}
       {status?.replace(/_/g, " ") || "Unknown"}
-    </span>
+    </Badge>
   );
 }
 
@@ -658,9 +966,11 @@ function OpportunityStatusBadge({ status }: OpportunityStatusBadgeProps) {
     const upper = status?.toUpperCase();
     switch (upper) {
       case "READY":
-        return "bg-success/20 text-success border-success/30";
+        return "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-[hsl(var(--success))] font-semibold";
       case "BOOKED":
-        return "bg-success/30 text-success border-success/40";
+        return "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-[hsl(var(--success))] font-semibold";
+      case "COMPLETE":
+        return "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-[hsl(var(--success))] font-semibold";
       case "REJECTED":
         return "bg-destructive/20 text-destructive border-destructive/30";
       case "PENDING":
@@ -670,28 +980,27 @@ function OpportunityStatusBadge({ status }: OpportunityStatusBadgeProps) {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    const upper = status?.toUpperCase();
+    switch (upper) {
+      case "READY":
+        return <CheckCircle className="mr-1 h-3 w-3" />;
+      case "BOOKED":
+        return <CheckCircle className="mr-1 h-3 w-3" />;
+      case "REJECTED":
+        return <AlertCircle className="mr-1 h-3 w-3" />;
+      case "PENDING":
+        return <Clock className="mr-1 h-3 w-3" />;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusStyles(status)}`}>
+    <Badge className={getStatusStyles(status)}>
+      {getStatusIcon(status)}
       {status || "Unknown"}
-    </span>
+    </Badge>
   );
 }
 
-type SummaryStatCardProps = {
-  label: string;
-  value: number;
-  variant: "primary" | "accent";
-};
-
-function SummaryStatCard({ label, value, variant }: SummaryStatCardProps) {
-  const cardClass = variant === "primary" ? "stat-card-primary" : "stat-card-accent";
-  
-  return (
-    <div className={`${cardClass} p-5`}>
-      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-        {label}
-      </p>
-      <p className="text-3xl font-bold text-foreground mt-1">{value}</p>
-    </div>
-  );
-}

@@ -2,7 +2,7 @@
 
 import { useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useCustomer } from "autumn-js/react";
@@ -23,6 +23,18 @@ export default function MarketingPage() {
 
   // Paywall state
   const [paywallOpen, setPaywallOpen] = useState(false);
+
+  // Prefill form fields from agency profile when it loads
+  useEffect(() => {
+    if (agencyProfile) {
+      if (agencyProfile.targetVertical && !targetVertical) {
+        setTargetVertical(agencyProfile.targetVertical);
+      }
+      if (agencyProfile.targetGeography && !targetGeography) {
+        setTargetGeography(agencyProfile.targetGeography);
+      }
+    }
+  }, [agencyProfile, targetVertical, targetGeography]);
 
   // Query for lead gen jobs
   const leadGenJobs = useQuery(
@@ -146,7 +158,7 @@ export default function MarketingPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">
-                Target Vertical (optional)
+                Target Vertical
               </label>
               <input
                 type="text"
@@ -158,7 +170,7 @@ export default function MarketingPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">
-                Target Geography (optional)
+                Target Geography
               </label>
               <input
                 type="text"
@@ -178,23 +190,8 @@ export default function MarketingPage() {
             >
               {isStartingWorkflow ? "Starting Campaign..." : "Start Lead Generation"}
             </button>
-            {atlasCreditsBalance < 5 && (
-              <button
-                onClick={() => setPaywallOpen(true)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-primary/30 text-primary font-semibold hover:bg-primary/10 transition-colors"
-              >
-                Need More Credits?
-              </button>
-            )}
           </div>
 
-          {atlasCreditsBalance < 5 && (
-            <div className="mt-4 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
-              <p className="text-sm text-destructive font-medium">
-                ⚠️ You have {atlasCreditsBalance} credits remaining. Lead generation typically requires 5+ credits.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Campaign List */}

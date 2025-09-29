@@ -3,6 +3,13 @@
 import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Loader2, AlertCircle, ArrowRight, Sparkles, Info } from "lucide-react";
 
 interface InitialSetupFormProps {
   onStarted: (params: { mode: "manual" | "automated"; agencyProfileId: string; onboardingFlowId?: string }) => void;
@@ -70,140 +77,149 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
   };
 
   return (
-    <div className="max-w-xl mx-auto w-full">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Welcome to Onboarding</h1>
-        <p className="text-sm text-slate-500">
-          Step 1 of {mode === "manual" ? 3 : 4}: Choose how you&apos;d like to set up your AI assistant
+    <div className="max-w-3xl mx-auto w-full">
+      <div className="card-warm-static p-6 md:p-8 mb-6">
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight mb-3">
+          Welcome to Atlas Outbound
+        </h1>
+        <p className="text-base md:text-lg text-muted-foreground">
+          Let&apos;s set up your AI assistant to start generating qualified leads
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Company Name */}
-        <div className="space-y-2">
-          <label htmlFor="companyName" className="block text-sm font-medium">
+        <div className="card-warm-static p-4 sm:p-6">
+          <Label htmlFor="companyName" className="text-sm font-semibold">
             Company Name *
-          </label>
-          <input
+          </Label>
+          <Input
             id="companyName"
             type="text"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
-            className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Acme Corp"
             disabled={loading}
             required
+            className="mt-2"
           />
         </div>
 
         {/* Mode Selection */}
-        <div className="space-y-4">
-          <label className="block text-sm font-medium">
+        <div className="card-warm-static p-4 sm:p-6">
+          <Label className="text-sm font-semibold mb-4 block">
             Setup Mode *
-          </label>
+          </Label>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <RadioGroup value={mode} onValueChange={(value) => setMode(value as "manual" | "automated")} className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {/* Automated Mode */}
-            <div 
-              className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+            <label 
+              htmlFor="automated"
+              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all border-2 ${
                 mode === "automated" 
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
-                  : "border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
+                  ? "border-primary bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] shadow-md" 
+                  : "border-border bg-surface-raised hover:border-ring/40 hover:shadow-sm"
               }`}
-              onClick={() => setMode("automated")}
             >
-              <div className="flex items-center gap-3 mb-2">
-                <input
-                  type="radio"
-                  id="automated"
-                  name="mode"
-                  value="automated"
-                  checked={mode === "automated"}
-                  onChange={(e) => setMode(e.target.value as "automated")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="automated" className="text-sm font-medium cursor-pointer">
-                  🤖 Automated Analysis
-                </label>
+              <div className="flex items-start gap-3">
+                <RadioGroupItem value="automated" id="automated" className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <span className="text-base font-semibold text-foreground">Automated Analysis</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    We&apos;ll analyze your website to automatically generate your business summary, core offer, and claims
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400 ml-7">
-                We&apos;ll analyze your website to automatically generate your business summary, core offer, and claims
-              </p>
-            </div>
+            </label>
 
             {/* Manual Mode */}
-            <div 
-              className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+            <label 
+              htmlFor="manual"
+              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all border-2 ${
                 mode === "manual" 
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
-                  : "border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
+                  ? "border-primary bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] shadow-md" 
+                  : "border-border bg-surface-raised hover:border-ring/40 hover:shadow-sm"
               }`}
-              onClick={() => setMode("manual")}
             >
-              <div className="flex items-center gap-3 mb-2">
-                <input
-                  type="radio"
-                  id="manual"
-                  name="mode"
-                  value="manual"
-                  checked={mode === "manual"}
-                  onChange={(e) => setMode(e.target.value as "manual")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="manual" className="text-sm font-medium cursor-pointer">
-                  ✏️ Manual Setup
-                </label>
+              <div className="flex items-start gap-3">
+                <RadioGroupItem value="manual" id="manual" className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">✏️</span>
+                    <span className="text-base font-semibold text-foreground">Manual Setup</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Skip website analysis and manually enter your business details
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400 ml-7">
-                Skip website analysis and manually enter your business details
-              </p>
-            </div>
-          </div>
+            </label>
+          </RadioGroup>
         </div>
 
         {/* Website URL (only for automated mode) */}
         {mode === "automated" && (
-          <div className="space-y-2">
-            <label htmlFor="sourceUrl" className="block text-sm font-medium">
+          <div className="card-warm-static p-4 sm:p-6">
+            <Label htmlFor="sourceUrl" className="text-sm font-semibold">
               Website URL *
-            </label>
-            <input
+            </Label>
+            <Input
               id="sourceUrl"
               type="url"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
-              className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="https://example.com"
               disabled={loading}
               required={mode === "automated"}
+              className="mt-2"
             />
-            <p className="text-xs text-slate-500">
-              We&apos;ll analyze your website to understand your business and generate personalized content
-            </p>
+            <TooltipProvider>
+              <div className="flex items-start gap-2 mt-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Our AI will crawl your website to extract key information about your business</p>
+                  </TooltipContent>
+                </Tooltip>
+                <p className="text-xs text-muted-foreground">
+                  We&apos;ll analyze your website to understand your business and generate personalized content
+                </p>
+              </div>
+            </TooltipProvider>
           </div>
         )}
 
-        <div className="pt-4">
-          <button
+        <div className="pt-2">
+          <Button
             type="submit"
             disabled={loading || !companyName.trim() || (mode === "automated" && !sourceUrl.trim())}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 disabled:cursor-not-allowed"
+            className="w-full py-6 text-base font-semibold"
+            size="lg"
           >
             {loading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 {mode === "automated" ? "Starting Analysis..." : "Creating Profile..."}
-              </div>
+              </>
             ) : (
-              mode === "automated" ? "Start Analysis" : "Continue to Setup"
+              <>
+                {mode === "automated" ? "Start Analysis" : "Continue to Setup"}
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </>
             )}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

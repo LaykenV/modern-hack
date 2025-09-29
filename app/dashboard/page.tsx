@@ -8,6 +8,11 @@ import { Doc } from "@/convex/_generated/dataModel";
 import Image from "next/image";
 import Link from "next/link";
 import { useCustomer } from "autumn-js/react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Target, Phone, Calendar, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Type for call objects
 type CallRecord = Doc<"calls">;
@@ -54,6 +59,9 @@ function DashboardContent() {
   // Meetings API not available yet, using placeholder
   const upcomingMeetings = [];
 
+  // Show loading state while data is being fetched
+  const isLoading = user === undefined || agencyProfile === undefined || onboardingStatus === undefined;
+
   useEffect(() => {
     // Wait for all data to load before making redirect decisions
     if (!user || agencyProfile === undefined || onboardingStatus === undefined) {
@@ -76,6 +84,10 @@ function DashboardContent() {
   }, 0) ?? 0;
   const inProgressCalls = recentCalls?.filter((call: CallRecord) => call.currentStatus === "in-progress" || call.status === "in-progress")?.length ?? 0;
   const upcomingMeetingsCount = upcomingMeetings?.length ?? 0;
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-8">
@@ -134,47 +146,77 @@ function DashboardContent() {
       {/* Quick Actions */}
       <div className="card-warm-static p-6 md:p-8">
         <h2 className="text-2xl font-bold text-foreground mb-6">Quick Actions</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-          <Link href="/dashboard/marketing" className="action-link">
-            <div className="action-link-icon">
-              <span className="text-2xl sm:text-3xl">🎯</span>
-            </div>
-            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Start Lead Generation</span>
-            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
-              Launch new campaigns
-            </span>
-          </Link>
+        <TooltipProvider>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/dashboard/marketing" className="action-link">
+                  <div className="action-link-icon">
+                    <Target className="h-6 w-6 sm:h-8 sm:w-8" />
+                  </div>
+                  <span className="text-sm sm:text-base font-semibold text-foreground text-center">Start Lead Generation</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
+                    Launch new campaigns
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create and launch new lead generation campaigns</p>
+              </TooltipContent>
+            </Tooltip>
 
-          <Link href="/dashboard/calls" className="action-link">
-            <div className="action-link-icon">
-              <span className="text-2xl sm:text-3xl">📞</span>
-            </div>
-            <span className="text-sm sm:text-base font-semibold text-foreground text-center">View Calls</span>
-            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
-              Monitor call activity
-            </span>
-          </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/dashboard/calls" className="action-link">
+                  <div className="action-link-icon">
+                    <Phone className="h-6 w-6 sm:h-8 sm:w-8" />
+                  </div>
+                  <span className="text-sm sm:text-base font-semibold text-foreground text-center">View Calls</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
+                    Monitor call activity
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Monitor and manage your call activity</p>
+              </TooltipContent>
+            </Tooltip>
 
-          <Link href="/dashboard/meetings" className="action-link">
-            <div className="action-link-icon">
-              <span className="text-2xl sm:text-3xl">📅</span>
-            </div>
-            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Upcoming Meetings</span>
-            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
-              {upcomingMeetingsCount} scheduled
-            </span>
-          </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/dashboard/meetings" className="action-link">
+                  <div className="action-link-icon">
+                    <Calendar className="h-6 w-6 sm:h-8 sm:w-8" />
+                  </div>
+                  <span className="text-sm sm:text-base font-semibold text-foreground text-center">Upcoming Meetings</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
+                    {upcomingMeetingsCount} scheduled
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View and manage your scheduled meetings</p>
+              </TooltipContent>
+            </Tooltip>
 
-          <Link href="/dashboard/agency" className="action-link">
-            <div className="action-link-icon">
-              <span className="text-2xl sm:text-3xl">🏢</span>
-            </div>
-            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Agency Profile</span>
-            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
-              Manage settings
-            </span>
-          </Link>
-        </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/dashboard/agency" className="action-link">
+                  <div className="action-link-icon">
+                    <Building2 className="h-6 w-6 sm:h-8 sm:w-8" />
+                  </div>
+                  <span className="text-sm sm:text-base font-semibold text-foreground text-center">Agency Profile</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
+                    Manage settings
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Update your agency profile and settings</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       {/* Recent Activity */}
@@ -193,37 +235,41 @@ function DashboardContent() {
           {recentLeadGenJobs && recentLeadGenJobs.length > 0 ? (
             <div className="space-y-3">
               {recentLeadGenJobs.slice(0, 3).map((job) => (
-                <div
+                <Link
                   key={job._id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border transition-colors"
+                  href={`/dashboard/marketing/${job._id}`}
+                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border hover:bg-surface-overlay/70 transition-all cursor-pointer"
                 >
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground truncate">
                       {job.campaign.targetVertical} in {job.campaign.targetGeography}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
                       {job.numLeadsFetched}/{job.numLeadsRequested} leads
                     </p>
                   </div>
-                  <div className="text-right ml-4">
+                  <div className="text-right ml-4 flex-shrink-0">
                     <StatusBadge status={job.status} />
                     <p className="text-xs text-muted-foreground mt-2">
                       {new Date(job._creationTime).toLocaleDateString()}
                     </p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No campaigns yet</p>
-              <Link
-                href="/dashboard/marketing"
-                className="btn-contrast inline-flex mt-4"
-              >
-                Start Your First Campaign
-              </Link>
-            </div>
+            <EmptyState
+              icon={Target}
+              title="No campaigns yet"
+              description="Start your first lead generation campaign to see results here"
+              action={
+                <Button asChild className="btn-primary mt-4">
+                  <Link href="/dashboard/marketing">
+                    Start Your First Campaign
+                  </Link>
+                </Button>
+              }
+            />
           )}
         </div>
 
@@ -241,29 +287,32 @@ function DashboardContent() {
           {recentCalls && recentCalls.length > 0 ? (
             <div className="space-y-3">
               {recentCalls.slice(0, 3).map((call: CallRecord) => (
-                <div
+                <Link
                   key={call._id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border transition-colors"
+                  href={`/dashboard/calls/${call._id}`}
+                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border hover:bg-surface-overlay/70 transition-all cursor-pointer"
                 >
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">Call #{call._id.slice(-8)}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground truncate">Call #{call._id.slice(-8)}</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       Duration: {call.duration ? Math.floor(call.duration / 60000) : 0}m
                     </p>
                   </div>
-                  <div className="text-right ml-4">
+                  <div className="text-right ml-4 flex-shrink-0">
                     <StatusBadge status={call.currentStatus || call.status || "unknown"} />
                     <p className="text-xs text-muted-foreground mt-2">
                       {new Date(call._creationTime).toLocaleDateString()}
                     </p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No calls yet</p>
-            </div>
+            <EmptyState
+              icon={Phone}
+              title="No calls yet"
+              description="Your recent calls will appear here once you start making them"
+            />
           )}
         </div>
       </div>
@@ -296,26 +345,129 @@ type StatusBadgeProps = {
 };
 
 function StatusBadge({ status }: StatusBadgeProps) {
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status?.toLowerCase()) {
       case "running":
       case "in-progress":
-        return "bg-accent/60 text-accent-foreground border border-accent-foreground/20";
+        return "default";
       case "completed":
-        return "bg-primary/20 text-primary border border-primary/30";
-      case "paused_for_upgrade":
-        return "bg-muted text-muted-foreground border border-border";
+        return "secondary";
       case "failed":
       case "error":
-        return "bg-destructive/20 text-destructive border border-destructive/30";
+        return "destructive";
       default:
-        return "bg-muted text-muted-foreground border border-border";
+        return "outline";
+    }
+  };
+
+  const getStatusClassName = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "running":
+      case "in-progress":
+        return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
+      case "completed":
+        return "bg-primary/20 text-primary border-primary/30";
+      case "paused_for_upgrade":
+        return "bg-muted text-muted-foreground border-border";
+      case "failed":
+      case "error":
+        return "bg-destructive/20 text-destructive border-destructive/30";
+      default:
+        return "";
     }
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
+    <Badge variant={getStatusVariant(status)} className={getStatusClassName(status)}>
       {status?.replace(/_/g, " ") || "Unknown"}
-    </span>
+    </Badge>
+  );
+}
+
+type EmptyStateProps = {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+};
+
+function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
+  return (
+    <div className="text-center py-12">
+      <Icon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+      <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground mb-6">{description}</p>
+      {action}
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="max-w-6xl mx-auto w-full space-y-8">
+      {/* Hero Section Skeleton */}
+      <div className="card-warm-static p-6 md:p-8">
+        <div className="flex items-center gap-6 mb-8">
+          <Skeleton className="h-[72px] w-[72px] rounded-full" />
+          <div className="flex-1">
+            <Skeleton className="h-10 w-64 mb-2" />
+            <Skeleton className="h-6 w-96" />
+          </div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="stat-card-accent p-4 sm:p-5">
+              <Skeleton className="h-4 w-24 mb-2" />
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Actions Skeleton */}
+      <div className="card-warm-static p-6 md:p-8">
+        <Skeleton className="h-8 w-48 mb-6" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="action-link">
+              <Skeleton className="h-16 w-16 rounded-2xl mb-3" />
+              <Skeleton className="h-5 w-32 mb-2" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Activity Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="card-warm-static p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="space-y-3">
+              {[...Array(3)].map((_, j) => (
+                <div key={j} className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <Skeleton className="h-5 w-48 mb-2" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                    <div className="text-right ml-4">
+                      <Skeleton className="h-6 w-20 mb-2" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
