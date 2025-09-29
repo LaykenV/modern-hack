@@ -15,7 +15,7 @@ type CallRecord = Doc<"calls">;
 
 export default function DashboardPage() {
   return (
-    <main className="p-8 flex flex-col gap-6">
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
       <Unauthenticated>
         <RedirectToHome />
       </Unauthenticated>
@@ -79,110 +79,99 @@ function DashboardContent() {
   const upcomingMeetingsCount = upcomingMeetings?.length ?? 0;
 
   return (
-    <div className="max-w-4xl mx-auto w-full space-y-6">
-      {/* Hero Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard Overview</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Welcome back, {user?.name || user?.email}
-          </p>
+    <div className="max-w-6xl mx-auto w-full space-y-8">
+      {/* Hero Section with Stats */}
+      <div className="card-warm-static p-6 md:p-8">
+        <div className="flex items-center gap-6 mb-8">
+          {user?.image && (
+            <Image
+              src={user.image}
+              alt="User Image"
+              width={72}
+              height={72}
+              className="rounded-full border-2 border-primary/30 shadow-lg"
+              priority
+            />
+          )}
+          <div>
+            <h1 className="text-4xl font-bold text-foreground tracking-tight">
+              Dashboard Overview
+            </h1>
+            <p className="text-muted-foreground mt-2 text-lg">
+              Welcome back, {user?.name || user?.email}
+            </p>
+          </div>
         </div>
-        {user?.image && (
-          <Image
-            src={user.image}
-            alt="User Image"
-            width={64}
-            height={64}
-            className="rounded-full"
-            priority
+
+        {/* Quick Stats Grid - Integrated */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <StatCard
+            title="Atlas Credits"
+            value={atlasCreditsBalance}
+            subtitle="Available balance"
+            variant="primary"
           />
-        )}
-      </div>
-
-      {/* Credit Meter */}
-      <CreditMeter />
-
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Atlas Credits"
-          value={atlasCreditsBalance}
-          subtitle="Available balance"
-          color="blue"
-        />
-        <StatCard
-          title="Active Campaigns"
-          value={activeLeadGenJobs}
-          subtitle="Running lead gen"
-          color="green"
-        />
-        <StatCard
-          title="Ready Opportunities"
-          value={readyOpportunities}
-          subtitle="Leads fetched"
-          color="purple"
-        />
-        <StatCard
-          title="Live Calls"
-          value={inProgressCalls}
-          subtitle="In progress"
-          color="orange"
-        />
+          <StatCard
+            title="Active Campaigns"
+            value={activeLeadGenJobs}
+            subtitle="Running lead gen"
+            variant="accent"
+          />
+          <StatCard
+            title="Ready Opportunities"
+            value={readyOpportunities}
+            subtitle="Leads fetched"
+            variant="accent"
+          />
+          <StatCard
+            title="Live Calls"
+            value={inProgressCalls}
+            subtitle="In progress"
+            variant="accent"
+          />
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
-            href="/dashboard/marketing"
-            className="flex flex-col items-center p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-3">
-              <span className="text-2xl">🎯</span>
+      <div className="card-warm-static p-6 md:p-8">
+        <h2 className="text-2xl font-bold text-foreground mb-6">Quick Actions</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <Link href="/dashboard/marketing" className="action-link">
+            <div className="action-link-icon">
+              <span className="text-2xl sm:text-3xl">🎯</span>
             </div>
-            <span className="font-medium">Start Lead Generation</span>
-            <span className="text-sm text-slate-500 text-center mt-1">
+            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Start Lead Generation</span>
+            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
               Launch new campaigns
             </span>
           </Link>
 
-          <Link
-            href="/dashboard/calls"
-            className="flex flex-col items-center p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-3">
-              <span className="text-2xl">📞</span>
+          <Link href="/dashboard/calls" className="action-link">
+            <div className="action-link-icon">
+              <span className="text-2xl sm:text-3xl">📞</span>
             </div>
-            <span className="font-medium">View Calls</span>
-            <span className="text-sm text-slate-500 text-center mt-1">
+            <span className="text-sm sm:text-base font-semibold text-foreground text-center">View Calls</span>
+            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
               Monitor call activity
             </span>
           </Link>
 
-          <Link
-            href="/dashboard/meetings"
-            className="flex flex-col items-center p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-3">
-              <span className="text-2xl">📅</span>
+          <Link href="/dashboard/meetings" className="action-link">
+            <div className="action-link-icon">
+              <span className="text-2xl sm:text-3xl">📅</span>
             </div>
-            <span className="font-medium">Upcoming Meetings</span>
-            <span className="text-sm text-slate-500 text-center mt-1">
+            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Upcoming Meetings</span>
+            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
               {upcomingMeetingsCount} scheduled
             </span>
           </Link>
 
-          <Link
-            href="/dashboard/agency"
-            className="flex flex-col items-center p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-3">
-              <span className="text-2xl">🏢</span>
+          <Link href="/dashboard/agency" className="action-link">
+            <div className="action-link-icon">
+              <span className="text-2xl sm:text-3xl">🏢</span>
             </div>
-            <span className="font-medium">Agency Profile</span>
-            <span className="text-sm text-slate-500 text-center mt-1">
+            <span className="text-sm sm:text-base font-semibold text-foreground text-center">Agency Profile</span>
+            <span className="text-xs sm:text-sm text-muted-foreground text-center mt-1 sm:mt-2">
               Manage settings
             </span>
           </Link>
@@ -190,16 +179,16 @@ function DashboardContent() {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
         {/* Recent Lead Gen Jobs */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Recent Campaigns</h2>
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-foreground">Recent Campaigns</h2>
             <Link
               href="/dashboard/marketing"
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
             >
-              View all
+              View all →
             </Link>
           </div>
           {recentLeadGenJobs && recentLeadGenJobs.length > 0 ? (
@@ -207,19 +196,19 @@ function DashboardContent() {
               {recentLeadGenJobs.slice(0, 3).map((job) => (
                 <div
                   key={job._id}
-                  className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-lg"
+                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border transition-colors"
                 >
-                  <div>
-                    <p className="font-medium text-sm">
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground">
                       {job.campaign.targetVertical} in {job.campaign.targetGeography}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {job.numLeadsFetched}/{job.numLeadsRequested} leads
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right ml-4">
                     <StatusBadge status={job.status} />
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-2">
                       {new Date(job._creationTime).toLocaleDateString()}
                     </p>
                   </div>
@@ -227,19 +216,27 @@ function DashboardContent() {
               ))}
             </div>
           ) : (
-            <p className="text-slate-500 text-sm">No campaigns yet</p>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No campaigns yet</p>
+              <Link
+                href="/dashboard/marketing"
+                className="btn-contrast inline-flex mt-4"
+              >
+                Start Your First Campaign
+              </Link>
+            </div>
           )}
         </div>
 
         {/* Recent Calls */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Recent Calls</h2>
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-foreground">Recent Calls</h2>
             <Link
               href="/dashboard/calls"
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
             >
-              View all
+              View all →
             </Link>
           </div>
           {recentCalls && recentCalls.length > 0 ? (
@@ -247,17 +244,17 @@ function DashboardContent() {
               {recentCalls.slice(0, 3).map((call: CallRecord) => (
                 <div
                   key={call._id}
-                  className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-lg"
+                  className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border transition-colors"
                 >
-                  <div>
-                    <p className="font-medium text-sm">Call #{call._id.slice(-8)}</p>
-                    <p className="text-xs text-slate-500">
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground">Call #{call._id.slice(-8)}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Duration: {call.duration ? Math.floor(call.duration / 60000) : 0}m
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right ml-4">
                     <StatusBadge status={call.currentStatus || call.status || "unknown"} />
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-2">
                       {new Date(call._creationTime).toLocaleDateString()}
                     </p>
                   </div>
@@ -265,43 +262,13 @@ function DashboardContent() {
               ))}
             </div>
           ) : (
-            <p className="text-slate-500 text-sm">No calls yet</p>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No calls yet</p>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Agency Profile Summary */}
-      {agencyProfile && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Agency Profile</h2>
-            <Link
-              href="/dashboard/agency"
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Edit profile
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Company</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{agencyProfile.companyName}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Geography</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{agencyProfile.targetGeography || "Not set"}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Vertical</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {Array.isArray(agencyProfile.targetVertical) && agencyProfile.targetVertical.length > 0 
-                  ? agencyProfile.targetVertical.join(", ") 
-                  : "Not set"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -310,22 +277,17 @@ type StatCardProps = {
   title: string;
   value: number;
   subtitle: string;
-  color: "blue" | "green" | "purple" | "orange";
+  variant: "primary" | "accent";
 };
 
-function StatCard({ title, value, subtitle, color }: StatCardProps) {
-  const colorClasses = {
-    blue: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
-    green: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-    purple: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
-    orange: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
-  };
+function StatCard({ title, value, subtitle, variant }: StatCardProps) {
+  const cardClass = variant === "primary" ? "stat-card-primary" : "stat-card-accent";
 
   return (
-    <div className={`border rounded-lg p-4 ${colorClasses[color]}`}>
-      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{title}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+    <div className={`${cardClass} p-4 sm:p-5`}>
+      <p className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1 sm:mb-2">{title}</p>
+      <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{value}</p>
+      <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">{subtitle}</p>
     </div>
   );
 }
@@ -339,21 +301,21 @@ function StatusBadge({ status }: StatusBadgeProps) {
     switch (status?.toLowerCase()) {
       case "running":
       case "in-progress":
-        return "bg-green-100 text-green-700";
+        return "bg-accent/60 text-accent-foreground border border-accent-foreground/20";
       case "completed":
-        return "bg-blue-100 text-blue-700";
+        return "bg-primary/20 text-primary border border-primary/30";
       case "paused_for_upgrade":
-        return "bg-orange-100 text-orange-700";
+        return "bg-muted text-muted-foreground border border-border";
       case "failed":
       case "error":
-        return "bg-red-100 text-red-700";
+        return "bg-destructive/20 text-destructive border border-destructive/30";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border border-border";
     }
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${getStatusColor(status)}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
       {status?.replace(/_/g, " ") || "Unknown"}
     </span>
   );

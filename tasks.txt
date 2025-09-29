@@ -108,6 +108,10 @@ email, meetings, combine settings/sub
 
 test all flows with new layout
 
+paywall dialog return url
+percentage on resume
+ai call prompt - if we have email, hang up faster
+
 ui
 
 chef dummy agency and seed func
