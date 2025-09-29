@@ -126,7 +126,7 @@ export default function CallWorkspacePage({ params }: Props) {
     durationMs = call.duration;
   }
 
-  const getStatusBadge = (status: string, isInProgress: boolean) => {
+  const getStatusBadge = (status: string) => {
     const baseClasses = "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold";
     
     if (status === "in-progress") {
@@ -206,7 +206,7 @@ export default function CallWorkspacePage({ params }: Props) {
               </p>
             </div>
             <div className="flex flex-col items-start lg:items-end gap-3">
-              {getStatusBadge(status, isInProgress)}
+              {getStatusBadge(status)}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Duration:</span>
                 <span className="text-lg font-bold text-foreground">{formatDuration(durationMs)}</span>
@@ -331,7 +331,7 @@ export default function CallWorkspacePage({ params }: Props) {
                 <div>
                   <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Status</p>
                   <div className="mt-1">
-                    {getStatusBadge(status, isInProgress)}
+                    {getStatusBadge(status)}
                   </div>
                 </div>
                 <div>
