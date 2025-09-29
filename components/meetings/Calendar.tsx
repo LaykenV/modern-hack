@@ -112,7 +112,8 @@ export default function MeetingsCalendar() {
     return [min, max];
   }, [availabilityRanges, meetingMinutesThisWeek]);
 
-  const rowPx = 20; // 30-minute row height
+  const slotMinutes = 15; // granularity of the grid
+  const rowPx = 16; // pixel height per 15-minute slot
 
   const timeSlots: Array<number> = useMemo(() => {
     const slots: Array<number> = [];
@@ -141,7 +142,7 @@ export default function MeetingsCalendar() {
     return by;
   }, [availabilityRanges]);
 
-  const gridRowCount = Math.max(1, Math.round((maxMinutes - minMinutes) / 30));
+  const gridRowCount = Math.max(1, Math.ceil((maxMinutes - minMinutes) / slotMinutes));
 
   const RangeLabel = (
     <div className="text-slate-600 dark:text-slate-400">
@@ -181,7 +182,7 @@ export default function MeetingsCalendar() {
           ))}
           <div className="border-r border-slate-200 dark:border-slate-800">
             {timeSlots.map((m) => (
-              <div key={m} className="text-xs text-slate-500 flex items-start justify-end pr-2 border-b border-dashed border-slate-200 dark:border-slate-800" style={{ height: `${rowPx * 2}px` }}>
+              <div key={m} className="text-xs text-slate-500 flex items-start justify-end pr-2 border-b border-dashed border-slate-200 dark:border-slate-800" style={{ height: `${rowPx * (60 / slotMinutes)}px` }}>
                 <span className="translate-y-[-0.5rem]">{minutesToLabel(m)}</span>
               </div>
             ))}
@@ -191,6 +192,23 @@ export default function MeetingsCalendar() {
             const avails = availabilityByDay[weekday] || [];
             const dayMeetings = meetingsByDay[weekday] || [];
             const containerHeightPx = Math.max(1, gridRowCount) * rowPx;
+            // Build lane layout for 15-minute slots to avoid overlaps
+            const slotToMeetings: Record<number, Array<MeetingDoc>> = {};
+            for (const m of dayMeetings) {
+              const dt = DateTime.fromMillis(m.meetingTime, { zone: tz });
+              const minutes = dt.hour * 60 + dt.minute;
+              const slotIndex = Math.floor((minutes - minMinutes) / slotMinutes);
+              (slotToMeetings[slotIndex] = slotToMeetings[slotIndex] || []).push(m);
+            }
+            const laneIndexById: Record<string, number> = {};
+            const laneCountBySlot: Record<number, number> = {};
+            for (const [slotKey, arr] of Object.entries(slotToMeetings)) {
+              const idx = Number(slotKey);
+              laneCountBySlot[idx] = arr.length;
+              arr.forEach((m, i) => {
+                laneIndexById[m._id] = i;
+              });
+            }
             return (
               <div key={d.toISODate()} className="relative border-l border-slate-100 dark:border-slate-800" style={{ height: `${containerHeightPx}px` }}>
                 <div className="grid" style={{ gridTemplateRows: `repeat(${gridRowCount}, ${rowPx}px)`, height: `${containerHeightPx}px` }}>
@@ -208,13 +226,18 @@ export default function MeetingsCalendar() {
                 {dayMeetings.map((m) => {
                   const dt = DateTime.fromMillis(m.meetingTime, { zone: tz });
                   const minutes = dt.hour * 60 + dt.minute;
-                  const topPx = ((minutes - minMinutes) / (maxMinutes - minMinutes)) * containerHeightPx;
-                  const defaultDuration = 30; // minutes
-                  const heightPx = Math.max(12, (defaultDuration / (maxMinutes - minMinutes)) * containerHeightPx);
+                  const slotIndex = Math.floor((minutes - minMinutes) / slotMinutes);
+                  const topPx = slotIndex * rowPx;
+                  const heightPx = Math.max(14, rowPx);
+                  const laneCount = laneCountBySlot[slotIndex] || 1;
+                  const laneIndex = laneIndexById[m._id] ?? 0;
+                  const widthPercent = 100 / laneCount;
+                  const leftPercent = widthPercent * laneIndex;
+                  const left = `calc(${leftPercent}% + 3px)`;
+                  const width = `calc(${widthPercent}% - 6px)`;
                   return (
-                    <div key={m._id} className="absolute left-1 right-1 rounded-md bg-purple-200 dark:bg-purple-700 text-purple-900 dark:text-white text-xs p-2 shadow" style={{ top: `${topPx}px`, height: `${heightPx}px` }} title={dt.toFormat("fff")}>
-                      <div className="font-semibold">{dt.toFormat("h:mm a")}</div>
-                      <div className="opacity-80">{m.source || "meeting"}{m.callId ? ` • Call #${m.callId.slice(-6)}` : ""}</div>
+                    <div key={m._id} className="absolute rounded-md bg-purple-200 dark:bg-purple-700 text-purple-900 dark:text-white text-[11px] px-2 py-0.5 shadow overflow-hidden" style={{ top: `${topPx}px`, height: `${heightPx}px`, left, width }} title={`${dt.toFormat("fff")} — ${(m.source || "meeting")}${m.callId ? ` • Call #${m.callId.slice(-6)}` : ""}`}>
+                      <div className="truncate leading-tight">{dt.toFormat("h:mm a")} — {(m.source || "meeting")}{m.callId ? ` • ${m.callId.slice(-6)}` : ""}</div>
                     </div>
                   );
                 })}
