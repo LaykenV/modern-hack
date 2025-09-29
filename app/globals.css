@@ -19,6 +19,8 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-sm: calc(var(--radius) - 4px);
@@ -45,6 +47,8 @@
   --muted: 30 35% 86%;
   --muted-foreground: 22 25% 32%;
   --destructive: 0 82% 50%;
+  --success: 150 60% 32%;
+  --success-foreground: 0 0% 100%;
   /* Sidebar tokens */
   --sidebar: 30 38% 95%;
   --sidebar-foreground: 20 30% 6%;
@@ -86,6 +90,8 @@
   --muted: 20 15% 18%;
   --muted-foreground: 25 10% 72%;
   --destructive: 0 84% 64%;
+  --success: 150 50% 70%;
+  --success-foreground: 150 60% 10%;
   /* Sidebar tokens */
   --sidebar: 20 14% 12%;
   --sidebar-foreground: 30 10% 96%;

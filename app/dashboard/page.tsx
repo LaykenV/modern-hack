@@ -6,7 +6,6 @@ import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 import Image from "next/image";
-import { CreditMeter } from "@/components/CreditMeter";
 import Link from "next/link";
 import { useCustomer } from "autumn-js/react";
 
