@@ -415,6 +415,19 @@ export const getCallsByOpportunity = query({
   },
 });
 
+export const getCallsByAgency = query({
+  args: { agencyId: v.id("agency_profile") },
+  returns: v.array(v.any()),
+  handler: async (ctx, { agencyId }) => {
+    const rows = await ctx.db
+      .query("calls")
+      .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
+      .order("desc")
+      .collect();
+    return rows;
+  },
+});
+
 // Update booking analysis results (Phase 3)
 export const updateBookingAnalysis = internalMutation({
   args: {

@@ -3,6 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
 import {
   Sidebar,
   SidebarContent,
@@ -26,6 +29,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const testMeter = useAction(api.testMeter.testLeadDiscoveryMeter);
 
   const navItems = [
     { label: "Overview", href: "/dashboard" },
@@ -68,7 +72,34 @@ export default function DashboardLayout({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter />
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={async () => {
+                  try {
+                    const res = await testMeter({});
+                    alert(res.message);
+                  } catch (err) {
+                    console.error("Test meter failed", err);
+                    alert("Test metering failed. Check console for details.");
+                  }
+                }}
+              >
+                Test Autumn Meter
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={async () => {
+                  await authClient.signOut();
+                }}
+              >
+                Sign out
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
       <SidebarInset>

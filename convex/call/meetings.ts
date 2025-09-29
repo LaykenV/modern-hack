@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery } from "../_generated/server";
+import { internalMutation, internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { DateTime } from "luxon";
@@ -163,5 +163,18 @@ export const getMeetingById = internalQuery({
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, { meetingId }) => {
     return await ctx.db.get(meetingId);
+  },
+});
+
+export const listByAgency = query({
+  args: { agencyId: v.id("agency_profile") },
+  returns: v.array(v.any()),
+  handler: async (ctx, { agencyId }) => {
+    const rows = await ctx.db
+      .query("meetings")
+      .withIndex("by_agency_and_time", (q) => q.eq("agencyId", agencyId))
+      .order("asc")
+      .collect();
+    return rows;
   },
 });

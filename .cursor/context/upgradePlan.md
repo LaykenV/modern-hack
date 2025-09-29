@@ -1,60 +1,51 @@
-## Email & ICS Follow-up Upgrade Plan
+## Dashboard Refactor Plan
 
-### Context & Goals
-- Prospect confirmation emails already send successfully via the Resend Convex component; we are extending follow-up coverage and reliability.
-- New requirement: send a second email to the agency owner that includes a 15-minute ICS invite plus call summary.
-- All agency owners authenticate through Google OAuth, so the summary email must reach their Google-linked address.
-- Persist every outbound email in Convex with lifecycle tracking (`queued`, `sent`, `failed`) and capture errors for observability.
-- Keep implementation aligned with official Convex Resend component guidance (queueing, durable retries, optional webhooks).
+- **Layout & Sidebar**
+  - Move the `Sign out` button from the overview page into `app/dashboard/layout.tsx`, positioning it at the bottom of the sidebar below the nav items. Keep the `Test Autumn Meter` button in the overview since it is a global utility.
+  - Confirm the layout still renders shared modals or providers needed by all routes.
 
-### Schema & Data Modeling
-- Extend `emails` table (`convex/schema.ts`) with:
-  - `from`, `to`, `bcc`, `type` (`prospect_confirmation`, `agency_summary`), `status` (`queued` | `sent` | `failed`), `storageRef` (optional `Id<"_storage">` for attachments), `error` (optional string for failure details).
-  - Retain existing `subject`, `html`, `sent_at`, and `opportunityId`; consider `agencyId` for dashboard queries.
-  - Add indexes supporting lookups by `opportunityId` and `agencyId` if not already present.
-- Create a helper mutation that inserts new email records with status `queued` so all send paths share a consistent entry point.
+- **Authentication Shell**
+  - Let `app/dashboard/page.tsx` handle only Convex auth gating, onboarding redirects, and delegating to child pages. Retain `Unauthenticated` → `/` redirect and the onboarding completion check before rendering the overview.
 
-### Email Lifecycle with Resend Component
-- Continue using `new Resend(components.resend, { testMode: false })` from `@convex-dev/resend` to leverage queueing, batching, durable execution, and retries.
-- Before calling `resend.sendEmail`, insert the email document with status `queued`; retain both the document `_id` and the component-returned `EmailId`.
-- On successful send, patch the document to status `sent`, set `sent_at`, and optionally store the `EmailId` for future reconciliation (`resend.status`, webhook events).
-- On error, capture message/stack in `error`, mark status `failed`, and consider scheduling retry logic via `ctx.scheduler.runAfter`.
+- **Overview (`app/dashboard/page.tsx`)**
+  - Replace the current monolithic content with an overview focused on quick stats and navigation: user profile snapshot, credit meter, high-level lead generation summary, and links into Marketing, Calls, Meetings, etc.
+  - Remove all lead-gen forms, job detail panels, and Seller Brain sections from this page.
 
+- **Agency (`app/dashboard/agency/page.tsx`)**
+  - Relocate the Seller Brain / agency profile block here. Fetch `api.agencyProfile.getForCurrentUser` and render company info, targeting, guardrails, approved claims, etc. in read-only form for now.
 
-### Prospect Email (Existing Flow)
-- Preserve current template and sending logic; refactor shared utilities (formatting helpers, logging) so both emails reuse the same pieces.
-- Ensure the existing flow now writes to the `emails` table (queued → sent/failed) for traceability.
+- **Marketing Index (`app/dashboard/marketing/page.tsx`)**
+  - Build the campaign hub by moving the “Start Lead Generation” form and recent job list here.
+  - Fetch `api.marketing.listLeadGenJobsByAgency`, `api.marketing.getLeadGenFlowCounts`, and any other aggregate data needed for quick stats once the agency ID is available.
+  - After `startLeadGenWorkflow` completes, `router.push` to `/dashboard/marketing/[jobId]` instead of managing `currentJobId` state.
+  - Manage paywall dialog state here only if it is global to all jobs; otherwise, keep it scoped to the detail page.
 
-### New Agency Summary Email
-- Gather required context in `sendFollowUp.ts`: `meeting`, `call`, `agency`, `opportunity`.
-- Template highlights:
-  - Meeting time in agency timezone, prospect contact info, `call.summary`, duration from `call.billingSeconds`
-  - BCC the agency’s Google OAuth email (from `agencyProfile` or auth mapping) and use a consistent sender (`Atlas Outbound <notifications@...>`).
-  - Attach the generated ICS invite (15-minute duration) so the agency calendar is blocked automatically.
+- **Marketing Detail (`app/dashboard/marketing/[flowId]/page.tsx`)**
+  - Port the job-specific UI: workflow phases, overall progress, billing block banner/paywall dialog, counts summary, places snapshot, opportunity list, dossier preview, scraped sources, etc.
+  - Remove the live call panel and transcript from this page. When a call is available or started, provide navigation to `/dashboard/calls/[callId]`.
+  - Maintain state and queries scoped to the flow (expanded opportunity, view sources, dossier loading) using the URL param for the flow ID.
 
-### ICS Generation & Handling
-- Use the `ics` package (`import { createEvent } from "ics"`) as referenced in `/adamgibbons/ics` docs.
-- Event payload specifics:
-  - Start time: `meeting.meetingTime` converted to agency timezone.
-  - Duration: fixed 15 minutes (per requirement).
-  - Organizer/attendees: agency owner as attendee; include prospect contact in description.
-  - Description: call summary, dial-in details, and prospect phone.
-- Attachment strategy options:
-  - Direct attachment via Resend API (base64-encoded `.ics` content) for simplicity.
-  - Or store ICS string in Convex storage (`ctx.storage.store`) and reference `storageRef` so HTML can link/download.
+- **Calls Index (`app/dashboard/calls/page.tsx`)**
+  - Ensure this route provides a summary/table of recent calls or, minimally, a placeholder pointing to individual call workspaces.
+  - Optionally reuse shared call summary components extracted from the old dashboard content.
 
-### Error Handling & Observability
-- Wrap ICS generation and Resend send operations in try/catch; log failures with `[Follow-up]` prefix per current style.
-- If ICS generation fails, fall back to sending the email without attachment and record the issue in the email document.
-- Ensure structured logs include meeting ID, agency, prospect, time, and email statuses for easier troubleshooting.
+- **Call Workspace (`app/dashboard/calls/[callId]/page.tsx`)**
+  - Relocate the live call experience (status badge, timer, credit usage, transcript stream, listen modal, summary) from the old dashboard to this route.
+  - Fetch call data via existing Convex queries (e.g., `api.call.calls.getCallById` or equivalent) and manage polling/subscriptions as currently done within the dashboard page.
+  - Keep the Live Listen modal and transcript auto-scroll effects here. Ensure the paywall or credit messaging appears here only if directly related to call continuation.
+  - Link back to the originating opportunity and marketing flow for context.
 
-### Testing & Verification
-- Manual verification:
-  - Prospect and agency emails delivered.
-  - ICS file imports cleanly into Google Calendar & Outlook.
-  - Database entries reflect lifecycle states and capture any errors.
+- **Shared Components / Hooks**
+  - Extract reusable UI pieces (phase list, opportunity card shell, dossier section, transcript view, etc.) into `app/dashboard/(shared)/` or `app/dashboard/marketing/components/` so that marketing detail and calls pages stay focused.
+  - Isolate utilities such as `formatDuration`, paywall state management, and `useAtlasCredits` into shared helpers.
 
-### Follow-up Enhancements (Future)
-- Integrate Resend webhook to handle delivery, bounce, and complaint events in real time via `handleResendEventWebhook` and `onEmailEvent`.
-- Add automated retries for `failed` emails and dashboards/alerts that surface delivery issues using the persisted status records.
-- Explore React Email or shared template components if design requirements increase without sacrificing the simple Node-based flow.
+- **Data & Naming Alignment**
+  - Replace lingering `sellerBrain` references with `agencyProfile` terminology across new pages.
+  - Ensure each route only imports the Convex queries/actions it uses, eliminating the broad import list from the original dashboard file.
+
+- **Testing & Verification**
+  - Manual path checks: `/dashboard` (overview), `/dashboard/agency`, `/dashboard/marketing`, `/dashboard/marketing/[flowId]`, `/dashboard/calls`, `/dashboard/calls/[callId]`.
+  - Start a lead generation run from the marketing index and confirm redirect to the detail page with correct data loading.
+  - From an opportunity, start a call and verify navigation to the call workspace, transcript updates, and live listen functionality.
+  - Confirm the paywall dialog still appears when workflows pause for upgrades and that the sign-out button works from the sidebar.
+

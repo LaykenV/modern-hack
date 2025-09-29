@@ -420,6 +420,89 @@ export const getLeadGenProgress = query({
 });
 
 /**
+ * Get a single opportunity by ID for dashboard views
+ */
+export const getOpportunityById = query({
+  args: {
+    opportunityId: v.id("client_opportunities"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("client_opportunities"),
+      _creationTime: v.number(),
+      agencyId: v.id("agency_profile"),
+      leadGenFlowId: v.optional(v.id("lead_gen_flow")),
+      name: v.string(),
+      domain: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      email: v.optional(v.string()),
+      place_id: v.string(),
+      address: v.optional(v.string()),
+      city: v.optional(v.string()),
+      rating: v.optional(v.number()),
+      reviews_count: v.optional(v.number()),
+      status: v.string(),
+      qualificationScore: v.number(),
+      signals: v.array(v.string()),
+      fit_reason: v.optional(v.string()),
+      targetVertical: v.string(),
+      targetGeography: v.string(),
+      source: v.string(),
+      meeting_time: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    const opportunity = await ctx.db.get(args.opportunityId);
+    if (!opportunity) {
+      return null;
+    }
+
+    const agencyProfile = await ctx.db.get(opportunity.agencyId);
+    const ownsViaAgency = Boolean(agencyProfile && agencyProfile.userId === user._id);
+
+    let ownsViaFlow = false;
+    if (!ownsViaAgency && opportunity.leadGenFlowId) {
+      const leadGenFlow = await ctx.db.get(opportunity.leadGenFlowId);
+      ownsViaFlow = Boolean(leadGenFlow && leadGenFlow.userId === user._id);
+    }
+
+    if (!ownsViaAgency && !ownsViaFlow) {
+      throw new Error("Unauthorized access to opportunity");
+    }
+
+    return {
+      _id: opportunity._id,
+      _creationTime: opportunity._creationTime,
+      agencyId: opportunity.agencyId,
+      leadGenFlowId: opportunity.leadGenFlowId,
+      name: opportunity.name,
+      domain: opportunity.domain,
+      phone: opportunity.phone,
+      email: opportunity.email,
+      place_id: opportunity.place_id,
+      address: opportunity.address,
+      city: opportunity.city,
+      rating: opportunity.rating,
+      reviews_count: opportunity.reviews_count,
+      status: opportunity.status,
+      qualificationScore: opportunity.qualificationScore,
+      signals: opportunity.signals,
+      fit_reason: opportunity.fit_reason,
+      targetVertical: opportunity.targetVertical,
+      targetGeography: opportunity.targetGeography,
+      source: opportunity.source,
+      meeting_time: opportunity.meeting_time,
+    };
+  },
+});
+
+/**
  * List client opportunities for a lead generation flow
  */
 export const listClientOpportunitiesByFlow = query({
