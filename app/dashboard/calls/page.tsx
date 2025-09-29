@@ -61,184 +61,214 @@ export default function CallsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Calls</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Monitor and review your call activity
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-500">Total Calls</p>
-          <p className="text-2xl font-bold">{callStats.total}</p>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Live Calls</p>
-          <p className="text-2xl font-bold text-green-600">{callStats.inProgress}</p>
-        </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Completed</p>
-          <p className="text-2xl font-bold text-blue-600">{callStats.completed}</p>
-        </div>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Failed</p>
-          <p className="text-2xl font-bold text-red-600">{callStats.failed}</p>
-        </div>
-        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Meetings Booked</p>
-          <p className="text-2xl font-bold text-purple-600">{meetings?.length ?? 0}</p>
-        </div>
-      </div>
-
-      {/* Live Calls Banner */}
-      {callStats.inProgress > 0 && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Hero Section with Stats */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <div>
-              <p className="font-medium text-green-800 dark:text-green-200">
-                🔴 {callStats.inProgress} Live Call{callStats.inProgress > 1 ? 's' : ''} in Progress
+              <h1 className="text-4xl font-bold text-foreground tracking-tight">
+                Calls
+              </h1>
+              <p className="text-muted-foreground mt-2 text-lg">
+                Monitor and review your call activity
               </p>
-              <p className="text-sm text-green-700 dark:text-green-300">
-                Click on any in-progress call to access the live workspace
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Total Calls</p>
+              <p className="text-3xl font-bold text-foreground mt-1">{callStats.total}</p>
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            <div className="stat-card-primary p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Live Calls
               </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{callStats.inProgress}</p>
+              <div className="flex items-center gap-2 mt-2">
+                {callStats.inProgress > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-primary font-semibold">
+                    <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                    Active
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Completed
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{callStats.completed}</p>
+              <p className="text-sm text-muted-foreground mt-2">Successfully finished</p>
+            </div>
+            
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Failed
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{callStats.failed}</p>
+              <p className="text-sm text-muted-foreground mt-2">No answer or busy</p>
+            </div>
+            
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Meetings Booked
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{meetings?.length ?? 0}</p>
+              <p className="text-sm text-muted-foreground mt-2">Scheduled follow-ups</p>
             </div>
           </div>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calls List */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-lg font-semibold">Recent Calls</h2>
+        {/* Live Calls Banner */}
+        {callStats.inProgress > 0 && (
+          <div className="card-warm-accent p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="font-semibold text-foreground flex items-center gap-2">
+                  <span className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+                  {callStats.inProgress} Live Call{callStats.inProgress > 1 ? 's' : ''} in Progress
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Click on any in-progress call to access the live workspace
+                </p>
+              </div>
             </div>
+          </div>
+        )}
 
-            <div className="divide-y divide-slate-200 dark:divide-slate-800 max-h-96 overflow-y-auto">
-              {sortedCalls.length > 0 ? (
-                sortedCalls.map((call) => (
-                  <div
-                    key={call._id}
-                    className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${
-                      selectedCallId === call._id ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                    }`}
-                    onClick={() => setSelectedCallId(call._id)}
-                  >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <p className="font-medium">Call #{call._id.slice(-8)}</p>
-                        <CallStatusBadge status={call.currentStatus || call.status} />
-                        {(call.currentStatus || call.status) === "in-progress" && (
-                          <Link
-                            href={`/dashboard/calls/${call._id}`}
-                            className="text-xs bg-green-600 text-white px-2 py-1 rounded-full hover:bg-green-700"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Live →
-                          </Link>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                        <span>
-                          Duration: {formatDuration(call.billingSeconds ? call.billingSeconds * 1000 : call.duration)}
-                        </span>
-                        <span>
-                          {new Date(call._creationTime ?? 0).toLocaleString()}
-                        </span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          {/* Calls List */}
+          <div className="lg:col-span-2">
+            <div className="card-warm-static">
+              <div className="px-6 py-4 border-b border-border/40">
+                <h2 className="text-2xl font-bold text-foreground">Recent Calls</h2>
+              </div>
+
+              <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto">
+                {sortedCalls.length > 0 ? (
+                  sortedCalls.map((call) => (
+                    <div
+                      key={call._id}
+                      className={`p-4 hover:bg-accent/30 cursor-pointer transition-colors ${
+                        selectedCallId === call._id ? "bg-primary/10 border-l-4 border-l-primary" : ""
+                      }`}
+                      onClick={() => setSelectedCallId(call._id)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <p className="font-semibold text-foreground">Call #{call._id.slice(-8)}</p>
+                            <CallStatusBadge status={call.currentStatus || call.status} />
+                            {(call.currentStatus || call.status) === "in-progress" && (
+                              <Link
+                                href={`/dashboard/calls/${call._id}`}
+                                className="text-xs bg-primary text-primary-foreground px-2.5 py-1 rounded-full hover:bg-primary/90 transition-colors font-semibold"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Live →
+                              </Link>
+                            )}
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
+                            <span className="font-medium">
+                              Duration: {formatDuration(call.billingSeconds ? call.billingSeconds * 1000 : call.duration)}
+                            </span>
+                            <span className="hidden sm:inline text-border">•</span>
+                            <span>
+                              {new Date(call._creationTime ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="p-8 md:p-12 text-center">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-accent/40">
+                      <span className="text-3xl">📞</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No calls found</h3>
+                    <p className="text-muted-foreground">
+                      No calls have been made yet.
+                    </p>
                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Call Details Panel */}
+          <div className="lg:col-span-1">
+            <div className="card-warm-static p-6">
+              {selectedCall ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-foreground">Call Details</h3>
+                    <CallStatusBadge status={selectedCall.currentStatus || selectedCall.status} />
                   </div>
-                ))
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Call ID</p>
+                      <p className="text-foreground font-medium">#{selectedCall._id.slice(-8)}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
+                      <p className="text-foreground font-medium">
+                        {formatDuration(selectedCall.billingSeconds ? selectedCall.billingSeconds * 1000 : selectedCall.duration)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Started</p>
+                      <p className="text-foreground font-medium">
+                        {new Date(selectedCall._creationTime).toLocaleString()}
+                      </p>
+                    </div>
+
+                    {selectedCall.summary && (
+                      <div>
+                        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
+                        <div className="p-4 bg-surface-muted/50 border border-border/40 rounded-lg">
+                          <p className="text-foreground text-sm whitespace-pre-wrap leading-relaxed">
+                            {selectedCall.summary}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(selectedCall.currentStatus || selectedCall.status) === "in-progress" && (
+                      <div className="pt-4 border-t border-border/40">
+                        <Link
+                          href={`/dashboard/calls/${selectedCall._id}`}
+                          className="btn-contrast w-full justify-center"
+                        >
+                          Open Live Workspace →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
               ) : (
-                <div className="p-8 text-center">
-                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">📞</span>
+                <div className="text-center py-12">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 bg-accent/40">
+                    <span className="text-2xl">👆</span>
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">No calls found</h3>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    No calls have been made yet.
+                  <p className="text-muted-foreground text-sm">
+                    Select a call to view details
                   </p>
                 </div>
               )}
             </div>
           </div>
         </div>
-
-        {/* Call Details Panel */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-            {selectedCall ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Call Details</h3>
-                  <CallStatusBadge status={selectedCall.currentStatus || selectedCall.status} />
-                </div>
-
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Call ID</p>
-                    <p className="text-slate-600 dark:text-slate-400">#{selectedCall._id.slice(-8)}</p>
-                  </div>
-
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Duration</p>
-                    <p className="text-slate-600 dark:text-slate-400">
-                      {formatDuration(selectedCall.billingSeconds ? selectedCall.billingSeconds * 1000 : selectedCall.duration)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Started</p>
-                    <p className="text-slate-600 dark:text-slate-400">
-                      {new Date(selectedCall._creationTime).toLocaleString()}
-                    </p>
-                  </div>
-
-                  {selectedCall.summary && (
-                    <div>
-                      <p className="font-medium text-slate-700 dark:text-slate-300">Summary</p>
-                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-md mt-1">
-                        <p className="text-slate-600 dark:text-slate-300 text-sm whitespace-pre-wrap">
-                          {selectedCall.summary}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {(selectedCall.currentStatus || selectedCall.status) === "in-progress" && (
-                    <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-                      <Link
-                        href={`/dashboard/calls/${selectedCall._id}`}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-center block"
-                      >
-                        Open Live Workspace
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-xl">👆</span>
-                </div>
-                <p className="text-slate-500 text-sm">
-                  Select a call to view details
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -250,24 +280,24 @@ function CallStatusBadge({ status }: CallStatusBadgeProps) {
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "in-progress":
-        return "bg-green-100 text-green-700 animate-pulse";
+        return "bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold";
       case "completed":
-        return "bg-blue-100 text-blue-700";
+        return "bg-accent/60 text-accent-foreground border border-accent-foreground/20 font-semibold";
       case "ringing":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-primary/30 text-primary border border-primary/40 font-semibold";
       case "queued":
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border border-border font-medium";
       case "failed":
       case "no-answer":
       case "busy":
-        return "bg-red-100 text-red-700";
+        return "bg-destructive/20 text-destructive border border-destructive/30 font-semibold";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border border-border font-medium";
     }
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${getStatusColor(status)}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${getStatusColor(status)}`}>
       {status?.replace(/_/g, " ") || "Unknown"}
     </span>
   );

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { DateTime } from "luxon";
 import { api } from "@/convex/_generated/api";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 // Minimal doc shape for display purposes
 export type MeetingDoc = {
@@ -67,10 +66,8 @@ function minutesToLabel(minutes: number): string {
 }
 
 export default function MeetingsCalendar() {
-  const isMobile = useIsMobile();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [view, setView] = useState<"week" | "agenda">(isMobile ? "agenda" : "week");
 
   const meetings = useQuery(
     api.call.meetings.listByAgency,
@@ -82,44 +79,23 @@ export default function MeetingsCalendar() {
 
   const nowTz = DateTime.now().setZone(tz);
   const baseWeekStart = getWeekStart(nowTz).plus({ weeks: weekOffset });
-  const weekDays: Array<DateTime> = useMemo(() => {
+
+  // Get all 7 days of the week
+  const allWeekDays: Array<DateTime> = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => baseWeekStart.plus({ days: i }));
   }, [baseWeekStart]);
 
-  // Compute visible window
-  const meetingMinutesThisWeek: Array<number> = useMemo(() => {
-    if (!meetings) return [];
-    const start = baseWeekStart.startOf("day").toMillis();
-    const end = baseWeekStart.plus({ days: 7 }).endOf("day").toMillis();
-    return meetings
-      .map((m) => DateTime.fromMillis(m.meetingTime, { zone: tz }))
-      .filter((dt) => dt.toMillis() >= start && dt.toMillis() <= end)
-      .map((dt) => dt.hour * 60 + dt.minute);
-  }, [meetings, baseWeekStart, tz]);
+  // Get unique days that have availability
+  const daysWithAvailability = useMemo(() => {
+    const uniqueDays = new Set(availabilityRanges.map(r => r.day));
+    return Array.from(uniqueDays).sort((a, b) => a - b);
+  }, [availabilityRanges]);
 
-  const [minMinutes, maxMinutes] = useMemo(() => {
-    const mins: Array<number> = [];
-    for (const r of availabilityRanges) mins.push(r.startMinutes, r.endMinutes);
-    mins.push(...meetingMinutesThisWeek);
-    if (mins.length === 0) return [8 * 60, 18 * 60];
-    let min = Math.min(...mins);
-    let max = Math.max(...mins);
-    min = Math.max(0, min - 60);
-    max = Math.min(24 * 60, max + 60);
-    min = Math.floor(min / 60) * 60;
-    max = Math.ceil(max / 60) * 60;
-    if (max <= min) max = min + 60;
-    return [min, max];
-  }, [availabilityRanges, meetingMinutesThisWeek]);
-
-  const slotMinutes = 15; // granularity of the grid
-  const rowPx = 16; // pixel height per 15-minute slot
-
-  const timeSlots: Array<number> = useMemo(() => {
-    const slots: Array<number> = [];
-    for (let m = minMinutes; m <= maxMinutes; m += 60) slots.push(m);
-    return slots;
-  }, [minMinutes, maxMinutes]);
+  // Filter to only show days with availability
+  const visibleDays: Array<DateTime> = useMemo(() => {
+    if (daysWithAvailability.length === 0) return allWeekDays; // Show all if no availability set
+    return allWeekDays.filter(day => daysWithAvailability.includes(day.weekday));
+  }, [allWeekDays, daysWithAvailability]);
 
   const meetingsByDay: Record<number, Array<MeetingDoc>> = useMemo(() => {
     const map: Record<number, Array<MeetingDoc>> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
@@ -142,180 +118,214 @@ export default function MeetingsCalendar() {
     return by;
   }, [availabilityRanges]);
 
-  const gridRowCount = Math.max(1, Math.ceil((maxMinutes - minMinutes) / slotMinutes));
+  const totalMeetings = useMemo(() => {
+    return visibleDays.reduce((sum, day) => {
+      return sum + (meetingsByDay[day.weekday]?.length || 0);
+    }, 0);
+  }, [visibleDays, meetingsByDay]);
 
-  const RangeLabel = (
-    <div className="text-slate-600 dark:text-slate-400">
-      {baseWeekStart.toFormat("MMM d")} – {baseWeekStart.plus({ days: 6 }).toFormat("MMM d, yyyy")}
-    </div>
-  );
-
-  const AvailabilityLegend = (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300" /> Availability</span>
-      <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200" /> Meeting</span>
-      {Array.isArray(agencyProfile?.availability) && agencyProfile?.availability?.length > 0 && (
-        <div className="ml-2 flex flex-wrap gap-2">
-          {agencyProfile!.availability!.map((a, i) => (
-            <span key={i} className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              {a}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  function WeekView() {
-    return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          {RangeLabel}
-          {AvailabilityLegend}
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: "80px repeat(7, 1fr)" }}>
-          <div className="border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50" />
-          {weekDays.map((d) => (
-            <div key={d.toISODate()} className="px-3 py-2 text-sm font-medium border-b border-slate-200 dark:border-slate-800">
-              {d.toFormat("ccc d")}
-            </div>
-          ))}
-          <div className="border-r border-slate-200 dark:border-slate-800">
-            {timeSlots.map((m) => (
-              <div key={m} className="text-xs text-slate-500 flex items-start justify-end pr-2 border-b border-dashed border-slate-200 dark:border-slate-800" style={{ height: `${rowPx * (60 / slotMinutes)}px` }}>
-                <span className="translate-y-[-0.5rem]">{minutesToLabel(m)}</span>
-              </div>
-            ))}
-          </div>
-          {weekDays.map((d) => {
-            const weekday = d.weekday as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-            const avails = availabilityByDay[weekday] || [];
-            const dayMeetings = meetingsByDay[weekday] || [];
-            const containerHeightPx = Math.max(1, gridRowCount) * rowPx;
-            // Build lane layout for 15-minute slots to avoid overlaps
-            const slotToMeetings: Record<number, Array<MeetingDoc>> = {};
-            for (const m of dayMeetings) {
-              const dt = DateTime.fromMillis(m.meetingTime, { zone: tz });
-              const minutes = dt.hour * 60 + dt.minute;
-              const slotIndex = Math.floor((minutes - minMinutes) / slotMinutes);
-              (slotToMeetings[slotIndex] = slotToMeetings[slotIndex] || []).push(m);
-            }
-            const laneIndexById: Record<string, number> = {};
-            const laneCountBySlot: Record<number, number> = {};
-            for (const [slotKey, arr] of Object.entries(slotToMeetings)) {
-              const idx = Number(slotKey);
-              laneCountBySlot[idx] = arr.length;
-              arr.forEach((m, i) => {
-                laneIndexById[m._id] = i;
-              });
-            }
-            return (
-              <div key={d.toISODate()} className="relative border-l border-slate-100 dark:border-slate-800" style={{ height: `${containerHeightPx}px` }}>
-                <div className="grid" style={{ gridTemplateRows: `repeat(${gridRowCount}, ${rowPx}px)`, height: `${containerHeightPx}px` }}>
-                  {Array.from({ length: gridRowCount }).map((_, idx) => (
-                    <div key={idx} className="border-b border-dashed border-slate-200 dark:border-slate-800" />
-                  ))}
-                </div>
-                {avails.map((r, i) => {
-                  const top = ((r.startMinutes - minMinutes) / (maxMinutes - minMinutes)) * containerHeightPx;
-                  const height = ((r.endMinutes - r.startMinutes) / (maxMinutes - minMinutes)) * containerHeightPx;
-                  return (
-                    <div key={i} className="absolute left-0 right-0 bg-green-100/60 dark:bg-green-900/30" style={{ top: `${top}px`, height: `${height}px` }} aria-hidden />
-                  );
-                })}
-                {dayMeetings.map((m) => {
-                  const dt = DateTime.fromMillis(m.meetingTime, { zone: tz });
-                  const minutes = dt.hour * 60 + dt.minute;
-                  const slotIndex = Math.floor((minutes - minMinutes) / slotMinutes);
-                  const topPx = slotIndex * rowPx;
-                  const heightPx = Math.max(14, rowPx);
-                  const laneCount = laneCountBySlot[slotIndex] || 1;
-                  const laneIndex = laneIndexById[m._id] ?? 0;
-                  const widthPercent = 100 / laneCount;
-                  const leftPercent = widthPercent * laneIndex;
-                  const left = `calc(${leftPercent}% + 3px)`;
-                  const width = `calc(${widthPercent}% - 6px)`;
-                  return (
-                    <div key={m._id} className="absolute rounded-md bg-purple-200 dark:bg-purple-700 text-purple-900 dark:text-white text-[11px] px-2 py-0.5 shadow overflow-hidden" style={{ top: `${topPx}px`, height: `${heightPx}px`, left, width }} title={`${dt.toFormat("fff")} — ${(m.source || "meeting")}${m.callId ? ` • Call #${m.callId.slice(-6)}` : ""}`}>
-                      <div className="truncate leading-tight">{dt.toFormat("h:mm a")} — {(m.source || "meeting")}{m.callId ? ` • ${m.callId.slice(-6)}` : ""}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  function AgendaView() {
-    return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          {RangeLabel}
-          {AvailabilityLegend}
-        </div>
-        <div className="divide-y divide-slate-200 dark:divide-slate-800">
-          {weekDays.map((d) => {
-            const weekday = d.weekday as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-            const dayMeetings = meetingsByDay[weekday] || [];
-            return (
-              <div key={d.toISODate()} className="p-4">
-                <div className="text-sm font-semibold mb-2">{d.toFormat("cccc, LLL d")}</div>
-                {dayMeetings.length > 0 ? (
-                  <div className="space-y-2">
-                    {dayMeetings.map((m) => {
-                      const dt = DateTime.fromMillis(m.meetingTime, { zone: tz });
-                      return (
-                        <div key={m._id} className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-md">
-                          <div>
-                            <div className="font-medium">{dt.toFormat("h:mm a")}</div>
-                            <div className="text-xs text-slate-500">{m.source || "meeting"}{m.callId ? ` • Call #${m.callId.slice(-6)}` : ""}</div>
-                          </div>
-                          <div className="text-xs text-slate-500">{dt.toFormat("ZZZZ")}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">No meetings</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+  const isCurrentWeek = weekOffset === 0;
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Meetings</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Timezone: {tz}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => setWeekOffset((w) => w - 1)}>← Prev</button>
-          <button className="px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => setWeekOffset(0)}>Today</button>
-          <button className="px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => setWeekOffset((w) => w + 1)}>Next →</button>
-          <div className="ml-4 inline-flex items-center bg-slate-100 dark:bg-slate-800 rounded-md p-1">
-            <button className={`px-3 py-1.5 rounded ${view === "week" ? "bg-white dark:bg-slate-900 shadow" : ""}`} onClick={() => setView("week")}>Week</button>
-            <button className={`px-3 py-1.5 rounded ${view === "agenda" ? "bg-white dark:bg-slate-900 shadow" : ""}`} onClick={() => setView("agenda")}>Agenda</button>
-          </div>
-        </div>
-      </div>
+    <main className="min-h-full p-4 sm:p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-6">
+        {/* Hero Section */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+                Meetings
+              </h1>
+              <p className="text-muted-foreground mt-2 text-base sm:text-lg">
+                {baseWeekStart.toFormat("MMMM d")} – {baseWeekStart.plus({ days: 6 }).toFormat("MMMM d, yyyy")}
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-4">
+                <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {tz}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20">
+                  {totalMeetings} {totalMeetings === 1 ? 'meeting' : 'meetings'}
+                </span>
+              </div>
+            </div>
 
-      {meetings === undefined ? (
-        <div className="p-8 text-center border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
-          <div className="animate-pulse text-slate-500">Loading meetings…</div>
+            {/* Navigation Controls */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <button
+                onClick={() => setWeekOffset((w) => w - 1)}
+                className="px-3 sm:px-4 py-2 rounded-lg border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border transition-all text-foreground font-medium text-sm"
+              >
+                ← Prev
+              </button>
+              <button
+                onClick={() => setWeekOffset(0)}
+                className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                  isCurrentWeek
+                    ? 'bg-primary text-primary-foreground border border-primary/30 shadow-sm'
+                    : 'border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border text-foreground'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => setWeekOffset((w) => w + 1)}
+                className="px-3 sm:px-4 py-2 rounded-lg border border-border/60 bg-surface-raised hover:bg-accent/20 hover:border-border transition-all text-foreground font-medium text-sm"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+
+          {/* Availability Legend */}
+          {Array.isArray(agencyProfile?.availability) && agencyProfile.availability.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-border/40">
+              <p className="text-sm font-semibold text-foreground mb-3">Your Availability</p>
+              <div className="flex flex-wrap gap-2">
+                {agencyProfile.availability.map((slot, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/30 text-accent-foreground text-sm font-medium border border-accent-foreground/20"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    {slot}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      ) : view === "week" ? (
-        <WeekView />
-      ) : (
-        <AgendaView />)
-      }
-    </div>
+
+        {/* Meetings List */}
+        {meetings === undefined ? (
+          <div className="card-warm-static p-12 text-center">
+            <div className="inline-flex items-center gap-3 text-muted-foreground">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span className="text-base font-medium">Loading meetings…</span>
+            </div>
+          </div>
+        ) : visibleDays.length === 0 ? (
+          <div className="card-warm-static p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-5xl mb-4">📅</div>
+              <h3 className="text-xl font-bold text-foreground mb-2">No Availability Set</h3>
+              <p className="text-muted-foreground">
+                Configure your availability in settings to start scheduling meetings.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleDays.map((day) => {
+              const weekday = day.weekday as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+              const dayMeetings = meetingsByDay[weekday] || [];
+              const dayAvailability = availabilityByDay[weekday] || [];
+              const isToday = day.hasSame(nowTz, 'day');
+
+              return (
+                <div
+                  key={day.toISODate()}
+                  className={`card-warm-static p-4 sm:p-6 transition-all ${
+                    isToday ? 'ring-2 ring-primary/30 ring-offset-2 ring-offset-background' : ''
+                  }`}
+                >
+                  {/* Day Header */}
+                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/40">
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
+                        {day.toFormat("cccc, MMMM d")}
+                        {isToday && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary font-semibold border border-primary/30">
+                            Today
+                          </span>
+                        )}
+                      </h3>
+                      {dayAvailability.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
+                          <svg className="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {dayAvailability.map((avail, i) => (
+                            <span key={i}>
+                              {minutesToLabel(avail.startMinutes)} - {minutesToLabel(avail.endMinutes)}
+                              {i < dayAvailability.length - 1 && ', '}
+                            </span>
+                          ))}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground">
+                        {dayMeetings.length}
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Meetings */}
+                  {dayMeetings.length > 0 ? (
+                    <div className="space-y-2">
+                      {dayMeetings.map((meeting) => {
+                        const dt = DateTime.fromMillis(meeting.meetingTime, { zone: tz });
+                        return (
+                          <div
+                            key={meeting._id}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-primary/40 hover:bg-accent/10 transition-all"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="inline-flex items-center gap-2 text-base font-bold text-foreground">
+                                  <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                  </svg>
+                                  {dt.toFormat("h:mm a")}
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 text-primary text-xs font-semibold border border-primary/25">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                                  </svg>
+                                  {meeting.source || "meeting"}
+                                </span>
+                              </div>
+                              {meeting.callId && (
+                                <p className="text-sm text-muted-foreground mt-2 font-mono">
+                                  Call ID: {meeting.callId.slice(-8)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground sm:text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-muted/50">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {dt.toFormat("ZZZZ")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <div className="text-3xl mb-2">✨</div>
+                      <p className="text-sm text-muted-foreground">No meetings scheduled</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

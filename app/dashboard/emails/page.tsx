@@ -66,228 +66,287 @@ export default function EmailsPage() {
       sent: emails.filter((e) => e.status === "sent").length,
       failed: emails.filter((e) => e.status === "failed").length,
     };
-  }, [emails]);
+  }, [emails, typeFilter, statusFilter, queryStr]);
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Emails</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Monitor recap and summary emails</p>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total" value={counts.total} color="slate" />
-          <StatCard label="Sent" value={counts.sent} color="green" />
-          <StatCard label="Failed" value={counts.failed} color="red" />
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-        <div className="flex flex-col md:flex-row gap-3 md:items-center">
-          <input
-            value={queryStr}
-            onChange={(e) => setQueryStr(e.target.value)}
-            placeholder="Search subject, to/from, prospect..."
-            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-          />
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-          >
-            <option value="all">All types</option>
-            <option value="prospect_confirmation">Prospect confirmation</option>
-            <option value="agency_summary">Agency summary</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-          >
-            <option value="all">All status</option>
-            <option value="queued">Queued</option>
-            <option value="sent">Sent</option>
-            <option value="failed">Failed</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* List */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-lg font-semibold">Recent Emails</h2>
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Hero Section */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight">Email Activity</h1>
+              <p className="text-muted-foreground mt-2 text-lg">
+                Monitor confirmation and summary emails sent to prospects and your team
+              </p>
             </div>
-            <div className="divide-y divide-slate-200 dark:divide-slate-800 max-h-96 overflow-y-auto">
-              {filtered && filtered.length > 0 ? (
-                filtered.map((e) => (
-                  <div
-                    key={e._id}
-                    className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${
-                      selectedEmailId === e._id ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                    }`}
-                    onClick={() => setSelectedEmailId(e._id)}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <p className="font-medium truncate max-w-[480px]">{e.subject}</p>
-                          <TypeBadge type={e.type} />
-                          <StatusBadge status={e.status} />
-                        </div>
-                        <div className="text-sm text-slate-600 dark:text-slate-400 flex flex-wrap gap-3">
-                          <span>To: {e.to}</span>
-                          {e.prospectName && <span>Prospect: {e.prospectName}</span>}
-                          <span>{new Date(e.sent_at ?? e._creationTime).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center">
-                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">📧</span>
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">No emails found</h3>
-                  <p className="text-slate-600 dark:text-slate-400">No emails to show yet.</p>
-                </div>
-              )}
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8">
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Total Emails
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{counts.total}</p>
+              <p className="text-sm text-muted-foreground mt-2">All time</p>
+            </div>
+            <div className="stat-card-primary p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Queued
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{counts.queued}</p>
+              <p className="text-sm text-muted-foreground mt-2">Pending send</p>
+            </div>
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Sent
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{counts.sent}</p>
+              <p className="text-sm text-muted-foreground mt-2">Successfully delivered</p>
+            </div>
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Failed
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">{counts.failed}</p>
+              <p className="text-sm text-muted-foreground mt-2">Need attention</p>
             </div>
           </div>
         </div>
 
-        {/* Preview */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-            {selectedEmail ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Email Preview</h3>
-                  <div className="flex items-center gap-2">
-                    <TypeBadge type={selectedEmail.type} />
-                    <StatusBadge status={selectedEmail.status} />
-                  </div>
-                </div>
+        {/* Filters Section */}
+        <div className="card-warm-static p-4 md:p-6">
+          <div className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-foreground mb-2">Search & Filter</h2>
+            <div className="flex flex-col md:flex-row gap-3">
+              <input
+                value={queryStr}
+                onChange={(e) => setQueryStr(e.target.value)}
+                placeholder="Search subject, recipient, prospect..."
+                className="flex-1 px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+              />
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+                className="px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+              >
+                <option value="all">All types</option>
+                <option value="prospect_confirmation">Prospect confirmation</option>
+                <option value="agency_summary">Agency summary</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="px-4 py-2.5 border border-input rounded-lg bg-surface-muted/50 text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+              >
+                <option value="all">All status</option>
+                <option value="queued">Queued</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Subject</p>
-                    <p className="text-slate-600 dark:text-slate-400">{selectedEmail.subject}</p>
-                    <div className="mt-2 flex gap-2">
+        {/* Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          {/* Email List */}
+          <div className="lg:col-span-2">
+            <div className="card-warm-static">
+              <div className="p-4 md:p-6 border-b border-border/60">
+                <h2 className="text-2xl font-bold text-foreground">Recent Emails</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {filtered.length} {filtered.length === 1 ? "email" : "emails"} found
+                </p>
+              </div>
+              <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto">
+                {filtered && filtered.length > 0 ? (
+                  filtered.map((e) => (
+                    <button
+                      key={e._id}
+                      className={`w-full text-left p-4 md:p-5 transition-all ${
+                        selectedEmailId === e._id
+                          ? "bg-primary/10 border-l-4 border-l-primary"
+                          : "hover:bg-surface-overlay/50 border-l-4 border-l-transparent"
+                      }`}
+                      onClick={() => setSelectedEmailId(e._id)}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <p className="font-semibold text-foreground truncate">{e.subject}</p>
+                            <TypeBadge type={e.type} />
+                            <StatusBadge status={e.status} />
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              <span className="truncate">To: {e.to}</span>
+                              {e.prospectName && <span className="truncate">Prospect: {e.prospectName}</span>}
+                            </div>
+                            <span className="text-xs">
+                              {new Date(e.sent_at ?? e._creationTime).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-8 md:p-12 text-center">
+                    <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">📧</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No emails found</h3>
+                    <p className="text-muted-foreground">
+                      {queryStr || typeFilter !== "all" || statusFilter !== "all"
+                        ? "Try adjusting your filters"
+                        : "No emails to show yet"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Email Preview */}
+          <div className="lg:col-span-1">
+            <div className="card-warm-static p-6 sticky top-6">
+              {selectedEmail ? (
+                <div className="space-y-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-foreground">Email Details</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <TypeBadge type={selectedEmail.type} />
+                      <StatusBadge status={selectedEmail.status} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Subject */}
+                    <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                        Subject
+                      </p>
+                      <p className="text-sm text-foreground font-medium">{selectedEmail.subject}</p>
                       <button
-                        className="text-blue-600 hover:text-blue-700 text-xs underline"
+                        className="mt-3 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
                         onClick={async () => {
                           await navigator.clipboard.writeText(selectedEmail.subject);
                           setCopied("subject");
                           setTimeout(() => setCopied(""), 1200);
                         }}
                       >
-                        Copy subject
+                        {copied === "subject" ? "✓ Copied" : "Copy subject"}
                       </button>
-                      {copied === "subject" && <span className="text-xs text-slate-500">Copied</span>}
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="font-medium text-slate-700 dark:text-slate-300">From</p>
-                      <p className="text-slate-600 dark:text-slate-400 break-all">{selectedEmail.from}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-700 dark:text-slate-300">To</p>
-                      <p className="text-slate-600 dark:text-slate-400 break-all">{selectedEmail.to}</p>
-                    </div>
-                  </div>
 
-                  {selectedEmail.icsUrl && (
-                    <a
-                      href={selectedEmail.icsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm"
-                    >
-                      Download .ics
-                    </a>
-                  )}
-
-                  {selectedEmail.error && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-700 dark:text-red-300">
-                      Error: {selectedEmail.error}
+                    {/* From/To Grid */}
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                          From
+                        </p>
+                        <p className="text-sm text-foreground break-all">{selectedEmail.from}</p>
+                      </div>
+                      <div className="p-4 rounded-lg bg-surface-muted/50 border border-border/40">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                          To
+                        </p>
+                        <p className="text-sm text-foreground break-all">{selectedEmail.to}</p>
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    {/* Render raw HTML safely */}
-                    <div dangerouslySetInnerHTML={{ __html: selectedEmail.html }} />
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      className="text-blue-600 hover:text-blue-700 text-xs underline"
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(selectedEmail.html);
-                        setCopied("html");
-                        setTimeout(() => setCopied(""), 1200);
-                      }}
-                    >
-                      Copy HTML
-                    </button>
-                    {copied === "html" && <span className="ml-2 text-xs text-slate-500">Copied</span>}
+                    {/* ICS Download */}
+                    {selectedEmail.icsUrl && (
+                      <a
+                        href={selectedEmail.icsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/40 hover:bg-accent/60 border border-border/40 text-sm font-semibold text-foreground transition-all"
+                      >
+                        📅 Download Calendar Event
+                      </a>
+                    )}
+
+                    {/* Error */}
+                    {selectedEmail.error && (
+                      <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+                        <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-2">
+                          Error
+                        </p>
+                        <p className="text-sm text-destructive">{selectedEmail.error}</p>
+                      </div>
+                    )}
+
+                    {/* HTML Content */}
+                    <div className="border-t border-border/60 pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Email Preview
+                        </p>
+                        <button
+                          className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(selectedEmail.html);
+                            setCopied("html");
+                            setTimeout(() => setCopied(""), 1200);
+                          }}
+                        >
+                          {copied === "html" ? "✓ Copied" : "Copy HTML"}
+                        </button>
+                      </div>
+                      <div className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40 max-h-96 overflow-y-auto">
+                        <div
+                          className="prose prose-sm dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedEmail.html }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-xl">👆</span>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">👈</span>
+                  </div>
+                  <p className="text-muted-foreground font-medium">Select an email to view details</p>
                 </div>
-                <p className="text-slate-500 text-sm">Select an email to preview</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, color }: { label: string; value: number; color: "slate" | "green" | "red" }) {
-  const colorClasses = {
-    slate: "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800",
-    green: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-    red: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
-  } as const;
-  return (
-    <div className={`border rounded-lg p-3 text-center ${colorClasses[color]}`}>
-      <p className="text-xs text-slate-600 dark:text-slate-400">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
-    </div>
+    </main>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const get = (s: string) => {
-    switch (s) {
-      case "queued":
-        return "bg-slate-100 text-slate-700";
-      case "sent":
-        return "bg-green-100 text-green-700";
-      case "failed":
-        return "bg-red-100 text-red-700";
-      default:
-        return "bg-slate-100 text-slate-700";
-    }
+  const styles = {
+    queued: "bg-accent/60 text-accent-foreground border-accent-foreground/20",
+    sent: "bg-success/20 text-success border-success/30",
+    failed: "bg-destructive/20 text-destructive border-destructive/30",
   };
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${get(status)}`}>{status}</span>;
+  const style = styles[status as keyof typeof styles] || styles.queued;
+  
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${style}`}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
 }
 
 function TypeBadge({ type }: { type: "prospect_confirmation" | "agency_summary" }) {
   const label = type === "prospect_confirmation" ? "Prospect" : "Agency";
-  const color = type === "prospect_confirmation" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700";
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${color}`}>{label}</span>;
+  const style = type === "prospect_confirmation" 
+    ? "bg-primary/20 text-primary border-primary/30"
+    : "bg-accent/60 text-accent-foreground border-accent-foreground/20";
+  
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${style}`}>
+      {label}
+    </span>
+  );
 }
 
 

@@ -186,7 +186,49 @@
       linear-gradient(180deg, hsl(var(--content-gradient-start)) 0%, hsl(var(--content-gradient-mid)) 55%, hsl(var(--content-gradient-end)) 100%);
   }
 
-  /* High-contrast beautiful button */
+  /* Primary button - matches active tab aesthetic */
+  .btn-primary {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.75rem;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.24) 0%,
+      hsl(var(--primary) / 0.42) 100%
+    );
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(var(--ring) / 0.5);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35) inset, var(--shadow-soft);
+    transition: transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      background-image 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.45) inset, var(--shadow-strong);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.32) 0%,
+      hsl(var(--primary) / 0.52) 100%
+    );
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* Legacy contrast button - kept for backwards compatibility */
   .btn-contrast {
     position: relative;
     display: inline-flex;
@@ -197,21 +239,26 @@
     padding: 0.5rem 0.75rem;
     background-image: linear-gradient(
       180deg,
-      hsl(var(--primary) / 0.98) 0%,
-      hsl(var(--primary) / 0.86) 60%,
-      hsl(var(--accent) / 0.70) 100%
+      hsl(var(--primary) / 0.24) 0%,
+      hsl(var(--primary) / 0.42) 100%
     );
     color: hsl(var(--primary-foreground));
-    border: 1px solid hsl(var(--ring) / 0.35);
-    box-shadow: var(--shadow-soft);
+    border: 1px solid hsl(var(--ring) / 0.5);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35) inset, var(--shadow-soft);
     transition: transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
       box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-      opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+      opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      background-image 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 
   .btn-contrast:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.45) inset, var(--shadow-strong);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.32) 0%,
+      hsl(var(--primary) / 0.52) 100%
+    );
   }
 
   .btn-contrast:active {

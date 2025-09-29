@@ -79,31 +79,32 @@ export default function CallWorkspacePage({ params }: Props) {
 
   if (!callId) {
     return (
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-12 text-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600 dark:text-slate-400">Loading call...</p>
+      <main className="min-h-full p-6 md:p-8">
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="card-warm-static p-12 text-center">
+            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading call details...</p>
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   if (!call) {
     return (
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-12 text-center">
-          <h1 className="text-2xl font-bold mb-2">Call Not Found</h1>
-          <p className="text-slate-600 dark:text-slate-400 mb-4">
-            The call you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
-          </p>
-          <Link
-            href="/dashboard/calls"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            ← Back to Calls
-          </Link>
+      <main className="min-h-full p-6 md:p-8">
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="card-warm-static p-12 text-center">
+            <h1 className="text-2xl font-bold text-foreground mb-2">Call Not Found</h1>
+            <p className="text-muted-foreground mb-6">
+              The call you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
+            </p>
+            <Link href="/dashboard/calls" className="btn-contrast">
+              ← Back to Calls
+            </Link>
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -125,289 +126,330 @@ export default function CallWorkspacePage({ params }: Props) {
     durationMs = call.duration;
   }
 
-  const statusColor = 
-    status === "in-progress" ? "bg-green-100 text-green-700" :
-    status === "ringing" ? "bg-yellow-100 text-yellow-700" :
-    status === "queued" ? "bg-slate-100 text-slate-700" :
-    status === "completed" ? "bg-blue-100 text-blue-700" :
-    status === "failed" ? "bg-red-100 text-red-700" :
-    "bg-slate-100 text-slate-700";
+  const getStatusBadge = (status: string, isInProgress: boolean) => {
+    const baseClasses = "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold";
+    
+    if (status === "in-progress") {
+      return (
+        <span className={`${baseClasses} bg-success/20 text-success border border-success/30`}>
+          <span className="w-2 h-2 bg-success rounded-full mr-2 animate-pulse" />
+          In Progress
+        </span>
+      );
+    }
+    if (status === "ringing") {
+      return (
+        <span className={`${baseClasses} bg-accent/60 text-accent-foreground border border-accent-foreground/20`}>
+          Ringing
+        </span>
+      );
+    }
+    if (status === "queued") {
+      return (
+        <span className={`${baseClasses} bg-muted text-muted-foreground border border-border`}>
+          Queued
+        </span>
+      );
+    }
+    if (status === "completed") {
+      return (
+        <span className={`${baseClasses} bg-primary/20 text-primary border border-primary/30`}>
+          Completed
+        </span>
+      );
+    }
+    if (status === "failed") {
+      return (
+        <span className={`${baseClasses} bg-destructive/20 text-destructive border border-destructive/30`}>
+          Failed
+        </span>
+      );
+    }
+    return (
+      <span className={`${baseClasses} bg-muted text-muted-foreground border border-border`}>
+        {status.replace(/_/g, " ")}
+      </span>
+    );
+  };
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Link
-              href="/dashboard/calls"
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              ← Calls
-            </Link>
-            {leadGenJob && (
-              <>
-                <span className="text-slate-400">•</span>
+    <main className="min-h-full p-6 md:p-8">
+      <div className="max-w-6xl mx-auto w-full space-y-6 md:space-y-8">
+        {/* Header */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <Link
-                  href={`/dashboard/marketing/${leadGenJob._id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  href="/dashboard/calls"
+                  className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
                 >
-                  Campaign: {leadGenJob.campaign.targetVertical} in {leadGenJob.campaign.targetGeography}
+                  ← Calls
                 </Link>
-              </>
-            )}
-          </div>
-          <h1 className="text-3xl font-bold">
-            {opportunity ? `Call with ${opportunity.name}` : `Call #${callId.slice(-8)}`}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Started {new Date(call._creationTime ?? 0).toLocaleString()}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${statusColor} mb-2`}>
-            {isInProgress && <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />}
-            {status.replace(/_/g, " ")}
-          </div>
-          <p className="text-sm text-slate-500">
-            Duration: {formatDuration(durationMs)}
-          </p>
-        </div>
-      </div>
-
-      {/* Live Call Controls */}
-      {isInProgress && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                <span className="font-medium text-green-800 dark:text-green-200">Live Call in Progress</span>
-              </div>
-              <div className="text-sm text-green-700 dark:text-green-300">
-                Credits: {atlasCreditsBalance} remaining
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {call.monitorUrls?.listenUrl && (
-                <button
-                  onClick={() => setListenModalOpen(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm"
-                >
-                  🎧 Listen Live
-                </button>
-              )}
-              <div className="text-right">
-                <p className="text-lg font-bold text-green-800 dark:text-green-200">
-                  {formatDuration(durationMs)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Call Summary (for completed calls) */}
-      {status === "completed" && call.summary && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-3">Call Summary</h2>
-          <div className="prose prose-sm max-w-none">
-            <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-              {call.summary}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Transcript */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-lg font-semibold">Live Transcript</h2>
-            </div>
-            <div 
-              ref={transcriptRef}
-              className="p-4 max-h-96 overflow-y-auto space-y-3"
-            >
-              {Array.isArray(call.transcript) && call.transcript.length > 0 ? (
-                call.transcript.map((fragment: TranscriptFragment, idx: number) => (
-                  <div
-                    key={`frag-${idx}`}
-                    className={`p-3 rounded-lg ${
-                      fragment.role === "assistant" 
-                        ? "bg-slate-100 dark:bg-slate-800" 
-                        : "bg-blue-50 dark:bg-blue-900/30"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium capitalize">
-                        {fragment.role === "assistant" ? "AI Assistant" : "Prospect"}
-                      </span>
-                      {fragment.source && (
-                        <span className="text-xs px-2 py-1 rounded bg-slate-200 dark:bg-slate-700">
-                          {fragment.source}
-                        </span>
-                      )}
-                      {fragment.timestamp && (
-                        <span className="text-xs text-slate-500">
-                          {new Date(fragment.timestamp).toLocaleTimeString()}
-                        </span>
-                      )}
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm">
-                      {fragment.text}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    {isInProgress ? (
-                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span className="text-2xl">💬</span>
-                    )}
-                  </div>
-                  <p className="text-slate-500">
-                    {isInProgress ? "Waiting for conversation to begin..." : "No transcript available"}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Call Info & Opportunity Details */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Call Details */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Call Details</h3>
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="font-medium text-slate-700 dark:text-slate-300">Call ID</p>
-                <p className="text-slate-600 dark:text-slate-400">#{callId.slice(-8)}</p>
-              </div>
-              <div>
-                <p className="font-medium text-slate-700 dark:text-slate-300">Status</p>
-                <div className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${statusColor}`}>
-                  {status.replace(/_/g, " ")}
-                </div>
-              </div>
-              <div>
-                <p className="font-medium text-slate-700 dark:text-slate-300">Duration</p>
-                <p className="text-slate-600 dark:text-slate-400">
-                  {formatDuration(durationMs)}
-                </p>
-              </div>
-              {call.billingSeconds && (
-                <div>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">Billing Duration</p>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    {call.billingSeconds} seconds
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="font-medium text-slate-700 dark:text-slate-300">Started</p>
-                <p className="text-slate-600 dark:text-slate-400">
-                  {new Date(call._creationTime ?? 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Opportunity Info */}
-          {opportunity && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">Opportunity Details</h3>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">Company</p>
-                  <p className="text-slate-600 dark:text-slate-400">{opportunity.name}</p>
-                </div>
-                {opportunity.domain && (
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Website</p>
-                    <a 
-                      href={`https://${opportunity.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                {leadGenJob && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <Link
+                      href={`/dashboard/marketing/${leadGenJob._id}`}
+                      className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
                     >
-                      {opportunity.domain}
-                    </a>
-                  </div>
+                      Campaign: {leadGenJob.campaign.targetVertical} in {leadGenJob.campaign.targetGeography}
+                    </Link>
+                  </>
                 )}
-                <div>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">Qualification Score</p>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    {Math.round(opportunity.qualificationScore * 100)}%
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+                {opportunity ? `Call with ${opportunity.name}` : `Call #${callId.slice(-8)}`}
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Started {new Date(call._creationTime ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex flex-col items-start lg:items-end gap-3">
+              {getStatusBadge(status, isInProgress)}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Duration:</span>
+                <span className="text-lg font-bold text-foreground">{formatDuration(durationMs)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Call Controls */}
+        {isInProgress && (
+          <div className="card-warm-accent p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-success rounded-full animate-pulse" />
+                  <span className="font-semibold text-foreground">Live Call in Progress</span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Credits: <span className="font-semibold text-foreground">{atlasCreditsBalance}</span> remaining
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {call.monitorUrls?.listenUrl && (
+                  <button
+                    onClick={() => setListenModalOpen(true)}
+                    className="btn-contrast text-sm"
+                  >
+                    🎧 Listen Live
+                  </button>
+                )}
+                <div className="text-right">
+                  <p className="text-lg font-bold text-foreground">
+                    {formatDuration(durationMs)}
                   </p>
                 </div>
-                <div>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">Status</p>
-                  <OpportunityStatusBadge status={opportunity.status} />
-                </div>
-                {opportunity.signals.length > 0 && (
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300 mb-2">Signals</p>
-                    <div className="flex flex-wrap gap-1">
-                      {opportunity.signals.map((signal: string) => (
-                        <span
-                          key={signal}
-                          className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs"
-                        >
-                          {signal.replace(/_/g, " ")}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Call Summary (for completed calls) */}
+        {status === "completed" && call.summary && (
+          <div className="card-warm-static p-6 md:p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-4">Call Summary</h2>
+            <div className="prose prose-sm max-w-none">
+              <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                {call.summary}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          {/* Transcript */}
+          <div className="lg:col-span-2">
+            <div className="card-warm-static overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-border/50">
+                <h2 className="text-2xl font-bold text-foreground">Live Transcript</h2>
+              </div>
+              <div 
+                ref={transcriptRef}
+                className="p-4 md:p-6 max-h-[500px] overflow-y-auto space-y-3"
+              >
+                {Array.isArray(call.transcript) && call.transcript.length > 0 ? (
+                  call.transcript.map((fragment: TranscriptFragment, idx: number) => (
+                    <div
+                      key={`frag-${idx}`}
+                      className={`p-4 rounded-lg border transition-colors ${
+                        fragment.role === "assistant" 
+                          ? "bg-surface-muted/50 border-border/40" 
+                          : "bg-accent/30 border-accent-foreground/20"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="font-semibold text-foreground capitalize">
+                          {fragment.role === "assistant" ? "AI Assistant" : "Prospect"}
                         </span>
-                      ))}
+                        {fragment.source && (
+                          <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground border border-border">
+                            {fragment.source}
+                          </span>
+                        )}
+                        {fragment.timestamp && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(fragment.timestamp).toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm text-foreground leading-relaxed">
+                        {fragment.text}
+                      </p>
                     </div>
-                  </div>
-                )}
-                {opportunity.fit_reason && (
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Why This Lead Fits</p>
-                    <p className="text-slate-600 dark:text-slate-300 text-xs mt-1 p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                      {opportunity.fit_reason}
+                  ))
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-16 h-16 bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      {isInProgress ? (
+                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <span className="text-3xl">💬</span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground">
+                      {isInProgress ? "Waiting for conversation to begin..." : "No transcript available"}
                     </p>
                   </div>
                 )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Credit Usage */}
-          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-            <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
-              Credit Usage
-            </h4>
-            <p className="text-sm text-orange-700 dark:text-orange-300">
-              This call consumes 1 credit per minute. You have {atlasCreditsBalance} credits remaining.
-            </p>
-            {atlasCreditsBalance < 5 && (
-              <p className="text-xs text-orange-600 mt-2">
-                ⚠️ Low credit balance. Consider upgrading your plan.
-              </p>
+          {/* Call Info & Opportunity Details */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Call Details */}
+            <div className="card-warm-static p-6">
+              <h3 className="text-lg font-bold text-foreground mb-4">Call Details</h3>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Call ID</p>
+                  <p className="text-foreground font-mono">#{callId.slice(-8)}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Status</p>
+                  <div className="mt-1">
+                    {getStatusBadge(status, isInProgress)}
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Duration</p>
+                  <p className="text-foreground font-semibold">
+                    {formatDuration(durationMs)}
+                  </p>
+                </div>
+                {call.billingSeconds && (
+                  <div>
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Billing Duration</p>
+                    <p className="text-foreground font-semibold">
+                      {call.billingSeconds} seconds
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Started</p>
+                  <p className="text-foreground">
+                    {new Date(call._creationTime ?? 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Opportunity Info */}
+            {opportunity && (
+              <div className="card-warm-static p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Opportunity Details</h3>
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Company</p>
+                    <p className="text-foreground font-semibold">{opportunity.name}</p>
+                  </div>
+                  {opportunity.domain && (
+                    <div>
+                      <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Website</p>
+                      <a 
+                        href={`https://${opportunity.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:text-primary/80 transition-colors font-medium break-all"
+                      >
+                        {opportunity.domain}
+                      </a>
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-1">Qualification Score</p>
+                    <p className="text-foreground font-semibold">
+                      {Math.round(opportunity.qualificationScore * 100)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-2">Status</p>
+                    <OpportunityStatusBadge status={opportunity.status} />
+                  </div>
+                  {opportunity.signals.length > 0 && (
+                    <div>
+                      <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-2">Signals</p>
+                      <div className="flex flex-wrap gap-2">
+                        {opportunity.signals.map((signal: string) => (
+                          <span
+                            key={signal}
+                            className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2.5 py-1 text-xs border border-border"
+                          >
+                            {signal.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {opportunity.fit_reason && (
+                    <div>
+                      <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs mb-2">Why This Lead Fits</p>
+                      <p className="text-foreground text-xs leading-relaxed p-3 bg-surface-muted/50 rounded-lg border border-border/40">
+                        {opportunity.fit_reason}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
+
+            {/* Credit Usage */}
+            <div className="card-warm-accent p-4">
+              <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                <span>💳</span>
+                Credit Usage
+              </h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                This call consumes <span className="font-semibold text-foreground">1 credit per minute</span>. You have <span className="font-semibold text-foreground">{atlasCreditsBalance} credits</span> remaining.
+              </p>
+              {atlasCreditsBalance < 5 && (
+                <p className="text-xs text-destructive mt-2 font-medium">
+                  ⚠️ Low credit balance. Consider upgrading your plan.
+                </p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Live Listen Modal */}
-      <Dialog open={listenModalOpen} onOpenChange={setListenModalOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Live Listen</DialogTitle>
-            <DialogDescription>
-              Connect to the live audio stream for this call. Use Connect to start and Disconnect to stop.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4">
-            <LiveListen listenUrl={call.monitorUrls?.listenUrl || null} />
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Live Listen Modal */}
+        <Dialog open={listenModalOpen} onOpenChange={setListenModalOpen}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Live Listen</DialogTitle>
+              <DialogDescription>
+                Connect to the live audio stream for this call. Use Connect to start and Disconnect to stop.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <LiveListen listenUrl={call.monitorUrls?.listenUrl || null} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </main>
   );
 }
 
@@ -416,24 +458,26 @@ type OpportunityStatusBadgeProps = {
 };
 
 function OpportunityStatusBadge({ status }: OpportunityStatusBadgeProps) {
-  const getStatusColor = (status: string) => {
+  const getStatusClasses = (status: string) => {
     const upper = status?.toUpperCase();
+    const baseClasses = "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold";
+    
     switch (upper) {
       case "READY":
-        return "bg-emerald-100 text-emerald-700";
+        return `${baseClasses} bg-success/20 text-success border border-success/30`;
       case "BOOKED":
-        return "bg-green-100 text-green-700";
+        return `${baseClasses} bg-primary/20 text-primary border border-primary/30`;
       case "REJECTED":
-        return "bg-red-100 text-red-700";
+        return `${baseClasses} bg-destructive/20 text-destructive border border-destructive/30`;
       case "PENDING":
-        return "bg-blue-100 text-blue-700";
+        return `${baseClasses} bg-accent/60 text-accent-foreground border border-accent-foreground/20`;
       default:
-        return "bg-slate-100 text-slate-700";
+        return `${baseClasses} bg-muted text-muted-foreground border border-border`;
     }
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${getStatusColor(status)}`}>
+    <span className={getStatusClasses(status)}>
       {status || "Unknown"}
     </span>
   );

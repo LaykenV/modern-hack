@@ -14,7 +14,6 @@ export default function MarketingPage() {
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const { customer, refetch: refetchCustomer } = useCustomer();
   const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
-  //const resumeWorkflow = useAction(api.marketing.resumeLeadGenWorkflow);
 
   // State for lead generation form
   const [numLeads, setNumLeads] = useState(5);
@@ -30,7 +29,6 @@ export default function MarketingPage() {
     api.marketing.listLeadGenJobsByAgency,
     agencyProfile?.agencyProfileId ? { agencyId: agencyProfile.agencyProfileId } : "skip"
   );
-  console.log(leadGenJobs);
 
   const atlasCreditsBalance = customer?.features?.atlas_credits?.balance ?? 0;
 
@@ -59,158 +57,200 @@ export default function MarketingPage() {
   const runningJobs = leadGenJobs?.filter(job => job.status === "running") ?? [];
   const pausedJobs = leadGenJobs?.filter(job => job.status === "paused_for_upgrade") ?? [];
   const completedJobs = leadGenJobs?.filter(job => job.status === "completed") ?? [];
+  const totalLeads = leadGenJobs?.reduce((sum, job) => sum + (job.numLeadsFetched || 0), 0) ?? 0;
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Marketing Campaigns</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Manage your lead generation campaigns
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-500">Atlas Credits</p>
-          <p className="text-2xl font-bold">{atlasCreditsBalance}</p>
-        </div>
-      </div>
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Hero Section */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight">
+                Marketing Campaigns
+              </h1>
+              <p className="text-muted-foreground mt-2 text-lg">
+                Manage your lead generation campaigns
+              </p>
+            </div>
+            <div className="flex flex-col gap-1 p-5 rounded-lg border border-[hsl(var(--ring)/0.35)] bg-gradient-to-br from-[hsl(var(--primary)/0.18)] via-[hsl(var(--accent)/0.25)] to-[hsl(var(--surface-raised))] shadow-[0_0_0_1px_hsl(var(--ring)/0.25)_inset,var(--shadow-soft)]">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Atlas Credits
+              </p>
+              <p className="text-4xl font-bold text-foreground leading-none">
+                {atlasCreditsBalance}
+              </p>
+            </div>
+          </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Running</p>
-          <p className="text-2xl font-bold text-blue-600">{runningJobs.length}</p>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-6">
+            <div className="stat-card-primary p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Running
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">
+                {runningJobs.length}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">Active campaigns</p>
+            </div>
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Paused
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">
+                {pausedJobs.length}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">Awaiting action</p>
+            </div>
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Completed
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">
+                {completedJobs.length}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">Finished runs</p>
+            </div>
+            <div className="stat-card-accent p-5">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Total Leads
+              </p>
+              <p className="text-3xl font-bold text-foreground mt-1">
+                {totalLeads}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">Prospects found</p>
+            </div>
+          </div>
         </div>
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Paused</p>
-          <p className="text-2xl font-bold text-orange-600">{pausedJobs.length}</p>
-        </div>
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Completed</p>
-          <p className="text-2xl font-bold text-green-600">{completedJobs.length}</p>
-        </div>
-        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Total Leads</p>
-          <p className="text-2xl font-bold text-purple-600">
-            {leadGenJobs?.reduce((sum, job) => sum + (job.numLeadsFetched || 0), 0) ?? 0}
-          </p>
-        </div>
-      </div>
 
-      {/* Start New Campaign */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Start New Lead Generation Campaign</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Number of Leads (1-20)</label>
-            <input
-              type="number"
-              min="1"
-              max="20"
-              value={numLeads}
-              onChange={(e) => setNumLeads(parseInt(e.target.value) || 1)}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-            />
+        {/* Start New Campaign */}
+        <div className="card-warm-static p-6 md:p-8">
+          <h2 className="text-2xl font-bold text-foreground mb-6">
+            Start New Lead Generation Campaign
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">
+                Number of Leads (1-20)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={numLeads}
+                onChange={(e) => setNumLeads(parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">
+                Target Vertical (optional)
+              </label>
+              <input
+                type="text"
+                value={targetVertical}
+                onChange={(e) => setTargetVertical(e.target.value)}
+                placeholder="e.g., roofers, dentists"
+                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">
+                Target Geography (optional)
+              </label>
+              <input
+                type="text"
+                value={targetGeography}
+                onChange={(e) => setTargetGeography(e.target.value)}
+                placeholder="e.g., San Francisco, CA"
+                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Target Vertical (optional)</label>
-            <input
-              type="text"
-              value={targetVertical}
-              onChange={(e) => setTargetVertical(e.target.value)}
-              placeholder="e.g., roofers, dentists"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Target Geography (optional)</label>
-            <input
-              type="text"
-              value={targetGeography}
-              onChange={(e) => setTargetGeography(e.target.value)}
-              placeholder="e.g., San Francisco, CA"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800"
-            />
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <button
-            onClick={handleStartLeadGen}
-            disabled={isStartingWorkflow || !agencyProfile?.agencyProfileId}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-6 py-2 rounded-md font-medium"
-          >
-            {isStartingWorkflow ? "Starting Campaign..." : "Start Lead Generation"}
-          </button>
-          {atlasCreditsBalance < 5 && (
+
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => setPaywallOpen(true)}
-              className="border border-orange-300 text-orange-700 hover:bg-orange-50 px-4 py-2 rounded-md text-sm"
+              onClick={handleStartLeadGen}
+              disabled={isStartingWorkflow || !agencyProfile?.agencyProfileId}
+              className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-semibold text-[hsl(var(--primary-foreground))] bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] border border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,var(--shadow-soft)] hover:from-[hsl(var(--primary)/0.30)] hover:to-[hsl(var(--primary)/0.50)] hover:shadow-[0_0_0_1px_hsl(var(--ring)/0.40)_inset,var(--shadow-strong)] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-[hsl(var(--primary)/0.24)] disabled:hover:to-[hsl(var(--primary)/0.42)]"
             >
-              Need More Credits?
+              {isStartingWorkflow ? "Starting Campaign..." : "Start Lead Generation"}
             </button>
+            {atlasCreditsBalance < 5 && (
+              <button
+                onClick={() => setPaywallOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-primary/30 text-primary font-semibold hover:bg-primary/10 transition-colors"
+              >
+                Need More Credits?
+              </button>
+            )}
+          </div>
+
+          {atlasCreditsBalance < 5 && (
+            <div className="mt-4 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+              <p className="text-sm text-destructive font-medium">
+                ⚠️ You have {atlasCreditsBalance} credits remaining. Lead generation typically requires 5+ credits.
+              </p>
+            </div>
           )}
         </div>
-        {atlasCreditsBalance < 5 && (
-          <p className="text-sm text-orange-600 mt-2">
-            ⚠️ You have {atlasCreditsBalance} credits remaining. Lead generation typically requires 5+ credits.
-          </p>
-        )}
-      </div>
 
-      {/* Campaign List */}
-      <div className="space-y-6">
-        {/* Running Campaigns */}
-        {runningJobs.length > 0 && (
-          <CampaignSection
-            title="Running Campaigns"
-            jobs={runningJobs}
-            statusColor="blue"
-          />
-        )}
+        {/* Campaign List */}
+        <div className="space-y-8">
+          {/* Running Campaigns */}
+          {runningJobs.length > 0 && (
+            <CampaignSection
+              title="Running Campaigns"
+              jobs={runningJobs}
+            />
+          )}
 
-        {/* Paused Campaigns */}
-        {pausedJobs.length > 0 && (
-          <CampaignSection
-            title="Paused Campaigns"
-            jobs={pausedJobs}
-            statusColor="orange"
-          />
-        )}
+          {/* Paused Campaigns */}
+          {pausedJobs.length > 0 && (
+            <CampaignSection
+              title="Paused Campaigns"
+              jobs={pausedJobs}
+            />
+          )}
 
-        {/* Completed Campaigns */}
-        {completedJobs.length > 0 && (
-          <CampaignSection
-            title="Completed Campaigns"
-            jobs={completedJobs}
-            statusColor="green"
-          />
-        )}
+          {/* Completed Campaigns */}
+          {completedJobs.length > 0 && (
+            <CampaignSection
+              title="Completed Campaigns"
+              jobs={completedJobs}
+            />
+          )}
 
-        {/* Empty State */}
-        {!leadGenJobs || leadGenJobs.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-12 text-center">
-            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🎯</span>
+          {/* Empty State */}
+          {!leadGenJobs || leadGenJobs.length === 0 ? (
+            <div className="card-warm-static p-12 text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-primary/10">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <h3 className="text-xl font-bold text-foreground mb-2">
+                No campaigns yet
+              </h3>
+              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                Start your first lead generation campaign to begin finding qualified prospects.
+              </p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Start your first lead generation campaign to begin finding qualified prospects.
-            </p>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
 
-      {/* Paywall Dialog */}
-      <PaywallDialog
-        open={paywallOpen}
-        onOpenChange={setPaywallOpen}
-        billingBlock={null}
-        onResume={async () => ({ ok: false, message: "No workflow to resume" })}
-        onRefetchCustomer={async () => {
-          await refetchCustomer();
-        }}
-      />
-    </div>
+        {/* Paywall Dialog */}
+        <PaywallDialog
+          open={paywallOpen}
+          onOpenChange={setPaywallOpen}
+          billingBlock={null}
+          onResume={async () => ({ ok: false, message: "No workflow to resume" })}
+          onRefetchCustomer={async () => {
+            await refetchCustomer();
+          }}
+        />
+      </div>
+    </main>
   );
 }
 
@@ -231,53 +271,49 @@ type CampaignSectionProps = {
       timestamp: number;
     };
   }>;
-  statusColor: "blue" | "orange" | "green";
 };
 
-function CampaignSection({ title, jobs, statusColor }: CampaignSectionProps) {
-  const colorClasses = {
-    blue: "border-blue-200 dark:border-blue-800",
-    orange: "border-orange-200 dark:border-orange-800", 
-    green: "border-green-200 dark:border-green-800",
-  };
-
+function CampaignSection({ title, jobs }: CampaignSectionProps) {
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-      <h2 className="text-lg font-semibold mb-4">{title}</h2>
+    <div className="card-warm-static p-6 md:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-foreground">{title}</h2>
+        <span className="text-sm text-muted-foreground">
+          {jobs.length} {jobs.length === 1 ? "campaign" : "campaigns"}
+        </span>
+      </div>
       <div className="space-y-3">
         {jobs.map((job) => (
           <Link
             key={job._id}
             href={`/dashboard/marketing/${job._id}`}
-            className={`block p-4 border ${colorClasses[statusColor]} rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors`}
+            className="flex items-center justify-between p-4 rounded-lg bg-surface-overlay/50 border border-border/40 hover:border-border hover:bg-surface-raised transition-all group"
           >
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-medium">
-                    {job.campaign.targetVertical} in {job.campaign.targetGeography}
-                  </h3>
-                  <StatusBadge status={job.status} />
-                </div>
-                <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                  <span>
-                    {job.numLeadsFetched}/{job.numLeadsRequested} leads
-                  </span>
-                  <span>
-                    Started {new Date(job._creationTime).toLocaleDateString()}
-                  </span>
-                </div>
-                {job.lastEvent && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    {job.lastEvent.message}
-                  </p>
-                )}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                <h3 className="font-semibold text-foreground truncate">
+                  {job.campaign.targetVertical} in {job.campaign.targetGeography}
+                </h3>
+                <StatusBadge status={job.status} />
               </div>
-              <div className="text-right">
-                <span className="text-sm text-blue-600 dark:text-blue-400">
-                  View Details →
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
+                <span className="font-medium">
+                  {job.numLeadsFetched}/{job.numLeadsRequested} leads
+                </span>
+                <span>
+                  Started {new Date(job._creationTime).toLocaleDateString()}
                 </span>
               </div>
+              {job.lastEvent && (
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-1">
+                  {job.lastEvent.message}
+                </p>
+              )}
+            </div>
+            <div className="ml-4 flex-shrink-0">
+              <span className="text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors">
+                View Details →
+              </span>
             </div>
           </Link>
         ))}
@@ -291,25 +327,28 @@ type StatusBadgeProps = {
 };
 
 function StatusBadge({ status }: StatusBadgeProps) {
-  const getStatusColor = (status: string) => {
+  const getStatusClasses = (status: string) => {
     switch (status?.toLowerCase()) {
       case "running":
-        return "bg-blue-100 text-blue-700";
+        return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
       case "completed":
-        return "bg-green-100 text-green-700";
+        return "bg-[hsl(var(--success)/0.20)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.30)]";
       case "paused_for_upgrade":
-        return "bg-orange-100 text-orange-700";
+      case "paused":
+        return "bg-muted text-muted-foreground border-border";
       case "failed":
       case "error":
-        return "bg-red-100 text-red-700";
+        return "bg-destructive/20 text-destructive border-destructive/30";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
+  const displayText = status?.replace(/_/g, " ") || "Unknown";
+
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${getStatusColor(status)}`}>
-      {status?.replace(/_/g, " ") || "Unknown"}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusClasses(status)}`}>
+      {displayText}
     </span>
   );
 }

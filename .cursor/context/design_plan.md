@@ -74,11 +74,12 @@ Use utilities for surfaces:
   - Featured card: Adds an Ember red-orange border and faint radial accent; use `--shadow-strong` sparingly.
   - Content cards respect padding scale (`p-6` default, `p-4` compact).
 - **Buttons**
-  - Primary: Ember red-orange gradient blending into warmer amber accent; hover increases saturation and lifts shadow.
-  - Secondary: Warm neutral fill with diagonal shimmer; hover raises contrast.
+  - Primary (`.btn-primary`): Matches active tab aesthetic with primary gradient (24%-42% opacity), inset ring shadow, and subtle lift on hover. This is the main CTA button style used throughout the app.
+  - Secondary: Warm neutral fill with muted background; hover raises contrast.
   - Ghost / tertiary: Transparent background, emphasize text + focus ring.
   - Destructive: Red tone derived from palette (`hsl(0 74% 52%)` light, `hsl(0 84% 64%)` dark).
   - States: Focus ring uses `--ring`; disabled lowers opacity and removes elevation.
+  - Legacy: `.btn-contrast` is aliased to `.btn-primary` for backwards compatibility.
 - **Inputs & Selects**
   - Base fill `--surface-muted`, inner shadow to hint depth, 2px focus ring.
   - For grouped fields, use soft 1px dividers and consistent padding.
@@ -451,7 +452,7 @@ Use when sections have no data:
 ```tsx
 <div className="text-center py-8">
   <p className="text-muted-foreground">No items yet</p>
-  <Link href="/path" className="btn-contrast inline-flex mt-4">
+  <Link href="/path" className="btn-primary inline-flex mt-4">
     Create First Item
   </Link>
 </div>
@@ -461,8 +462,15 @@ Use when sections have no data:
 
 **Primary Action:**
 ```tsx
-<button className="btn-contrast">
+<button className="btn-primary">
   Primary Action
+</button>
+```
+
+**Secondary Action:**
+```tsx
+<button className="rounded-lg px-4 py-2 text-sm font-semibold border border-border bg-surface-muted text-foreground hover:bg-surface-raised transition-colors">
+  Secondary Action
 </button>
 ```
 
@@ -484,7 +492,7 @@ Use when sections have no data:
 7. **Mobile navigation** - Always ensure sidebar toggle is visible on mobile via sticky header; sidebar auto-closes when navigation links are clicked on mobile; hide duplicate controls inside sidebar on mobile (use `hidden md:flex`)
 8. **High contrast text** - Use bold weights and foreground colors for readability
 9. **Hover states** - Interactive elements should have clear hover feedback
-10. **Consistent CTAs** - Use `btn-contrast` for primary buttons, primary-colored links for secondary actions
+10. **Consistent CTAs** - Use `btn-primary` for primary buttons (matching active tab aesthetic), muted background buttons for secondary actions, primary-colored links for tertiary actions
 11. **Responsive gaps** - Use smaller gaps on mobile (`gap-3`) and larger on desktop (`gap-6`) for better space utilization
 
 ### Next Steps

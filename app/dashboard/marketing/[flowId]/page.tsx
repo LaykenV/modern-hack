@@ -18,6 +18,11 @@ const PHASE_LABELS = {
   generate_dossier: "Scrape Content & Generate Dossier",
 } as const;
 
+const PHASE_ICONS = {
+  scrape_content: "🔍",
+  generate_dossier: "📊",
+} as const;
+
 export default function MarketingFlowPage({ params }: Props) {
   const router = useRouter();
   const resolvedParams = use(params);
@@ -96,160 +101,241 @@ export default function MarketingFlowPage({ params }: Props) {
 
   if (!leadGenJob) {
     return (
-      <div className="max-w-6xl mx-auto w-full">
-        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-12 text-center">
-          <h1 className="text-2xl font-bold mb-2">Campaign Not Found</h1>
-          <p className="text-slate-600 dark:text-slate-400 mb-4">
-            The campaign you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
-          </p>
-          <Link
-            href="/dashboard/marketing"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            ← Back to Marketing
-          </Link>
+      <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+        <div className="max-w-6xl mx-auto w-full">
+          <div className="card-warm-static p-8 md:p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h1 className="text-3xl font-bold text-foreground mb-3">Campaign Not Found</h1>
+            <p className="text-muted-foreground mb-6 text-lg">
+              The campaign you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
+            </p>
+            <Link href="/dashboard/marketing" className="btn-contrast inline-flex items-center gap-2">
+              ← Back to Marketing
+            </Link>
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Link
-              href="/dashboard/marketing"
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              ← Marketing
-            </Link>
-          </div>
-          <h1 className="text-3xl font-bold">
-            {leadGenJob.campaign.targetVertical} in {leadGenJob.campaign.targetGeography}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Campaign ID: {leadGenJob._id}
-          </p>
-        </div>
-        <div className="text-right">
-          <StatusBadge status={leadGenJob.status} size="large" />
-          <p className="text-sm text-slate-500 mt-1">
-            {leadGenJob.numLeadsFetched}/{leadGenJob.numLeadsRequested} leads
-          </p>
-        </div>
-      </div>
-
-      {/* Paused Status Banner */}
-      {leadGenJob.status === "paused_for_upgrade" && billingBlock && (
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-orange-800 dark:text-orange-200">
-                ⏸️ Campaign Paused - Upgrade Required
+    <main className="min-h-full p-6 md:p-8 flex flex-col gap-6">
+      <div className="max-w-6xl mx-auto w-full space-y-8">
+        {/* Header with Summary */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex items-start justify-between gap-6 flex-col md:flex-row mb-8">
+            <div className="flex-1">
+              <Link
+                href="/dashboard/marketing"
+                className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 mb-4"
+              >
+                ← Back to Campaigns
+              </Link>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
+                {leadGenJob.campaign.targetVertical}
+              </h1>
+              <p className="text-lg text-muted-foreground mb-4">
+                Targeting {leadGenJob.campaign.targetGeography}
               </p>
-              <p className="text-sm text-orange-700 dark:text-orange-300">
-                Insufficient credits for {billingBlock.featureId.replace("_", " ")} in {billingBlock.phase} phase
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setPaywallDismissed(false);
-                setPaywallOpen(true);
-              }}
-              className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md"
-            >
-              Upgrade Now
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Phase Progress */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Campaign Progress</h2>
-        
-        {/* Overall Progress Bar */}
-        {typeof leadGenProgress === "number" && (
-          <div className="mb-6">
-            <div className="flex justify-between text-sm mb-2">
-              <span>Overall Progress</span>
-              <span>{Math.round(leadGenProgress * 100)}%</span>
-            </div>
-            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full">
-              <div
-                className="h-3 bg-blue-600 rounded-full transition-all"
-                style={{ width: `${Math.round(leadGenProgress * 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Phase Details */}
-        <div className="space-y-3">
-          {leadGenJob.phases.map((phase) => (
-            <div key={phase.name} className="flex items-center gap-4">
-              <div className={`w-4 h-4 rounded-full flex-shrink-0 ${
-                phase.status === "complete" ? "bg-green-500" :
-                phase.status === "running" ? "bg-blue-500 animate-pulse" :
-                phase.status === "error" ? "bg-red-500" :
-                leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase ? "bg-orange-500" :
-                "bg-slate-300"
-              }`} />
-              <div className="flex-1">
-                <div className="flex items-center gap-3">
-                  <span className="font-medium">
-                    {PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-sm text-slate-500">({Math.round(phase.progress * 100)}%)</span>
-                  {phase.status === "running" && <span className="text-blue-600 text-sm">Running...</span>}
-                  {leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase && (
-                    <span className="text-orange-600 text-sm">Paused for upgrade</span>
-                  )}
-                </div>
-                {phase.status === "error" && phase.errorMessage && (
-                  <p className="text-red-600 text-sm mt-1">Error: {phase.errorMessage}</p>
-                )}
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusBadge status={leadGenJob.status} size="large" />
+                <span className="text-sm text-muted-foreground">
+                  {leadGenJob.numLeadsFetched}/{leadGenJob.numLeadsRequested} leads discovered
+                </span>
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* Campaign Summary */}
+          {leadGenCounts && (
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">Campaign Summary</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+                <SummaryStatCard
+                  label="Total Leads"
+                  value={leadGenCounts.totalOpportunities}
+                  variant="primary"
+                />
+                <SummaryStatCard
+                  label="With Websites"
+                  value={leadGenCounts.opportunitiesWithWebsites}
+                  variant="accent"
+                />
+                <SummaryStatCard
+                  label="No Websites"
+                  value={leadGenCounts.opportunitiesWithoutWebsites}
+                  variant="accent"
+                />
+                <SummaryStatCard
+                  label="Ready to Call"
+                  value={leadGenCounts.readyOpportunities}
+                  variant="primary"
+                />
+                <SummaryStatCard
+                  label="Queued Audits"
+                  value={leadGenCounts.queuedAudits}
+                  variant="accent"
+                />
+                <SummaryStatCard
+                  label="Running Audits"
+                  value={leadGenCounts.runningAudits}
+                  variant="accent"
+                />
+                <SummaryStatCard
+                  label="Completed Audits"
+                  value={leadGenCounts.completedAudits}
+                  variant="accent"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Last Event */}
-        {leadGenJob.lastEvent && (
-          <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-md">
-            <p className="text-sm">
-              <span className="font-medium">Latest:</span> {leadGenJob.lastEvent.message}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {new Date(leadGenJob.lastEvent.timestamp).toLocaleString()}
-            </p>
+        {/* Paused Status Banner */}
+        {leadGenJob.status === "paused_for_upgrade" && billingBlock && (
+          <div className="card-warm-accent p-6 md:p-8 border-2 border-primary/40">
+            <div className="flex items-start justify-between gap-6 flex-col sm:flex-row">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">⏸️</span>
+                  <h3 className="text-lg font-bold text-foreground">Campaign Paused</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Insufficient credits for <span className="font-semibold">{billingBlock.featureId.replace("_", " ")}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Phase: {billingBlock.phase.replace("_", " ")}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setPaywallDismissed(false);
+                  setPaywallOpen(true);
+                }}
+                className="btn-contrast whitespace-nowrap"
+              >
+                Upgrade Now
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Flow Summary */}
-      {leadGenCounts && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Campaign Summary</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            <SummaryCard label="Total opportunities" value={leadGenCounts.totalOpportunities} />
-            <SummaryCard label="With websites" value={leadGenCounts.opportunitiesWithWebsites} />
-            <SummaryCard label="Without websites" value={leadGenCounts.opportunitiesWithoutWebsites} />
-            <SummaryCard label="Queued audits" value={leadGenCounts.queuedAudits} />
-            <SummaryCard label="Running audits" value={leadGenCounts.runningAudits} />
-            <SummaryCard label="Completed audits" value={leadGenCounts.completedAudits} />
-            <SummaryCard label="Ready opportunities" value={leadGenCounts.readyOpportunities} />
+        {/* Phase Progress */}
+        <div className="card-warm-static p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-foreground">Campaign Progress</h2>
+            {typeof leadGenProgress === "number" && (
+              <div className="text-right">
+                <span className="text-2xl font-bold text-foreground">{Math.round(leadGenProgress * 100)}%</span>
+                <p className="text-xs text-muted-foreground">Complete</p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+          
+          {/* Overall Progress Bar */}
+          {typeof leadGenProgress === "number" && (
+            <div className="mb-6">
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-3 rounded-full transition-all duration-500 relative overflow-hidden"
+                  style={{ 
+                    width: `${Math.round(leadGenProgress * 100)}%`,
+                    backgroundImage: 'linear-gradient(90deg, hsl(var(--primary) / 0.95) 0%, hsl(var(--primary) / 0.85) 60%, hsl(var(--accent) / 0.70) 100%)'
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* Opportunities */}
-      {opportunities && opportunities.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Opportunities ({opportunities.length})</h2>
-          <div className="space-y-4">
+          {/* Phase Details - Horizontal Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {leadGenJob.phases.map((phase) => {
+              const phaseIcon = PHASE_ICONS[phase.name as keyof typeof PHASE_ICONS] ?? "📋";
+              const isRunning = phase.status === "running";
+              const isComplete = phase.status === "complete";
+              const isError = phase.status === "error";
+              const isPaused = leadGenJob.status === "paused_for_upgrade" && phase.name === billingBlock?.phase;
+
+              return (
+                <div key={phase.name} className="p-4 rounded-lg bg-surface-overlay/50 border border-border/40">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
+                      isComplete ? "bg-success/20 border-2 border-success/50" :
+                      isRunning ? "bg-primary/20 border-2 border-primary/50 animate-pulse" :
+                      isError ? "bg-destructive/20 border-2 border-destructive/50" :
+                      isPaused ? "bg-accent/40 border-2 border-primary/40" :
+                      "bg-muted border-2 border-border"
+                    }`}>
+                      {phaseIcon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm text-foreground truncate">
+                        {PHASE_LABELS[phase.name as keyof typeof PHASE_LABELS] ?? phase.name.replace(/_/g, " ")}
+                      </h3>
+                    </div>
+                    {isRunning && (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
+                        Running
+                      </span>
+                    )}
+                    {isPaused && (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-accent/60 text-accent-foreground border border-accent-foreground/20">
+                        Paused
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          isComplete ? "bg-success" :
+                          isError ? "bg-destructive" :
+                          "bg-primary"
+                        }`}
+                        style={{ width: `${Math.round(phase.progress * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                      {Math.round(phase.progress * 100)}%
+                    </span>
+                  </div>
+                  {isError && phase.errorMessage && (
+                    <p className="text-xs text-destructive bg-destructive/10 px-2 py-1 rounded-md mt-2">
+                      {phase.errorMessage}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Last Event */}
+          {leadGenJob.lastEvent && (
+            <div className="mt-6 p-3 rounded-lg bg-accent/20 border border-border/50">
+              <div className="flex items-start gap-2">
+                <span className="text-base">⚡</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground mb-1">
+                    {leadGenJob.lastEvent.message}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(leadGenJob.lastEvent.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Opportunities */}
+        {opportunities && opportunities.length > 0 && (
+          <div className="card-warm-static p-6 md:p-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">
+              Opportunities <span className="text-muted-foreground">({opportunities.length})</span>
+            </h2>
+            <div className="space-y-4">
             {opportunities.map((opp) => {
               const job = auditJobMap.get(opp._id);
               const completedPhases = job?.phases.filter((phase: { status: string }) => phase.status === "complete").length ?? 0;
@@ -260,52 +346,66 @@ export default function MarketingFlowPage({ params }: Props) {
               return (
                 <div
                   key={opp._id}
-                  className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden"
+                  className="rounded-lg overflow-hidden border border-border/60 bg-surface-overlay/30 hover:border-border transition-all duration-200"
                 >
                   <button
                     onClick={() => setExpandedOpportunityId(isExpanded ? null : opp._id)}
-                    className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="w-full text-left p-4 md:p-5 hover:bg-accent/10 transition-colors"
                   >
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-medium text-lg">{opp.name}</h3>
+                    <div className="flex justify-between items-start gap-4 flex-col sm:flex-row">
+                      <div className="flex-1 w-full">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
+                          <h3 className="font-semibold text-lg text-foreground">{opp.name}</h3>
                           <OpportunityStatusBadge status={opp.status} />
                         </div>
-                        <p className="text-sm text-slate-500 mb-2">{opp.domain ?? "No website"}</p>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {opp.signals.map((signal) => (
-                            <span
-                              key={signal}
-                              className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs"
-                            >
-                              {signal.replace(/_/g, " ")}
-                            </span>
-                          ))}
-                        </div>
+                        {opp.domain && (
+                          <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                            <span>🌐</span>
+                            <span className="font-mono">{opp.domain}</span>
+                          </p>
+                        )}
+                        {opp.signals.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {opp.signals.map((signal) => (
+                              <span
+                                key={signal}
+                                className="inline-flex items-center rounded-full bg-accent/40 text-accent-foreground px-2.5 py-1 text-xs font-medium border border-border/30"
+                              >
+                                {signal.replace(/_/g, " ")}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {job && (
                           <div className="flex items-center gap-3">
-                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                               <div
-                                className="h-2 bg-emerald-500 rounded-full"
+                                className="h-2 bg-success rounded-full transition-all duration-300"
                                 style={{ width: `${phaseProgress}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-muted-foreground font-medium tabular-nums whitespace-nowrap">
                               {completedPhases}/{job.phases.length} phases
                             </span>
                           </div>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">Score: {Math.round(opp.qualificationScore * 100)}%</p>
-                        {job && <p className="text-xs text-slate-500">Audit: {job.status}</p>}
+                      <div className="text-left sm:text-right">
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/30">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Score</span>
+                          <span className="text-lg font-bold text-primary">{Math.round(opp.qualificationScore * 100)}%</span>
+                        </div>
+                        {job && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Audit: <span className="font-medium">{job.status}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </button>
 
                   {isExpanded && (
-                    <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 space-y-4">
+                    <div className="border-t border-border/60 bg-accent/5 p-4 md:p-6 space-y-6">
                       {/* Call Controls */}
                       {(() => {
                         const oppStatusUpper = typeof opp.status === "string" ? opp.status.toUpperCase() : "";
@@ -314,41 +414,51 @@ export default function MarketingFlowPage({ params }: Props) {
 
                         if (isReady && agencyProfile) {
                           return (
-                            <div className="flex items-center gap-4">
-                              <button
-                                onClick={async () => {
-                                  setStartingCallOppId(opp._id);
-                                  setCallErrorByOpp((prev) => {
-                                    const next = { ...prev };
-                                    delete next[oppKey];
-                                    return next;
-                                  });
-                                  try {
-                                    const result = await startVapiCall({
-                                      opportunityId: opp._id,
-                                      agencyId: agencyProfile.agencyProfileId,
+                            <div className="p-4 rounded-lg bg-success/10 border border-success/30">
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="text-xl">📞</span>
+                                <h4 className="font-semibold text-foreground">Ready to Call</h4>
+                              </div>
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                <button
+                                  onClick={async () => {
+                                    setStartingCallOppId(opp._id);
+                                    setCallErrorByOpp((prev) => {
+                                      const next = { ...prev };
+                                      delete next[oppKey];
+                                      return next;
                                     });
-                                    // Navigate to the call workspace
-                                    router.push(`/dashboard/calls/${result.callId}`);
-                                  } catch (err) {
-                                    console.error("Start call failed", err);
-                                    const message = err instanceof Error ? err.message : "Failed to start call";
-                                    setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
-                                  } finally {
-                                    setStartingCallOppId(null);
-                                  }
-                                }}
-                                disabled={startingCallOppId === opp._id || !hasCredits}
-                                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md"
-                              >
-                                {startingCallOppId === opp._id ? "Starting call..." : "Start Call"}
-                              </button>
-                              {!hasCredits && (
-                                <p className="text-sm text-orange-600">Need at least 1 credit to start a call.</p>
-                              )}
-                              {callErrorByOpp[oppKey] && (
-                                <p className="text-sm text-red-600">{callErrorByOpp[oppKey]}</p>
-                              )}
+                                    try {
+                                      const result = await startVapiCall({
+                                        opportunityId: opp._id,
+                                        agencyId: agencyProfile.agencyProfileId,
+                                      });
+                                      // Navigate to the call workspace
+                                      router.push(`/dashboard/calls/${result.callId}`);
+                                    } catch (err) {
+                                      console.error("Start call failed", err);
+                                      const message = err instanceof Error ? err.message : "Failed to start call";
+                                      setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
+                                    } finally {
+                                      setStartingCallOppId(null);
+                                    }
+                                  }}
+                                  disabled={startingCallOppId === opp._id || !hasCredits}
+                                  className="btn-contrast disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  {startingCallOppId === opp._id ? "Starting call..." : "🚀 Start Call"}
+                                </button>
+                                {!hasCredits && (
+                                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+                                    Need at least 1 credit to start a call
+                                  </p>
+                                )}
+                                {callErrorByOpp[oppKey] && (
+                                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+                                    {callErrorByOpp[oppKey]}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           );
                         }
@@ -358,9 +468,12 @@ export default function MarketingFlowPage({ params }: Props) {
 
                       {/* Fit Reason */}
                       {opp.fit_reason && (
-                        <div>
-                          <h4 className="font-medium mb-2">Why This Lead Fits</h4>
-                          <p className="text-sm text-slate-600 dark:text-slate-300 p-3 bg-white dark:bg-slate-800 rounded-md">
+                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-xl">✨</span>
+                            <h4 className="font-semibold text-foreground">Why This Lead Fits</h4>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
                             {opp.fit_reason}
                           </p>
                         </div>
@@ -368,25 +481,28 @@ export default function MarketingFlowPage({ params }: Props) {
 
                       {/* Dossier */}
                       {job?.dossierId && (
-                        <div>
-                          <h4 className="font-medium mb-2">Research Dossier</h4>
+                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">📋</span>
+                            <h4 className="font-semibold text-foreground">Research Dossier</h4>
+                          </div>
                           {dossier ? (
-                            <div className="space-y-3 text-sm">
+                            <div className="space-y-4">
                               {dossier.summary && (
-                                <div className="p-3 bg-white dark:bg-slate-800 rounded-md">
-                                  <h5 className="font-medium mb-1">Summary</h5>
-                                  <p className="text-slate-600 dark:text-slate-300">{dossier.summary}</p>
+                                <div className="p-3 bg-accent/10 rounded-md border border-border/30">
+                                  <h5 className="font-medium text-foreground mb-2">Summary</h5>
+                                  <p className="text-sm text-muted-foreground leading-relaxed">{dossier.summary}</p>
                                 </div>
                               )}
 
                               {dossier.identified_gaps.length > 0 && (
-                                <div className="p-3 bg-white dark:bg-slate-800 rounded-md">
-                                  <h5 className="font-medium mb-2">Identified Opportunities</h5>
+                                <div className="p-3 bg-primary/5 rounded-md border border-primary/20">
+                                  <h5 className="font-medium text-foreground mb-3">Identified Opportunities</h5>
                                   <ul className="space-y-2">
                                     {dossier.identified_gaps.map((gap, idx) => (
-                                      <li key={`gap-${idx}`} className="flex justify-between">
-                                        <span className="font-medium">{gap.key}:</span>
-                                        <span className="text-slate-600 dark:text-slate-300">{gap.value}</span>
+                                      <li key={`gap-${idx}`} className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm">
+                                        <span className="font-semibold text-foreground">{gap.key}:</span>
+                                        <span className="text-muted-foreground">{gap.value}</span>
                                       </li>
                                     ))}
                                   </ul>
@@ -394,12 +510,13 @@ export default function MarketingFlowPage({ params }: Props) {
                               )}
 
                               {dossier.talking_points.length > 0 && (
-                                <div className="p-3 bg-white dark:bg-slate-800 rounded-md">
-                                  <h5 className="font-medium mb-2">Talking Points</h5>
-                                  <ul className="list-disc ml-4 space-y-1">
+                                <div className="p-3 bg-accent/10 rounded-md border border-border/30">
+                                  <h5 className="font-medium text-foreground mb-3">Talking Points</h5>
+                                  <ul className="space-y-2">
                                     {dossier.talking_points.map((point, idx) => (
-                                      <li key={`tp-${idx}`} className="text-slate-600 dark:text-slate-300">
-                                        {point.text}
+                                      <li key={`tp-${idx}`} className="flex items-start gap-2 text-sm">
+                                        <span className="text-primary mt-0.5">•</span>
+                                        <span className="text-muted-foreground">{point.text}</span>
                                       </li>
                                     ))}
                                   </ul>
@@ -407,51 +524,57 @@ export default function MarketingFlowPage({ params }: Props) {
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-500">Loading dossier...</p>
+                            <p className="text-sm text-muted-foreground">Loading dossier...</p>
                           )}
                         </div>
                       )}
 
                       {/* Sources Toggle */}
                       {job && (
-                        <div>
+                        <div className="p-4 rounded-lg bg-surface-raised border border-border/40">
                           <button
                             onClick={() => setViewSourcesForAuditId(
                               viewSourcesForAuditId === job._id ? null : job._id
                             )}
-                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-2"
                           >
-                            {viewSourcesForAuditId === job._id ? "Hide sources" : "View scraped sources"}
+                            <span>{viewSourcesForAuditId === job._id ? "▼" : "▶"}</span>
+                            <span>{viewSourcesForAuditId === job._id ? "Hide Sources" : "View Scraped Sources"}</span>
                           </button>
 
                           {viewSourcesForAuditId === job._id && (
-                            <div className="mt-3 space-y-2">
+                            <div className="mt-4 space-y-3">
                               {scrapedPages ? (
                                 scrapedPages.length > 0 ? (
                                   scrapedPages.map((page, idx) => (
                                     <div
                                       key={`scrape-${idx}`}
-                                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md"
+                                      className="p-3 bg-accent/10 border border-border/30 rounded-md hover:bg-accent/15 transition-colors"
                                     >
-                                      <p className="font-medium text-sm">{page.title || page.url}</p>
-                                      <p className="text-xs text-slate-500">{page.url}</p>
+                                      <p className="font-medium text-sm text-foreground mb-1">
+                                        {page.title || "Untitled Page"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground font-mono mb-2 break-all">
+                                        {page.url}
+                                      </p>
                                       {page.contentUrl && (
                                         <a
                                           href={page.contentUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block"
+                                          className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
                                         >
-                                          Download content →
+                                          <span>Download content</span>
+                                          <span>→</span>
                                         </a>
                                       )}
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-xs text-slate-500">No scraped pages recorded.</p>
+                                  <p className="text-sm text-muted-foreground text-center py-4">No scraped pages recorded</p>
                                 )
                               ) : (
-                                <p className="text-xs text-slate-500">Loading sources...</p>
+                                <p className="text-sm text-muted-foreground text-center py-4">Loading sources...</p>
                               )}
                             </div>
                           )}
@@ -466,30 +589,31 @@ export default function MarketingFlowPage({ params }: Props) {
         </div>
       )}
 
-      {/* Paywall Dialog */}
-      <PaywallDialog
-        open={paywallOpen}
-        onOpenChange={(open) => {
-          setPaywallOpen(open);
-          if (!open) {
-            setPaywallDismissed(true);
-          }
-        }}
-        billingBlock={billingBlock}
-        onResume={async () => {
-          try {
-            const result = await resumeWorkflow({ leadGenFlowId: flowId });
-            return { ok: result.success, message: result.message };
-          } catch (error) {
-            console.error("Resume workflow error:", error);
-            return { ok: false, message: "Failed to resume workflow" };
-          }
-        }}
-        onRefetchCustomer={async () => {
-          await refetchCustomer();
-        }}
-      />
-    </div>
+        {/* Paywall Dialog */}
+        <PaywallDialog
+          open={paywallOpen}
+          onOpenChange={(open) => {
+            setPaywallOpen(open);
+            if (!open) {
+              setPaywallDismissed(true);
+            }
+          }}
+          billingBlock={billingBlock}
+          onResume={async () => {
+            try {
+              const result = await resumeWorkflow({ leadGenFlowId: flowId });
+              return { ok: result.success, message: result.message };
+            } catch (error) {
+              console.error("Resume workflow error:", error);
+              return { ok: false, message: "Failed to resume workflow" };
+            }
+          }}
+          onRefetchCustomer={async () => {
+            await refetchCustomer();
+          }}
+        />
+      </div>
+    </main>
   );
 }
 
@@ -500,26 +624,26 @@ type StatusBadgeProps = {
 };
 
 function StatusBadge({ status, size = "normal" }: StatusBadgeProps) {
-  const getStatusColor = (status: string) => {
+  const getStatusStyles = (status: string) => {
     switch (status?.toLowerCase()) {
       case "running":
-        return "bg-blue-100 text-blue-700";
+        return "bg-primary/20 text-primary border-primary/30";
       case "completed":
-        return "bg-green-100 text-green-700";
+        return "bg-success/20 text-success border-success/30";
       case "paused_for_upgrade":
-        return "bg-orange-100 text-orange-700";
+        return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
       case "failed":
       case "error":
-        return "bg-red-100 text-red-700";
+        return "bg-destructive/20 text-destructive border-destructive/30";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
-  const sizeClass = size === "large" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
+  const sizeClass = size === "large" ? "px-3 py-1.5 text-sm font-semibold" : "px-2.5 py-1 text-xs font-semibold";
 
   return (
-    <span className={`inline-flex items-center rounded-full ${sizeClass} ${getStatusColor(status)}`}>
+    <span className={`inline-flex items-center rounded-full border ${sizeClass} ${getStatusStyles(status)}`}>
       {status?.replace(/_/g, " ") || "Unknown"}
     </span>
   );
@@ -530,39 +654,44 @@ type OpportunityStatusBadgeProps = {
 };
 
 function OpportunityStatusBadge({ status }: OpportunityStatusBadgeProps) {
-  const getStatusColor = (status: string) => {
+  const getStatusStyles = (status: string) => {
     const upper = status?.toUpperCase();
     switch (upper) {
       case "READY":
-        return "bg-emerald-100 text-emerald-700";
+        return "bg-success/20 text-success border-success/30";
       case "BOOKED":
-        return "bg-green-100 text-green-700";
+        return "bg-success/30 text-success border-success/40";
       case "REJECTED":
-        return "bg-red-100 text-red-700";
+        return "bg-destructive/20 text-destructive border-destructive/30";
       case "PENDING":
-        return "bg-blue-100 text-blue-700";
+        return "bg-primary/20 text-primary border-primary/30";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${getStatusColor(status)}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusStyles(status)}`}>
       {status || "Unknown"}
     </span>
   );
 }
 
-type SummaryCardProps = {
+type SummaryStatCardProps = {
   label: string;
   value: number;
+  variant: "primary" | "accent";
 };
 
-function SummaryCard({ label, value }: SummaryCardProps) {
+function SummaryStatCard({ label, value, variant }: SummaryStatCardProps) {
+  const cardClass = variant === "primary" ? "stat-card-primary" : "stat-card-accent";
+  
   return (
-    <div className="text-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
+    <div className={`${cardClass} p-5`}>
+      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        {label}
+      </p>
+      <p className="text-3xl font-bold text-foreground mt-1">{value}</p>
     </div>
   );
 }
