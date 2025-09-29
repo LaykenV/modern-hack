@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react";
 import { useState, useMemo } from "react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Doc } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { Phone, Clock, Calendar, CheckCircle, XCircle, PhoneOff, ExternalLink } from "lucide-react";
 
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -277,7 +277,7 @@ export default function CallsPage() {
 
 // Call List Item Component
 type CallListItemProps = {
-  call: any;
+  call: Doc<"calls">;
   isSelected: boolean;
   onClick: () => void;
   formatDuration: (ms: number | undefined) => string;
@@ -351,7 +351,7 @@ function CallListItem({ call, isSelected, onClick, formatDuration }: CallListIte
 
 // Call Details Panel Component
 type CallDetailsPanelProps = {
-  selectedCall: any;
+  selectedCall: Doc<"calls"> | null | undefined;
   formatDuration: (ms: number | undefined) => string;
   isMobile?: boolean;
 };
