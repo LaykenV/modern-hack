@@ -274,8 +274,8 @@ function CallListItem({ call, isSelected, onClick, formatDuration }: CallListIte
 
   return (
     <div
-      className={`p-4 hover:bg-accent/30 cursor-pointer transition-colors touch-target ${
-        isSelected ? "bg-primary/10 border-l-4 border-l-primary" : ""
+      className={`p-4 hover:bg-accent/30 cursor-pointer transition-colors touch-target border-l-4 ${
+        isSelected ? "bg-primary/10 border-l-primary" : "border-l-transparent"
       }`}
       onClick={onClick}
       role="button"
@@ -359,36 +359,39 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <CallStatusBadge status={status} />
       </div>
 
-      <div className="space-y-4">
+      {/* Call Details Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-surface-muted/30 border border-border/40 rounded-lg">
         <div>
-          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Call ID</p>
-          <p className="text-foreground font-medium font-mono">#{selectedCall._id.slice(-8)}</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Call ID</p>
+          <p className="text-foreground font-medium font-mono text-sm">#{selectedCall._id.slice(-8)}</p>
         </div>
 
         <div>
-          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <p className="text-foreground font-medium">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            <p className="text-foreground font-medium text-sm">
               {formatDuration(selectedCall.billingSeconds ? selectedCall.billingSeconds * 1000 : selectedCall.duration)}
             </p>
           </div>
         </div>
 
         <div>
-          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Started</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Started</p>
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <p className="text-foreground font-medium">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            <p className="text-foreground font-medium text-sm">
               {new Date(selectedCall._creationTime).toLocaleString()}
             </p>
           </div>
         </div>
+      </div>
 
+      <div className="space-y-4">
         {selectedCall.summary && (
           <div>
             <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
@@ -417,12 +420,14 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
                         key={index} 
                         className={`p-3 rounded-md ${
                           message.role === "assistant" 
-                            ? "bg-primary/10 border-l-2 border-l-primary" 
-                            : "bg-accent/20 border-l-2 border-l-accent-foreground/40"
+                            ? "bg-accent/20 border-l-2 border-l-accent-foreground/40" 
+                            : "bg-primary/10 border-l-2 border-l-primary"
                         }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <span className={`text-xs font-semibold uppercase tracking-wide ${
+                            message.role === "assistant" ? "text-muted-foreground" : "text-primary"
+                          }`}>
                             {message.role === "assistant" ? "AI" : "Prospect"}
                           </span>
                           {message.timestamp && (
