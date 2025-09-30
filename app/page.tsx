@@ -4,7 +4,6 @@ import { Authenticated, Unauthenticated } from "convex/react";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Home() {
   return (
@@ -53,25 +52,24 @@ function LandingPage() {
             </div>
             <span className="text-xl font-bold text-foreground">Atlas Outbound</span>
           </div>
-          <ThemeToggle />
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onGoogleSignIn}
+            className="btn-primary text-sm px-4 sm:px-6 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="px-4 sm:px-6 lg:px-8 pt-12 pb-16 sm:pt-20 sm:pb-24">
         <div className="max-w-6xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-sm font-semibold text-primary mb-6 sm:mb-8">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-            </span>
-            AI-Powered Outbound for Agencies
-          </div>
-          
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground tracking-tight mb-6 sm:mb-8">
             Stop Prospecting.
             <br />
-            <span className="bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--accent-foreground))] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-t from-[hsl(var(--primary))] to-[hsl(var(--accent-foreground))] bg-clip-text text-transparent">
               Start Closing.
             </span>
           </h1>

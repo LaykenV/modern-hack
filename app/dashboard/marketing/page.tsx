@@ -8,6 +8,40 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useCustomer } from "autumn-js/react";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
 import Link from "next/link";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const TARGET_VERTICALS = [
+  "Roofing",
+  "Plumbing",
+  "Electricians",
+  "HVAC",
+  "Landscaping & Lawn Care",
+  "Tree Services",
+  "Pest Control",
+  "Garage Door Services",
+  "Solar Installers",
+  "General Contractors & Remodeling",
+  "Painting",
+  "Cleaning Services",
+  "Restoration (Water/Fire/Mold)",
+  "Window Cleaning",
+  "Pressure Washing",
+  "Handyman",
+  "Auto Repair",
+  "Auto Body & Collision",
+  "Tire Shops",
+  "Dentists",
+  "Chiropractors",
+  "Physical Therapy",
+  "Optometrists",
+  "Med Spas",
+  "Hair Salons & Barbers",
+  "Law Firms",
+  "Accountants & CPAs",
+  "Real Estate Agents",
+  "Property Management",
+  "Mortgage Brokers"
+];
 
 export default function MarketingPage() {
   const router = useRouter();
@@ -160,13 +194,16 @@ export default function MarketingPage() {
               <label className="block text-sm font-semibold text-foreground mb-2">
                 Target Vertical
               </label>
-              <input
-                type="text"
-                value={targetVertical}
-                onChange={(e) => setTargetVertical(e.target.value)}
-                placeholder="e.g., roofers, dentists"
-                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
-              />
+              <Select value={targetVertical} onValueChange={setTargetVertical}>
+                <SelectTrigger className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground">
+                  <SelectValue placeholder="Select an industry..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {TARGET_VERTICALS.map(vertical => (
+                    <SelectItem key={vertical} value={vertical}>{vertical}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">

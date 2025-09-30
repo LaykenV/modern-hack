@@ -106,25 +106,25 @@ resend emails with ics and recap
 
 //email, meetings, combine settings/sub
 
-ui / ux
+//ui / ux
 
-edit agency
+//edit agency
+go through each page for ui and ux
 call linking
 add color in few places
+update layout for tab stuff and twitter card
 
-paywall dialog return url
+post about chef site
+
+paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
 percentage on resume
-ai call prompt - if we have email, hang up faster
+ai call prompt - if we have email aware, hang up faster
+
+//create dummy agency site
+add use demo button on onboarding, and crawl should show loading right away
+add test call functionality with phone number and email override
 
 test all flows with new ui
-
-
-chef dummy agency and seed func
-
-increase max 10 pages on agency crawl filter? crawl should start right away in ui and takes too long
-update system prompts? get email in call?
-remove lower tiers, manage sub, dialogpay from dialog
-
 
 test everything
 
