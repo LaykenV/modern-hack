@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -25,6 +25,7 @@ type DemoCallModalProps = {
   opportunityId: Id<"client_opportunities">;
   agencyId: Id<"agency_profile">;
   atlasCreditsBalance: number;
+  userEmail: string;
 };
 
 export default function DemoCallModal({
@@ -33,14 +34,13 @@ export default function DemoCallModal({
   opportunityId,
   agencyId,
   atlasCreditsBalance,
+  userEmail,
 }: DemoCallModalProps) {
   const router = useRouter();
   const startDemoCall = useAction(api.call.calls.startDemoCall);
-  const user = useQuery(api.auth.getCurrentUser);
-  console.log("user", user);
 
   const [phoneNumber, setPhoneNumber] = useState("+1");
-  const [email, setEmail] = useState(user?.email || "");
+  const [email, setEmail] = useState(userEmail);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,7 +86,7 @@ export default function DemoCallModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background backdrop-blur-md border-2 shadow-2xl">
+      <DialogContent className="sm:max-w-[500px] bg-background backdrop-blur-sm border-2 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
           <DialogDescription className="text-base">

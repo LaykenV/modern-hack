@@ -69,6 +69,7 @@ export default function MarketingFlowPage({ params }: Props) {
   const billingBlockKeyRef = useRef<string | null>(null);
 
   // Data queries
+  const user = useQuery(api.auth.getCurrentUser);
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const leadGenJob = useQuery(api.marketing.getLeadGenJob, { jobId: flowId });
   const leadGenProgress = useQuery(api.marketing.getLeadGenProgress, { jobId: flowId });
@@ -885,6 +886,7 @@ export default function MarketingFlowPage({ params }: Props) {
             opportunityId={demoCallOpportunityId}
             agencyId={agencyProfile.agencyProfileId}
             atlasCreditsBalance={atlasCreditsBalance}
+            userEmail={user?.email || ""}
           />
         )}
       </div>
