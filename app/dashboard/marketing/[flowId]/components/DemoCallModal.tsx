@@ -37,6 +37,7 @@ export default function DemoCallModal({
   const router = useRouter();
   const startDemoCall = useAction(api.call.calls.startDemoCall);
   const user = useQuery(api.auth.getCurrentUser);
+  console.log("user", user);
 
   const [phoneNumber, setPhoneNumber] = useState("+1");
   const [email, setEmail] = useState(user?.email || "");
@@ -85,7 +86,7 @@ export default function DemoCallModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background/98 backdrop-blur-md border-2 shadow-2xl">
+      <DialogContent className="sm:max-w-[500px] bg-background backdrop-blur-md border-2 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
           <DialogDescription className="text-base">
