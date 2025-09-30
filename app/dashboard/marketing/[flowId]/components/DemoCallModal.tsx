@@ -12,6 +12,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogOverlay,
+  DialogPortal,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,7 +88,9 @@ export default function DemoCallModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background backdrop-blur-sm border-2 shadow-2xl">
+      <DialogPortal>
+        <DialogOverlay className="bg-black/80" />
+        <DialogContent className="sm:max-w-[500px] bg-background border-2 shadow-2xl" showCloseButton={true}>
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
           <DialogDescription className="text-base">
@@ -230,7 +234,8 @@ export default function DemoCallModal({
             )}
           </Button>
         </DialogFooter>
-      </DialogContent>
+        </DialogContent>
+      </DialogPortal>
     </Dialog>
   );
 }

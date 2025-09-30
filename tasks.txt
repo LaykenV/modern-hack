@@ -122,8 +122,8 @@ percentage on resume
 ai call prompt - if we have email aware, hang up faster
 
 //create dummy agency site
-add test call functionality with phone number and email override -- biggest change
-/ id pages ui / ux
+//add test call functionality with phone number and email override -- biggest change
+// id pages ui / ux
 
 test all flows with new ui
 
