@@ -89,7 +89,7 @@ export default function DemoCallModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogOverlay className="bg-black/80" />
+        <DialogOverlay className="bg-black/90" />
         <DialogContent className="sm:max-w-[500px] bg-background border-2 shadow-2xl" showCloseButton={true}>
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
@@ -106,6 +106,10 @@ export default function DemoCallModal({
               This will start a real call to your number with the same AI assistant that would
               call prospects. <span className="font-semibold">1 atlas_credit</span> will be charged
               per minute.
+              <br />
+              <br />
+              <span className="font-semibold text-foreground">Note:</span> The business owner will NOT be contacted or notified in any way. 
+              This is a private demo for testing only.
             </AlertDescription>
           </Alert>
 
@@ -179,7 +183,8 @@ export default function DemoCallModal({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Used for calendar invite and follow-up if a meeting is booked
+              If a meeting is booked, you&apos;ll receive <span className="font-semibold">both</span> the prospect confirmation 
+              and agency summary emails here (for testing purposes)
             </p>
             {email && !isEmailValid && (
               <p className="text-xs text-destructive flex items-center gap-1">

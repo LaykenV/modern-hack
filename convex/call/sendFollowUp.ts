@@ -109,7 +109,12 @@ async function sendProspectEmail(
   meetingTime: number,
   agencyTimeZone: string
 ): Promise<void> {
-  if (!opportunity.email) {
+  // For demo calls, use override email; otherwise use opportunity email
+  const prospectEmail = call.isDemo && call.demoOverrides?.email
+    ? call.demoOverrides.email
+    : opportunity.email;
+
+  if (!prospectEmail) {
     console.error(`[Follow-up] No prospect email available for opportunity ${opportunity._id}`);
     return;
   }
@@ -130,7 +135,7 @@ async function sendProspectEmail(
     opportunityId: opportunity._id,
     agencyId: agency._id,
     from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
-    to: opportunity.email,
+    to: prospectEmail,
     subject: `Meeting Confirmation - ${agency.companyName}`,
     html: `
       <p>Hello ${opportunity.name},</p>
@@ -147,7 +152,7 @@ async function sendProspectEmail(
     // Send email using Resend component
     await resend.sendEmail(ctx, {
       from: "Atlas Outbound <notifications@scheduler.atlasoutbound.app>",
-      to: opportunity.email,
+      to: prospectEmail,
       subject: `Meeting Confirmation - ${agency.companyName}`,
       html: `
         <p>Hello ${opportunity.name},</p>
@@ -161,7 +166,7 @@ async function sendProspectEmail(
 
     // Mark as sent
     await ctx.runMutation(internal.call.emailMutations.markEmailSent, { emailId });
-    console.log(`[Follow-up] Prospect confirmation email sent to ${opportunity.email}`);
+    console.log(`[Follow-up] Prospect confirmation email sent to ${prospectEmail}${call.isDemo ? ' (demo mode)' : ''}`);
     
   } catch (error) {
     // Mark as failed
@@ -350,8 +355,10 @@ export const sendBookingConfirmation = internalAction({
 
       const agencyTimeZone = agency.timeZone ?? "America/New_York";
       
-      // Extract agency email from Google OAuth (from startedByEmail or fallback)
-      const agencyEmail = call.startedByEmail || "notifications@scheduler.atlasoutbound.app";
+      // Extract agency email - for demo calls, use override email; otherwise use startedByEmail
+      const agencyEmail = call.isDemo && call.demoOverrides?.email
+        ? call.demoOverrides.email
+        : (call.startedByEmail || "notifications@scheduler.atlasoutbound.app");
 
       // Log structured confirmation details
       console.log(`[Follow-up] Meeting Booking Confirmed:`, {
