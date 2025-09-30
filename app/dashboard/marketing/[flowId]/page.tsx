@@ -568,7 +568,7 @@ export default function MarketingFlowPage({ params }: Props) {
                                       }
                                     }}
                                     disabled={startingCallOppId === opp._id || !hasCredits}
-                                    className="btn-primary font-semibold px-6 py-2.5 flex-1"
+                                    className="btn-primary font-semibold px-6 py-2.5"
                                     aria-label="Start AI call"
                                   >
                                     {startingCallOppId === opp._id ? (
@@ -591,8 +591,7 @@ export default function MarketingFlowPage({ params }: Props) {
                                       setDemoCallModalOpen(true);
                                     }}
                                     disabled={!hasCredits}
-                                    variant="outline"
-                                    className="font-semibold px-6 py-2.5 border-2 hover:bg-accent/50"
+                                    className="btn-primary font-semibold px-6 py-2.5"
                                     aria-label="Start demo call with test number"
                                   >
                                     <PlayCircle className="mr-2 h-5 w-5" />
