@@ -245,8 +245,8 @@ export default function CallsPage() {
 
         {/* Call Details Modal */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="call-details-modal max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="call-details-modal max-w-2xl max-h-[85vh] overflow-y-auto p-6">
+            <DialogHeader className="pb-4">
               <DialogTitle>Call Details</DialogTitle>
             </DialogHeader>
             <CallDetailsModal 

@@ -625,6 +625,5 @@
     border: 1px solid hsl(var(--border) / 0.6);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-strong);
-    padding: 1.5rem;
   }
 }
