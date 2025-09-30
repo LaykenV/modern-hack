@@ -9,12 +9,11 @@ import { InitialSetupForm } from "./components/Step1_InitialSetupForm";
 import { WorkflowWithApproval } from "./components/Step2_WorkflowWithApproval";
 import { ReviewAndEditGenerated } from "./components/Step3_ReviewAndEditGenerated";
 import { Step4FinalConfigurationForm } from "./components/Step4_FinalConfigurationForm";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Rocket, Search, FileText, Settings } from "lucide-react";
+import { CheckCircle2, Rocket, Search, FileText, Settings, Loader2 } from "lucide-react";
 
 type OnboardingStep = 1 | 2 | 3 | 4;
 type Mode = "manual" | "automated";
@@ -51,6 +50,7 @@ function Content() {
   const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const isLoading = agencyProfile === undefined;
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({
     currentStep: 1,
@@ -60,12 +60,8 @@ function Content() {
   useEffect(() => {
     if (!agencyProfile) return;
 
-    // If onboarding is already completed, redirect to dashboard
-    if (agencyProfile.tone && agencyProfile.targetVertical && agencyProfile.availability) {
-      router.replace("/dashboard");
-      return;
-    }
-
+    // Note: Redirect to dashboard if onboarding is complete is handled in layout.tsx
+    
     // If reviewedAt exists, go to Step 4 (Configure)
     // This takes precedence over onboardingFlowId to avoid bouncing back to Step 2 after review
     if (agencyProfile.reviewedAt) {
@@ -100,7 +96,7 @@ function Content() {
         agencyProfileId: agencyProfile.agencyProfileId as Id<"agency_profile">,
       }));
     }
-  }, [agencyProfile, router]);
+  }, [agencyProfile]);
 
   const handleStarted = (params: { mode: Mode; agencyProfileId: string; onboardingFlowId?: string }) => {
     if (params.mode === "automated") {
@@ -137,6 +133,7 @@ function Content() {
   };
 
   const handleOnboardingComplete = () => {
+    setIsRedirecting(true);
     router.replace("/dashboard");
   };
 
@@ -286,37 +283,19 @@ function Content() {
     );
   };
 
-  // Loading skeleton
-  const LoadingSkeleton = () => (
-    <div className="max-w-7xl mx-auto w-full">
-      <div className="card-warm-static p-4 sm:p-6 md:p-8 mb-6 md:mb-8">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-6 w-24" />
-          </div>
-          <Skeleton className="h-5 w-64" />
-        </div>
-        <Skeleton className="h-2 w-full mb-6" />
-        <Separator className="mb-6" />
-        <div className="flex gap-4 justify-center">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="w-12 h-12 rounded-full" />
-          ))}
-        </div>
-      </div>
-      <div className="card-warm-static p-6 md:p-8">
-        <Skeleton className="h-10 w-full mb-4" />
-        <Skeleton className="h-10 w-full mb-4" />
-        <Skeleton className="h-10 w-full mb-4" />
-        <Skeleton className="h-12 w-32 mt-6" />
+  // Centered loading spinner - shows while auth/data resolves and before potential redirects
+  const CenteredLoader = () => (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your profile...</p>
       </div>
     </div>
   );
 
-  // Show loading state
-  if (isLoading) {
-    return <LoadingSkeleton />;
+  // Show loading state while data resolves and before any redirects
+  if (isLoading || isRedirecting) {
+    return <CenteredLoader />;
   }
 
   return (

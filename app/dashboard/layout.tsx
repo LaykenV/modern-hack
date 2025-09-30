@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Sidebar,
   SidebarContent,
@@ -21,7 +23,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -50,10 +52,46 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isOnboarding = pathname === "/dashboard/onboarding";
+
+  // Always call hooks unconditionally - only query on onboarding page
+  const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
+
+  // Redirect to dashboard if onboarding is complete
+  React.useEffect(() => {
+    if (
+      isOnboarding &&
+      agencyProfile &&
+      agencyProfile.tone &&
+      agencyProfile.targetVertical &&
+      agencyProfile.availability
+    ) {
+      router.replace("/dashboard");
+    }
+  }, [isOnboarding, agencyProfile, router]);
 
   // For onboarding, render without sidebar
   if (isOnboarding) {
+    // Show loading state until we know whether to stay or redirect
+    const isLoading = agencyProfile === undefined;
+    const shouldRedirect =
+      agencyProfile &&
+      agencyProfile.tone &&
+      agencyProfile.targetVertical &&
+      agencyProfile.availability;
+
+    if (isLoading || shouldRedirect) {
+      return (
+        <div className="min-h-screen bg-page-gradient-radial overflow-hidden flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-page-gradient-radial overflow-hidden">
         <OnboardingHeader />
@@ -84,20 +122,7 @@ export default function DashboardLayout({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                className="sidebar-nav-button h-12 px-3 text-[0.95rem] justify-between"
-                onClick={async () => {
-                  await authClient.signOut();
-                }}
-                aria-label="Sign out"
-              >
-                <span>Sign out</span>
-                <LogOut className="size-4" aria-hidden="true" />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <SignOutButton />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
@@ -157,6 +182,39 @@ function NavigationMenu() {
   );
 }
 
+function SignOutButton() {
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await authClient.signOut();
+    } catch (error) {
+      setIsSigningOut(false);
+      console.error("Failed to sign out:", error);
+    }
+  };
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          className="sidebar-nav-button h-12 px-3 text-[0.95rem] justify-between"
+          onClick={handleSignOut}
+          disabled={isSigningOut}
+          aria-label="Sign out"
+        >
+          <span>Sign out</span>
+          {isSigningOut ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <LogOut className="size-4" aria-hidden="true" />
+          )}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
 
 function CollapsedFloatingControls() {
   const { state, isMobile } = useSidebar();

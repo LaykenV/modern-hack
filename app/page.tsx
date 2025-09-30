@@ -1,21 +1,26 @@
 "use client";
 
-import { Authenticated, Unauthenticated } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
-  return (
-    <>
-      <Unauthenticated>
-        <LandingPage />
-      </Unauthenticated>
-      <Authenticated>
-        <RedirectToDashboard />
-      </Authenticated>
-    </>
-  );
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Show nothing while checking auth to avoid flash
+  if (isLoading || isAuthenticated) {
+    return null;
+  }
+
+  return <LandingPage />;
 }
 
 function LandingPage() {
@@ -290,12 +295,4 @@ function LandingPage() {
       </footer>
     </div>
   );
-}
-
-function RedirectToDashboard() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace("/dashboard");
-  }, [router]);
-  return null;
 }
