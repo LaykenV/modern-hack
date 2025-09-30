@@ -26,13 +26,13 @@ export const ThemeToggle = forwardRef<HTMLButtonElement, { className?: string }>
     return (
       <Button
         ref={ref}
+        {...props}
         aria-label="Toggle theme"
         title="Toggle theme"
         variant="ghost"
         size="icon"
         className={cn("size-7 rounded-md", className)}
         onClick={toggle}
-        {...props}
       >
         {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
       </Button>
