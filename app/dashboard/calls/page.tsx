@@ -408,8 +408,8 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
 
         {/* Transcript Accordion */}
         {selectedCall.transcript && selectedCall.transcript.length > 0 && (
-          <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4">
+          <Accordion type="single" collapsible className="w-full mb-4">
+            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4 pb-2">
               <AccordionTrigger className="hover:no-underline">
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
                   Transcript ({selectedCall.transcript.length} messages)

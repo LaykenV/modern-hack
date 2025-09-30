@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { DateTime } from "luxon";
-import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +20,8 @@ import {
   Clock, 
   ChevronLeft, 
   ChevronRight,
-  Video,
   CheckCircle2,
   Globe,
-  ExternalLink,
   CalendarX2,
   Settings,
   Info
@@ -91,7 +88,6 @@ function minutesToLabel(minutes: number): string {
 }
 
 export default function MeetingsCalendar() {
-  const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -261,14 +257,10 @@ export default function MeetingsCalendar() {
                 <p className="text-sm font-semibold text-foreground mb-3">Your Availability</p>
                 <div className="flex flex-wrap gap-2">
                   {agencyProfile.availability.map((slot, i) => (
-                    <Badge
-                      key={i}
-                      variant="secondary"
-                      className="bg-accent/30 text-accent-foreground border-accent-foreground/20"
-                    >
-                      <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                    <span key={i} className="time-slot-badge">
+                      <CheckCircle2 className="w-3 h-3" />
                       {slot}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
@@ -375,58 +367,45 @@ export default function MeetingsCalendar() {
                         const dt = DateTime.fromMillis(meeting.meetingTime, { zone: tz });
                         const isPast = dt < nowTz;
                         return (
-                          <Tooltip key={meeting._id}>
-                            <TooltipTrigger asChild>
-                              <div
-                                onClick={() => meeting.callId && router.push(`/dashboard/calls/${meeting.callId}`)}
-                                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border transition-all cursor-pointer group ${
-                                  isPast 
-                                    ? 'bg-surface-overlay/30 border-border/20 hover:border-border/40 opacity-75' 
-                                    : 'bg-surface-overlay/50 border-border/40 hover:border-primary/40 hover:bg-accent/10 hover:shadow-md'
-                                }`}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(e) => {
-                                  if ((e.key === 'Enter' || e.key === ' ') && meeting.callId) {
-                                    e.preventDefault();
-                                    router.push(`/dashboard/calls/${meeting.callId}`);
-                                  }
-                                }}
-                                aria-label={`View meeting at ${dt.toFormat("h:mm a")}`}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                                    <span className="inline-flex items-center gap-1.5 text-base font-bold text-foreground">
-                                      <Clock className="w-4 h-4 text-primary flex-shrink-0" />
-                                      {dt.toFormat("h:mm a")}
-                                    </span>
-                                    <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/25">
-                                      <Video className="w-3 h-3 mr-1" />
-                                      {meeting.source || "meeting"}
-                                    </Badge>
-                                    {isPast && (
-                                      <Badge variant="outline" className="text-xs">
-                                        Completed
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {meeting.callId && (
-                                    <p className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-                                      Call ID: {meeting.callId.slice(-8)}
-                                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge variant="outline" className="self-start sm:self-center flex-shrink-0">
-                                  <Globe className="w-3 h-3 mr-1" />
-                                  {dt.toFormat("ZZZZ")}
-                                </Badge>
+                          <div
+                            key={meeting._id}
+                            className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border ${
+                              isPast 
+                                ? 'bg-surface-overlay/30 border-border/20 opacity-75' 
+                                : 'bg-surface-overlay/50 border-border/40'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-2">
+                                <span className="inline-flex items-center gap-1.5 text-base font-bold text-foreground">
+                                  <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                                  {dt.toFormat("h:mm a")}
+                                </span>
+                                {isPast && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs"
+                                    style={{ 
+                                      backgroundColor: 'hsl(150 65% 42% / 0.15)',
+                                      color: 'hsl(150 65% 32%)',
+                                      borderColor: 'hsl(150 65% 42% / 0.3)'
+                                    }}
+                                  >
+                                    Completed
+                                  </Badge>
+                                )}
                               </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Click to view call details</p>
-                            </TooltipContent>
-                          </Tooltip>
+                              {meeting.callId && (
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  Call ID: {meeting.callId.slice(-8)}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant="outline" className="self-start sm:self-center flex-shrink-0">
+                              <Globe className="w-3 h-3 mr-1" />
+                              {dt.toFormat("ZZZZ")}
+                            </Badge>
+                          </div>
                         );
                       })}
                     </div>
