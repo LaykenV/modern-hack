@@ -626,4 +626,18 @@
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-strong);
   }
+
+  /* Tooltip - warm gradient with design system colors */
+  .tooltip-warm {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--surface-overlay)) 0%,
+      hsl(var(--surface-raised)) 100%
+    );
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border) / 0.7);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-strong);
+    backdrop-filter: blur(8px);
+  }
 }

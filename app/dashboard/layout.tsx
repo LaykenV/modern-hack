@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useQuery } from "convex/react";
@@ -102,17 +103,9 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <Sidebar className="sidebar-surface">
+      <Sidebar collapsible="icon" className="sidebar-surface">
         <SidebarHeader>
-          <div className="flex items-center justify-between px-3 py-2">
-            <div className="text-lg font-bold tracking-tight text-[hsl(var(--accent-foreground))]">
-              Atlas Outbound
-            </div>
-            <div className="hidden md:flex items-center gap-2 group-data-[collapsible=icon]:hidden">
-              <ThemeToggle />
-              <SidebarTrigger />
-            </div>
-          </div>
+          <SidebarHeaderContent />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -147,7 +140,7 @@ function NavigationMenu() {
   };
 
   return (
-    <SidebarMenu className="gap-2.5 p-2">
+    <SidebarMenu className="gap-2.5 p-2 group-data-[collapsible=icon]:gap-3">
       {navItems.map((item) => {
         const isActive =
           item.href === "/dashboard"
@@ -163,16 +156,17 @@ function NavigationMenu() {
               size="lg"
               className={cn(
                 "h-11 px-3 text-[0.95rem] justify-start border border-transparent hover:border-[hsl(var(--ring)/0.40)] hover:shadow-[0_0_0_1px_hsl(var(--ring)/0.20)_inset]",
+                "group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:w-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:mx-auto",
                 isActive && "sidebar-nav-button"
               )}
             >
               <Link 
                 href={item.href} 
-                className="flex w-full items-center gap-3"
+                className="flex w-full items-center gap-3 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center"
                 onClick={handleNavClick}
               >
-                <Icon className="size-4" />
-                <span className="truncate">{item.label}</span>
+                <Icon className="size-4 group-data-[collapsible=icon]:size-5" />
+                <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -199,20 +193,56 @@ function SignOutButton() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
-          className="sidebar-nav-button h-12 px-3 text-[0.95rem] justify-between"
+          className={cn(
+            "sidebar-nav-button h-12 px-3 text-[0.95rem] justify-between, cursor-pointer",
+            "group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:w-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:mx-auto"
+          )}
           onClick={handleSignOut}
           disabled={isSigningOut}
+          tooltip="Sign out"
           aria-label="Sign out"
         >
-          <span>Sign out</span>
           {isSigningOut ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            <Loader2 className="size-4 group-data-[collapsible=icon]:size-5 animate-spin" aria-hidden="true" />
           ) : (
-            <LogOut className="size-4" aria-hidden="true" />
+            <LogOut className="size-4 group-data-[collapsible=icon]:size-5" aria-hidden="true" />
           )}
+          <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
+  );
+}
+
+function SidebarHeaderContent() {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      {/* Show icon when collapsed, full text when expanded */}
+      {isCollapsed ? (
+        <div className="flex items-center justify-center w-full">
+          <Image
+            src="/atlas-icon.svg"
+            alt="Atlas"
+            width={32}
+            height={32}
+            className="transition-all duration-200"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="text-lg font-bold tracking-tight text-[hsl(var(--accent-foreground))]">
+            Atlas Outbound
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <ThemeToggle className="size-9 cursor-pointer hover:bg-accent/20 transition-colors rounded-md" />
+            <SidebarTrigger className="size-9 cursor-pointer hover:bg-accent/20 transition-colors rounded-md" />
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -220,19 +250,26 @@ function CollapsedFloatingControls() {
   const { state, isMobile } = useSidebar();
   if (isMobile || state !== "collapsed") return null;
   return (
-    <div className="fixed left-2 top-2 z-40">
+    <div className="fixed left-[4.5rem] top-2 z-40">
       <div className="bg-sidebar-gradient-radial border border-[hsl(var(--sidebar-border))] rounded-md shadow-sm p-1 backdrop-blur-sm">
         <TooltipProvider>
           <div className="flex flex-col items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <SidebarTrigger className="size-9 rounded-md" aria-label="Toggle sidebar" />
+                <SidebarTrigger className="size-9 rounded-md cursor-pointer hover:bg-accent/20 transition-colors" aria-label="Toggle sidebar" />
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p>Toggle sidebar</p>
+                <p>Expand sidebar</p>
               </TooltipContent>
             </Tooltip>
-            <ThemeToggle className="size-9" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ThemeToggle className="size-9 cursor-pointer hover:bg-accent/20 transition-colors rounded-md" aria-label="Toggle theme" />
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Toggle theme</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </TooltipProvider>
       </div>
@@ -246,12 +283,12 @@ function MobileHeader() {
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between p-4 bg-header-gradient-radial border-b border-[hsl(var(--border)/0.6)] backdrop-blur-sm">
       <div className="flex items-center gap-3">
-        <SidebarTrigger className="size-9 rounded-md hover:bg-accent/20 transition-colors" aria-label="Toggle sidebar" />
+        <SidebarTrigger className="size-9 rounded-md cursor-pointer hover:bg-accent/20 transition-colors" aria-label="Toggle sidebar" />
         <span className="text-lg font-bold tracking-tight text-foreground">
           Atlas Outbound
         </span>
       </div>
-      <ThemeToggle />
+      <ThemeToggle className="cursor-pointer hover:bg-accent/20 transition-colors rounded-md" />
     </header>
   );
 }
@@ -264,7 +301,7 @@ function OnboardingHeader() {
           Atlas Outbound
         </span>
       </div>
-      <ThemeToggle />
+      <ThemeToggle className="cursor-pointer hover:bg-accent/20 transition-colors rounded-md" />
     </header>
   );
 }
