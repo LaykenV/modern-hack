@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -36,14 +36,15 @@ export default function DemoCallModal({
 }: DemoCallModalProps) {
   const router = useRouter();
   const startDemoCall = useAction(api.call.calls.startDemoCall);
+  const user = useQuery(api.auth.getCurrentUser);
 
   const [phoneNumber, setPhoneNumber] = useState("+1");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(user?.email || "");
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validation
-  const phoneRegex = /^\+[1-9]\d{1,14}$/; // Require + at the start
+  // Validation - allow formatted or unformatted phone numbers
+  const phoneRegex = /^\+[1-9][\d\s()\-]{1,18}$/; // Require + at the start, allow formatting chars
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isPhoneValid = phoneRegex.test(phoneNumber);
   const isEmailValid = emailRegex.test(email);
@@ -57,13 +58,16 @@ export default function DemoCallModal({
     setError(null);
 
     try {
-      // Ensure phone number has country code
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      // Strip formatting and ensure phone number has country code
+      let cleanedPhone = phoneNumber.replace(/[^\d+]/g, '');
+      if (!cleanedPhone.startsWith('+')) {
+        cleanedPhone = `+${cleanedPhone}`;
+      }
       
       const result = await startDemoCall({
         opportunityId,
         agencyId,
-        overridePhone: formattedPhone,
+        overridePhone: cleanedPhone,
         overrideEmail: email,
       });
 
@@ -81,7 +85,7 @@ export default function DemoCallModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background/95 backdrop-blur-sm border-2">
+      <DialogContent className="sm:max-w-[500px] bg-background/98 backdrop-blur-md border-2 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
           <DialogDescription className="text-base">
@@ -110,26 +114,45 @@ export default function DemoCallModal({
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+12025551234"
+                placeholder="+1 (202) 555-1234"
                 value={phoneNumber}
                 onChange={(e) => {
-                  let value = e.target.value;
+                  const value = e.target.value;
+                  // Remove all non-digit characters except + at the start
+                  const digitsOnly = value.replace(/[^\d+]/g, '');
+                  
                   // Auto-prepend + if user starts typing without it
-                  if (value && !value.startsWith('+')) {
-                    value = '+' + value.replace(/\+/g, ''); // Remove any other + signs
+                  let cleaned = digitsOnly;
+                  if (cleaned && !cleaned.startsWith('+')) {
+                    cleaned = '+' + cleaned.replace(/\+/g, ''); // Remove any other + signs
                   }
-                  setPhoneNumber(value);
+                  
+                  // Format for US/Canada numbers (+1)
+                  if (cleaned.startsWith('+1') && cleaned.length > 2) {
+                    const countryCode = '+1';
+                    const rest = cleaned.slice(2);
+                    
+                    if (rest.length <= 3) {
+                      cleaned = `${countryCode} (${rest}`;
+                    } else if (rest.length <= 6) {
+                      cleaned = `${countryCode} (${rest.slice(0, 3)}) ${rest.slice(3)}`;
+                    } else {
+                      cleaned = `${countryCode} (${rest.slice(0, 3)}) ${rest.slice(3, 6)}-${rest.slice(6, 10)}`;
+                    }
+                  }
+                  
+                  setPhoneNumber(cleaned);
                 }}
                 className="pl-10"
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Include country code (e.g., +1 for US/Canada). The + will be auto-added.
+              Auto-formatted for US/Canada. For other countries, start with country code.
             </p>
             {phoneNumber && !isPhoneValid && (
               <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
-                Invalid format. Example: +12025551234 (country code + number)
+                Invalid format. Example: +1 (202) 555-1234
               </p>
             )}
           </div>
