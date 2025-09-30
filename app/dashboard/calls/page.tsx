@@ -5,14 +5,15 @@ import { useState, useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import Link from "next/link";
-import { Phone, Clock, Calendar, CheckCircle, XCircle, PhoneOff, ExternalLink } from "lucide-react";
+import { Phone, Clock, Calendar, XCircle, PhoneOff, ExternalLink } from "lucide-react";
 
 // Shadcn components
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,7 +22,7 @@ export default function CallsPage() {
   const isMobile = useIsMobile();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const [selectedCallId, setSelectedCallId] = useState<Id<"calls"> | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   // Query for calls
   const calls = useQuery(
@@ -48,18 +49,18 @@ export default function CallsPage() {
 
   // Group calls by status for stats
   const callStats = useMemo(() => {
-    if (!calls) return { total: 0, inProgress: 0, completed: 0, failed: 0 };
+    if (!calls) return { total: 0, inProgress: 0, booked: 0, rejected: 0 };
     
     return {
       total: calls.length,
       inProgress: calls.filter(call => 
         (call.currentStatus || call.status) === "in-progress"
       ).length,
-      completed: calls.filter(call => 
-        (call.currentStatus || call.status) === "completed"
+      booked: calls.filter(call => 
+        (call.currentStatus || call.status) === "booked"
       ).length,
-      failed: calls.filter(call => 
-        ["failed", "no-answer", "busy"].includes(call.currentStatus || call.status || "")
+      rejected: calls.filter(call => 
+        (call.currentStatus || call.status) === "rejected"
       ).length,
     };
   }, [calls]);
@@ -72,12 +73,10 @@ export default function CallsPage() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Handle call selection - open sheet on mobile
+  // Handle call selection - open dialog
   const handleCallSelect = (callId: Id<"calls">) => {
     setSelectedCallId(callId);
-    if (isMobile) {
-      setSheetOpen(true);
-    }
+    setDialogOpen(true);
   };
 
   // Loading state
@@ -143,17 +142,17 @@ export default function CallsPage() {
                 <TooltipTrigger asChild>
                   <div className="stat-card-accent p-4 sm:p-5 cursor-help">
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-4 w-4 text-accent-foreground" aria-hidden="true" />
+                      <Phone className="h-4 w-4 text-accent-foreground" aria-hidden="true" />
                       <p className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        Completed
+                        Total Calls
                       </p>
                     </div>
-                    <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{callStats.completed}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">Successfully finished</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{callStats.total}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">All time</p>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Calls that completed successfully</p>
+                  <p>Total number of calls made</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -165,15 +164,15 @@ export default function CallsPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
                       <p className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                        Failed
+                        Rejected
                       </p>
                     </div>
-                    <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{callStats.failed}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">No answer or busy</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground mt-1">{callStats.rejected}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">Not interested</p>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Calls that failed to connect</p>
+                  <p>Calls that were rejected</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -217,59 +216,45 @@ export default function CallsPage() {
           </Alert>
         )}
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          {/* Calls List */}
-          <div className="lg:col-span-2">
-            <div className="card-warm-static">
-              <div className="px-4 sm:px-6 py-4 border-b border-border/40">
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Recent Calls</h2>
-              </div>
-
-              <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto">
-                {sortedCalls.length > 0 ? (
-                  sortedCalls.map((call) => (
-                    <CallListItem
-                      key={call._id}
-                      call={call}
-                      isSelected={selectedCallId === call._id}
-                      onClick={() => handleCallSelect(call._id)}
-                      formatDuration={formatDuration}
-                    />
-                  ))
-                ) : (
-                  <EmptyState
-                    icon={<PhoneOff className="h-12 w-12 text-muted-foreground" />}
-                    title="No calls found"
-                    description="No calls have been made yet. Calls will appear here once they start."
-                  />
-                )}
-              </div>
-            </div>
+        {/* Main Content - Full Width */}
+        <div className="card-warm-static">
+          <div className="px-4 sm:px-6 py-4 border-b border-border/40">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground">Recent Calls</h2>
           </div>
 
-          {/* Call Details Panel - Desktop Sidebar */}
-          <div className="hidden lg:block lg:col-span-1">
-            <CallDetailsPanel 
-              selectedCall={selectedCall} 
-              formatDuration={formatDuration}
-            />
+          <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto">
+            {sortedCalls.length > 0 ? (
+              sortedCalls.map((call) => (
+                <CallListItem
+                  key={call._id}
+                  call={call}
+                  isSelected={selectedCallId === call._id}
+                  onClick={() => handleCallSelect(call._id)}
+                  formatDuration={formatDuration}
+                />
+              ))
+            ) : (
+              <EmptyState
+                icon={<PhoneOff className="h-12 w-12 text-muted-foreground" />}
+                title="No calls found"
+                description="No calls have been made yet. Calls will appear here once they start."
+              />
+            )}
           </div>
         </div>
 
-        {/* Call Details Panel - Mobile Sheet */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent side="bottom" className="h-[85vh] overflow-y-auto">
-            <SheetHeader className="mb-6">
-              <SheetTitle>Call Details</SheetTitle>
-            </SheetHeader>
-            <CallDetailsPanel 
+        {/* Call Details Modal */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="call-details-modal max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Call Details</DialogTitle>
+            </DialogHeader>
+            <CallDetailsModal 
               selectedCall={selectedCall} 
               formatDuration={formatDuration}
-              isMobile
             />
-          </SheetContent>
-        </Sheet>
+          </DialogContent>
+        </Dialog>
       </div>
     </main>
   );
@@ -349,19 +334,18 @@ function CallListItem({ call, isSelected, onClick, formatDuration }: CallListIte
   );
 }
 
-// Call Details Panel Component
-type CallDetailsPanelProps = {
+// Call Details Modal Component
+type CallDetailsModalProps = {
   selectedCall: Doc<"calls"> | null | undefined;
   formatDuration: (ms: number | undefined) => string;
-  isMobile?: boolean;
 };
 
-function CallDetailsPanel({ selectedCall, formatDuration, isMobile = false }: CallDetailsPanelProps) {
+function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProps) {
   if (!selectedCall) {
     return (
-      <div className={`${!isMobile && "card-warm-static p-6"}`}>
+      <div className="py-8">
         <EmptyState
-          icon={<span className="text-4xl">👆</span>}
+          icon={<span className="text-4xl">🔍</span>}
           title="No call selected"
           description="Select a call from the list to view its details"
           compact
@@ -374,64 +358,102 @@ function CallDetailsPanel({ selectedCall, formatDuration, isMobile = false }: Ca
   const isInProgress = status === "in-progress";
 
   return (
-    <div className={`${!isMobile && "card-warm-static p-6"}`}>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground">Call Details</h3>
-          <CallStatusBadge status={status} />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <CallStatusBadge status={status} />
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Call ID</p>
+          <p className="text-foreground font-medium font-mono">#{selectedCall._id.slice(-8)}</p>
         </div>
 
-        <Separator />
-
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Call ID</p>
-            <p className="text-foreground font-medium font-mono">#{selectedCall._id.slice(-8)}</p>
+        <div>
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <p className="text-foreground font-medium">
+              {formatDuration(selectedCall.billingSeconds ? selectedCall.billingSeconds * 1000 : selectedCall.duration)}
+            </p>
           </div>
+        </div>
 
+        <div>
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Started</p>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <p className="text-foreground font-medium">
+              {new Date(selectedCall._creationTime).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        {selectedCall.summary && (
           <div>
-            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <p className="text-foreground font-medium">
-                {formatDuration(selectedCall.billingSeconds ? selectedCall.billingSeconds * 1000 : selectedCall.duration)}
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
+            <div className="p-4 bg-surface-muted/50 border border-border/40 rounded-lg">
+              <p className="text-foreground text-sm whitespace-pre-wrap leading-relaxed">
+                {selectedCall.summary}
               </p>
             </div>
           </div>
+        )}
 
-          <div>
-            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-1">Started</p>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <p className="text-foreground font-medium">
-                {new Date(selectedCall._creationTime).toLocaleString()}
-              </p>
-            </div>
-          </div>
+        {/* Transcript Accordion */}
+        {selectedCall.transcript && selectedCall.transcript.length > 0 && (
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                  Transcript ({selectedCall.transcript.length} messages)
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2 pb-4">
+                  <div className="space-y-3 p-4 bg-surface-muted/30 border border-border/30 rounded-lg max-h-[400px] overflow-y-auto">
+                    {selectedCall.transcript.map((message, index) => (
+                      <div 
+                        key={index} 
+                        className={`p-3 rounded-md ${
+                          message.role === "assistant" 
+                            ? "bg-primary/10 border-l-2 border-l-primary" 
+                            : "bg-accent/20 border-l-2 border-l-accent-foreground/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {message.role === "assistant" ? "AI" : "Prospect"}
+                          </span>
+                          {message.timestamp && (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(message.timestamp).toLocaleTimeString()}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">
+                          {message.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
 
-          {selectedCall.summary && (
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
-              <div className="p-4 bg-surface-muted/50 border border-border/40 rounded-lg">
-                <p className="text-foreground text-sm whitespace-pre-wrap leading-relaxed">
-                  {selectedCall.summary}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {isInProgress && (
-            <>
-              <Separator />
-              <Button asChild className="w-full" size="lg">
-                <Link href={`/dashboard/calls/${selectedCall._id}`}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Live Workspace
-                </Link>
-              </Button>
-            </>
-          )}
-        </div>
+        {isInProgress && (
+          <>
+            <Separator />
+            <Button asChild className="w-full" size="lg">
+              <Link href={`/dashboard/calls/${selectedCall._id}`}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Live Workspace
+              </Link>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -448,11 +470,9 @@ function CallStatusBadge({ status }: CallStatusBadgeProps) {
       case "in-progress":
       case "ringing":
         return "default";
-      case "completed":
+      case "booked":
         return "secondary";
-      case "failed":
-      case "no-answer":
-      case "busy":
+      case "rejected":
         return "destructive";
       default:
         return "outline";
@@ -463,13 +483,11 @@ function CallStatusBadge({ status }: CallStatusBadgeProps) {
     switch (status?.toLowerCase()) {
       case "in-progress":
         return "bg-primary/20 text-primary border-primary/30 animate-pulse";
-      case "completed":
-        return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
+      case "booked":
+        return "bg-success/20 text-success border-success/30";
       case "ringing":
         return "bg-primary/30 text-primary border-primary/40";
-      case "failed":
-      case "no-answer":
-      case "busy":
+      case "rejected":
         return "bg-destructive/20 text-destructive border-destructive/30";
       default:
         return "";

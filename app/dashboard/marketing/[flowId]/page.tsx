@@ -84,7 +84,7 @@ export default function MarketingFlowPage({ params }: Props) {
 
   const scrapedPages = useQuery(
     api.marketing.listScrapedPagesByAudit,
-    viewSourcesForAuditId ? { auditJobId: viewSourcesForAuditId } : "skip"
+    selectedAuditJob?._id ? { auditJobId: selectedAuditJob._id } : "skip"
   );
 
   const auditJobMap = useMemo(() => {
@@ -236,7 +236,7 @@ export default function MarketingFlowPage({ params }: Props) {
         )}
 
         {/* Campaign Progress - Accordion */}
-        <Accordion type="single" collapsible defaultValue="progress">
+        <Accordion type="single" collapsible>
           <AccordionItem value="progress" className="card-warm-static border-0">
             <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=closed]]:pb-6">
               <div className="flex flex-col w-full pr-4 gap-3">
@@ -562,7 +562,7 @@ export default function MarketingFlowPage({ params }: Props) {
                                     }
                                   }}
                                   disabled={startingCallOppId === opp._id || !hasCredits}
-                                  className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white font-semibold px-6 py-2.5 rounded-lg transition-all hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-[hsl(var(--success))]/20"
+                                  className="btn-primary font-semibold px-6 py-2.5"
                                   aria-label="Start AI call"
                                 >
                                   {startingCallOppId === opp._id ? (

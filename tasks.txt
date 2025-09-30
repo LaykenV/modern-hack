@@ -114,21 +114,24 @@ call linking
 add color in few places
 update layout for tab stuff and twitter card
 
-post about chef site
-
 paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
 percentage on resume
 ai call prompt - if we have email aware, hang up faster
 
 //create dummy agency site
 add use demo button on onboarding, and crawl should show loading right away
-add test call functionality with phone number and email override
+add test call functionality with phone number and email override -- biggest change
 
 test all flows with new ui
 
 test everything
 
-demo video
+demo video - plan in geminia
+
+SUBMIT
+
+post about chef site
+
 
 
 

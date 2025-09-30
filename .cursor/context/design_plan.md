@@ -492,6 +492,43 @@ Use when sections have no data:
 </Link>
 ```
 
+#### Form Field Pattern
+
+Use consistent form field styling throughout the app:
+
+```tsx
+<div>
+  <label className="input-label">Field Name</label>
+  <input 
+    type="text" 
+    className="input-field" 
+    placeholder="Enter value..." 
+  />
+</div>
+
+<div>
+  <label className="input-label">Choose Option</label>
+  <Select>
+    <SelectTrigger>
+      <SelectValue placeholder="Select an option..." />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="option1">Option 1</SelectItem>
+      <SelectItem value="option2">Option 2</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+```
+
+**Features:**
+- `.input-label` - Consistent label styling (semibold, proper spacing)
+- `.input-field` - Text inputs with design system colors, inset shadow, orange focus ring
+- `.select-field` - Automatically applied to `SelectTrigger`, matches `.input-field` exactly
+- All fields use `bg-surface-muted`, `border-input`, `rounded-lg`
+- 2px vibrant orange focus ring (`ring-ring`)
+- Inset shadow for depth
+- Same height (`py-2.5`) for visual alignment
+
 #### Best Practices
 
 1. **Always use semantic color tokens** - Never hardcode colors; use `text-foreground`, `text-muted-foreground`, `bg-primary`, etc.
@@ -505,6 +542,7 @@ Use when sections have no data:
 9. **Hover states** - Interactive elements should have clear hover feedback
 10. **Consistent CTAs** - Use `btn-primary` for primary buttons (matching active tab aesthetic), muted background buttons for secondary actions, primary-colored links for tertiary actions
 11. **Responsive gaps** - Use smaller gaps on mobile (`gap-3`) and larger on desktop (`gap-6`) for better space utilization
+12. **Form consistency** - Use `.input-label`, `.input-field`, and shadcn Select components (with automatic `.select-field` styling) for all form inputs
 
 ### Next Steps
 1. Apply these patterns to remaining dashboard pages (Marketing, Calls, Meetings, etc.)

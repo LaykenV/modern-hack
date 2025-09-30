@@ -272,6 +272,18 @@
     pointer-events: none;
   }
 
+  /* Active tab styling - matches btn-primary */
+  [role="tablist"] [role="tab"][data-state="active"] {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.24) 0%,
+      hsl(var(--primary) / 0.42) 100%
+    );
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(var(--ring) / 0.5);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35) inset, var(--shadow-soft);
+  }
+
   /* Sidebar navigation buttons with subtle gradients */
   .sidebar-nav-button {
     background-image: linear-gradient(
@@ -429,19 +441,22 @@
     justify-content: center;
     background-image: linear-gradient(
       135deg,
-      hsl(var(--primary) / 0.85) 0%,
-      hsl(var(--primary) / 0.75) 60%,
-      hsl(var(--accent) / 0.60) 100%
+      hsl(var(--primary) / 0.95) 0%,
+      hsl(var(--primary) / 0.85) 50%,
+      hsl(var(--radial-2) / 0.90) 100%
     );
     margin-bottom: 0.5rem;
-    box-shadow: 0 2px 8px hsl(var(--primary) / 0.2);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.3), 
+                0 2px 4px hsl(var(--primary) / 0.2) inset;
   }
   
   @media (min-width: 640px) {
     .action-link-icon {
-      width: 3rem;
-      height: 3rem;
+      width: 3.5rem;
+      height: 3.5rem;
       margin-bottom: 0.75rem;
+      box-shadow: 0 6px 16px hsl(var(--primary) / 0.35), 
+                  0 2px 6px hsl(var(--primary) / 0.25) inset;
     }
   }
 
@@ -481,5 +496,135 @@
   /* Touch-friendly interaction targets (minimum 44x44px) */
   .touch-target {
     min-height: 44px;
+  }
+
+  /* ========================================
+     Form Fields - Design System Components
+     ======================================== */
+
+  /* Custom input field matching design system
+     Usage:
+       <label className="input-label">Field Name</label>
+       <input type="text" className="input-field" placeholder="..." />
+  */
+  .input-field {
+    width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    border-radius: var(--radius-lg);
+    background-color: hsl(var(--surface-muted));
+    border: 1px solid hsl(var(--input));
+    color: hsl(var(--foreground));
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    outline: none;
+  }
+
+  .input-field::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .input-field:focus {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08),
+      0 0 0 2px hsl(var(--ring));
+  }
+
+  .input-field:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Label for form fields */
+  .input-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 0.5rem;
+  }
+
+  /* Custom select field matching design system
+     Usage:
+       <label className="input-label">Choose Option</label>
+       <Select>
+         <SelectTrigger> (automatically uses .select-field)
+           <SelectValue placeholder="Select..." />
+         </SelectTrigger>
+         <SelectContent>
+           <SelectItem value="1">Option 1</SelectItem>
+         </SelectContent>
+       </Select>
+     
+     Note: SelectTrigger automatically applies this class.
+     All styling is consistent with .input-field for visual harmony.
+  */
+  .select-field {
+    width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    border-radius: var(--radius-lg);
+    background-color: hsl(var(--surface-muted));
+    border: 1px solid hsl(var(--input));
+    color: hsl(var(--foreground));
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    outline: none;
+  }
+
+  .select-field[data-placeholder] {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .select-field:focus,
+  .select-field[data-state="open"] {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08),
+      0 0 0 2px hsl(var(--ring));
+  }
+
+  .select-field:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Time slot badge - matches active tab/primary button styling */
+  .time-slot-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.24) 0%,
+      hsl(var(--primary) / 0.42) 100%
+    );
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(var(--ring) / 0.5);
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35) inset, var(--shadow-soft);
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  .time-slot-badge-removable {
+    padding-right: 0.25rem;
+  }
+
+  /* Call Details Modal - matching design system */
+  .call-details-modal {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--surface-raised)) 0%,
+      hsl(var(--surface-muted)) 100%
+    );
+    border: 1px solid hsl(var(--border) / 0.6);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-strong);
+    padding: 1.5rem;
   }
 }

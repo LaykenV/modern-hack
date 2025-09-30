@@ -52,8 +52,8 @@ function DashboardContent() {
   );
 
   const recentCalls = useQuery(
-    api.call.calls.getCallsByOpportunity,
-    "skip" // Will fix this when we have the proper API
+    api.call.calls.getCallsByAgency,
+    agencyProfile?.agencyProfileId ? { agencyId: agencyProfile.agencyProfileId } : "skip"
   );
 
   // Meetings API not available yet, using placeholder
@@ -77,12 +77,12 @@ function DashboardContent() {
   const atlasCreditsBalance = customer?.features?.atlas_credits?.balance ?? 0;
   
   // Calculate quick stats
-  const activeLeadGenJobs = recentLeadGenJobs?.filter(job => job.status === "running" || job.status === "paused_for_upgrade")?.length ?? 0;
+  const completedCampaigns = recentLeadGenJobs?.filter(job => job.status === "completed")?.length ?? 0;
   const readyOpportunities = recentLeadGenJobs?.reduce((sum, job) => {
     // This would need to be calculated based on opportunities with "READY" status
     return sum + (job.numLeadsFetched || 0);
   }, 0) ?? 0;
-  const inProgressCalls = recentCalls?.filter((call: CallRecord) => call.currentStatus === "in-progress" || call.status === "in-progress")?.length ?? 0;
+  const completedCalls = recentCalls?.filter((call: CallRecord) => call.currentStatus === "completed" || call.status === "completed")?.length ?? 0;
   const upcomingMeetingsCount = upcomingMeetings?.length ?? 0;
 
   if (isLoading) {
@@ -123,9 +123,9 @@ function DashboardContent() {
             variant="primary"
           />
           <StatCard
-            title="Active Campaigns"
-            value={activeLeadGenJobs}
-            subtitle="Running lead gen"
+            title="Completed Campaigns"
+            value={completedCampaigns}
+            subtitle="Finished lead gen"
             variant="accent"
           />
           <StatCard
@@ -135,9 +135,9 @@ function DashboardContent() {
             variant="accent"
           />
           <StatCard
-            title="Live Calls"
-            value={inProgressCalls}
-            subtitle="In progress"
+            title="Completed Calls"
+            value={completedCalls}
+            subtitle="Finished calls"
             variant="accent"
           />
         </div>
@@ -366,7 +366,7 @@ function StatusBadge({ status }: StatusBadgeProps) {
       case "in-progress":
         return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
       case "completed":
-        return "bg-primary/20 text-primary border-primary/30";
+        return "bg-[hsl(var(--success)/0.2)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]";
       case "paused_for_upgrade":
         return "bg-muted text-muted-foreground border-border";
       case "failed":

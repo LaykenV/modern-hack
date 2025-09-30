@@ -178,7 +178,7 @@ export default function MarketingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="input-label">
                 Number of Leads (1-20)
               </label>
               <input
@@ -187,15 +187,15 @@ export default function MarketingPage() {
                 max="20"
                 value={numLeads}
                 onChange={(e) => setNumLeads(parseInt(e.target.value) || 1)}
-                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                className="input-field"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="input-label">
                 Target Vertical
               </label>
               <Select value={targetVertical} onValueChange={setTargetVertical}>
-                <SelectTrigger className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground">
+                <SelectTrigger>
                   <SelectValue placeholder="Select an industry..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -206,7 +206,7 @@ export default function MarketingPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="input-label">
                 Target Geography
               </label>
               <input
@@ -214,7 +214,7 @@ export default function MarketingPage() {
                 value={targetGeography}
                 onChange={(e) => setTargetGeography(e.target.value)}
                 placeholder="e.g., San Francisco, CA"
-                className="w-full px-4 py-2.5 rounded-lg bg-surface-muted border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                className="input-field"
               />
             </div>
           </div>
