@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, CheckCircle2, AlertCircle, X, Plus, MessageSquare, Target, Clock, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Plus, MessageSquare, Target, Clock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Step4FinalConfigurationFormProps {
@@ -378,7 +378,7 @@ export function Step4FinalConfigurationForm({
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remove Availability Slot?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              This will remove the time slot "{slot}" from your availability.
+                              This will remove the time slot &quot;{slot}&quot; from your availability.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

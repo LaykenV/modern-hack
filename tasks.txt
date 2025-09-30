@@ -114,8 +114,8 @@ resend emails with ics and recap
 //add color in few places
 //update layout for tab stuff and twitter card
 
-add use demo button on onboarding, and crawl should show loading right away
-onboarding ui / ux
+//add use demo button on onboarding, and crawl should show loading right away
+//onboarding ui / ux
 
 paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
 percentage on resume
