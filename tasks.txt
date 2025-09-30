@@ -112,7 +112,7 @@ resend emails with ics and recap
 go through each page for ui and ux
 call linking
 //add color in few places
-update layout for tab stuff and twitter card
+//update layout for tab stuff and twitter card
 
 paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
 percentage on resume

@@ -275,8 +275,11 @@ function CallListItem({ call, isSelected, onClick, formatDuration }: CallListIte
   return (
     <div
       className={`p-4 hover:bg-accent/30 cursor-pointer transition-colors touch-target border-l-4 ${
-        isSelected ? "bg-primary/10 border-l-primary" : "border-l-transparent"
+        isSelected ? "bg-primary/10" : ""
       }`}
+      style={{
+        borderLeftColor: isSelected ? "hsl(var(--primary))" : "transparent"
+      }}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -418,16 +421,25 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
                     {selectedCall.transcript.map((message, index) => (
                       <div 
                         key={index} 
-                        className={`p-3 rounded-md ${
-                          message.role === "assistant" 
-                            ? "bg-accent/20 border-l-2 border-l-accent-foreground/40" 
-                            : "bg-primary/10 border-l-2 border-l-primary"
-                        }`}
+                        className="p-3 rounded-md border-l-2"
+                        style={{
+                          backgroundColor: message.role === "assistant" 
+                            ? "hsl(var(--accent) / 0.2)" 
+                            : "hsl(var(--primary) / 0.1)",
+                          borderLeftColor: message.role === "assistant"
+                            ? "hsl(var(--accent-foreground) / 0.4)"
+                            : "hsl(var(--primary))"
+                        }}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-semibold uppercase tracking-wide ${
-                            message.role === "assistant" ? "text-muted-foreground" : "text-primary"
-                          }`}>
+                          <span 
+                            className="text-xs font-semibold uppercase tracking-wide"
+                            style={{
+                              color: message.role === "assistant" 
+                                ? "hsl(var(--muted-foreground))" 
+                                : "hsl(var(--primary))"
+                            }}
+                          >
                             {message.role === "assistant" ? "AI" : "Prospect"}
                           </span>
                           {message.timestamp && (
@@ -470,42 +482,60 @@ type CallStatusBadgeProps = {
 };
 
 function CallStatusBadge({ status }: CallStatusBadgeProps) {
-  const getStatusVariant = (status?: string): "default" | "secondary" | "destructive" | "outline" => {
+  const getStatusStyles = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "in-progress":
-      case "ringing":
-        return "default";
+        return {
+          backgroundColor: "hsl(var(--primary) / 0.2)",
+          color: "hsl(var(--primary))",
+          borderColor: "hsl(var(--primary) / 0.3)",
+          className: "animate-pulse"
+        };
       case "booked":
-        return "secondary";
+        return {
+          backgroundColor: "hsl(var(--success) / 0.2)",
+          color: "hsl(var(--success))",
+          borderColor: "hsl(var(--success) / 0.3)",
+          className: ""
+        };
+      case "ringing":
+        return {
+          backgroundColor: "hsl(var(--primary) / 0.3)",
+          color: "hsl(var(--primary))",
+          borderColor: "hsl(var(--primary) / 0.4)",
+          className: ""
+        };
       case "rejected":
-        return "destructive";
+        return {
+          backgroundColor: "hsl(var(--destructive) / 0.2)",
+          color: "hsl(var(--destructive))",
+          borderColor: "hsl(var(--destructive) / 0.3)",
+          className: ""
+        };
       default:
-        return "outline";
+        return {
+          backgroundColor: "hsl(var(--muted) / 0.2)",
+          color: "hsl(var(--muted-foreground))",
+          borderColor: "hsl(var(--border) / 0.3)",
+          className: ""
+        };
     }
   };
 
-  const getStatusClassName = (status?: string): string => {
-    switch (status?.toLowerCase()) {
-      case "in-progress":
-        return "bg-primary/20 text-primary border-primary/30 animate-pulse";
-      case "booked":
-        return "bg-success/20 text-success border-success/30";
-      case "ringing":
-        return "bg-primary/30 text-primary border-primary/40";
-      case "rejected":
-        return "bg-destructive/20 text-destructive border-destructive/30";
-      default:
-        return "";
-    }
-  };
+  const styles = getStatusStyles(status);
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <Badge 
-            variant={getStatusVariant(status)} 
-            className={`${getStatusClassName(status)} cursor-help`}
+            variant="outline"
+            className={`cursor-help border ${styles.className}`}
+            style={{
+              backgroundColor: styles.backgroundColor,
+              color: styles.color,
+              borderColor: styles.borderColor
+            }}
           >
             {status?.replace(/_/g, " ") || "Unknown"}
           </Badge>
