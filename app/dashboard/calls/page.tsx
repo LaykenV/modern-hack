@@ -409,13 +409,13 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
         {/* Transcript Accordion */}
         {selectedCall.transcript && selectedCall.transcript.length > 0 && (
           <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
+            <AccordionItem value="transcript" className="border border-border/40 rounded-lg overflow-visible">
+              <AccordionTrigger className="hover:no-underline px-4">
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
                   Transcript ({selectedCall.transcript.length} messages)
                 </span>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="px-4">
                 <div className="pt-2 pb-4">
                   <div className="space-y-3 p-4 bg-surface-muted/30 border border-border/30 rounded-lg max-h-[400px] overflow-y-auto">
                     {selectedCall.transcript.map((message, index) => (

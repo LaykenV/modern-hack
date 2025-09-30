@@ -110,7 +110,7 @@ resend emails with ics and recap
 
 //edit agency
 go through each page for ui and ux
-call linking
+//call linking
 //add color in few places
 //update layout for tab stuff and twitter card
 
