@@ -302,6 +302,13 @@ export default defineSchema({
     startedByUserId: v.optional(v.string()),
     startedByEmail: v.optional(v.string()),
 
+    // Demo call tracking
+    isDemo: v.optional(v.boolean()),
+    demoOverrides: v.optional(v.object({
+      phone: v.string(),
+      email: v.string(),
+    })),
+
     // Meeting booking metadata (Phase 2)
     offeredSlotsISO: v.optional(v.array(v.string())),
     agencyAvailabilityWindows: v.optional(v.array(v.string())),

@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useCustomer } from "autumn-js/react";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
+import DemoCallModal from "./components/DemoCallModal";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,8 @@ export default function MarketingFlowPage({ params }: Props) {
   const [callErrorByOpp, setCallErrorByOpp] = useState<Record<string, string>>({});
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallDismissed, setPaywallDismissed] = useState(false);
+  const [demoCallModalOpen, setDemoCallModalOpen] = useState(false);
+  const [demoCallOpportunityId, setDemoCallOpportunityId] = useState<Id<"client_opportunities"> | null>(null);
   const billingBlockKeyRef = useRef<string | null>(null);
 
   // Data queries
@@ -537,48 +540,69 @@ export default function MarketingFlowPage({ params }: Props) {
                                 </div>
                                 <CheckCircle className="h-7 w-7 text-[hsl(var(--success))] hidden sm:block" />
                               </div>
-                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                <Button
-                                  onClick={async () => {
-                                    setStartingCallOppId(opp._id);
-                                    setCallErrorByOpp((prev) => {
-                                      const next = { ...prev };
-                                      delete next[oppKey];
-                                      return next;
-                                    });
-                                    try {
-                                      const result = await startVapiCall({
-                                        opportunityId: opp._id,
-                                        agencyId: agencyProfile.agencyProfileId,
+                              <div className="space-y-3">
+                                {/* Call Action Buttons */}
+                                <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                                  {/* Production Call Button */}
+                                  <Button
+                                    onClick={async () => {
+                                      setStartingCallOppId(opp._id);
+                                      setCallErrorByOpp((prev) => {
+                                        const next = { ...prev };
+                                        delete next[oppKey];
+                                        return next;
                                       });
-                                      // Navigate to the call workspace
-                                      router.push(`/dashboard/calls/${result.callId}`);
-                                    } catch (err) {
-                                      console.error("Start call failed", err);
-                                      const message = err instanceof Error ? err.message : "Failed to start call";
-                                      setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
-                                    } finally {
-                                      setStartingCallOppId(null);
-                                    }
-                                  }}
-                                  disabled={startingCallOppId === opp._id || !hasCredits}
-                                  className="btn-primary font-semibold px-6 py-2.5"
-                                  aria-label="Start AI call"
-                                >
-                                  {startingCallOppId === opp._id ? (
-                                    <>
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      Starting call...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Phone className="mr-2 h-5 w-5" />
-                                      Start Call
-                                    </>
-                                  )}
-                                </Button>
+                                      try {
+                                        const result = await startVapiCall({
+                                          opportunityId: opp._id,
+                                          agencyId: agencyProfile.agencyProfileId,
+                                        });
+                                        // Navigate to the call workspace
+                                        router.push(`/dashboard/calls/${result.callId}`);
+                                      } catch (err) {
+                                        console.error("Start call failed", err);
+                                        const message = err instanceof Error ? err.message : "Failed to start call";
+                                        setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
+                                      } finally {
+                                        setStartingCallOppId(null);
+                                      }
+                                    }}
+                                    disabled={startingCallOppId === opp._id || !hasCredits}
+                                    className="btn-primary font-semibold px-6 py-2.5 flex-1"
+                                    aria-label="Start AI call"
+                                  >
+                                    {startingCallOppId === opp._id ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Starting call...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Phone className="mr-2 h-5 w-5" />
+                                        Start Call
+                                      </>
+                                    )}
+                                  </Button>
+
+                                  {/* Demo Call Button */}
+                                  <Button
+                                    onClick={() => {
+                                      setDemoCallOpportunityId(opp._id);
+                                      setDemoCallModalOpen(true);
+                                    }}
+                                    disabled={!hasCredits}
+                                    variant="outline"
+                                    className="font-semibold px-6 py-2.5 border-2 hover:bg-accent/50"
+                                    aria-label="Start demo call with test number"
+                                  >
+                                    <PlayCircle className="mr-2 h-5 w-5" />
+                                    Demo Call
+                                  </Button>
+                                </div>
+
+                                {/* Error and Warning Messages */}
                                 {!hasCredits && (
-                                  <Alert variant="destructive" className="flex-1">
+                                  <Alert variant="destructive">
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertDescription className="text-sm">
                                       Need at least 1 credit to start a call
@@ -586,7 +610,7 @@ export default function MarketingFlowPage({ params }: Props) {
                                   </Alert>
                                 )}
                                 {callErrorByOpp[oppKey] && (
-                                  <Alert variant="destructive" className="flex-1">
+                                  <Alert variant="destructive">
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertDescription className="text-sm">
                                       {callErrorByOpp[oppKey]}
@@ -853,6 +877,17 @@ export default function MarketingFlowPage({ params }: Props) {
             await refetchCustomer();
           }}
         />
+
+        {/* Demo Call Modal */}
+        {demoCallModalOpen && demoCallOpportunityId && agencyProfile && (
+          <DemoCallModal
+            open={demoCallModalOpen}
+            onOpenChange={setDemoCallModalOpen}
+            opportunityId={demoCallOpportunityId}
+            agencyId={agencyProfile.agencyProfileId}
+            atlasCreditsBalance={atlasCreditsBalance}
+          />
+        )}
       </div>
     </main>
   );
