@@ -16,10 +16,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useIsMobile } from "@/hooks/use-mobile";
+//import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function CallsPage() {
-  const isMobile = useIsMobile();
+  //const isMobile = useIsMobile();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const [selectedCallId, setSelectedCallId] = useState<Id<"calls"> | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
