@@ -361,7 +361,7 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
   const isInProgress = status === "in-progress";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-4">
         <CallStatusBadge status={status} />
       </div>
@@ -394,7 +394,7 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 pb-4">
         {selectedCall.summary && (
           <div>
             <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
@@ -408,8 +408,8 @@ function CallDetailsModal({ selectedCall, formatDuration }: CallDetailsModalProp
 
         {/* Transcript Accordion */}
         {selectedCall.transcript && selectedCall.transcript.length > 0 && (
-          <Accordion type="single" collapsible className="w-full mb-4">
-            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4 pb-2">
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="transcript" className="border border-border/40 rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
                   Transcript ({selectedCall.transcript.length} messages)

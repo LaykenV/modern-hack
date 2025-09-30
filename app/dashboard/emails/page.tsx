@@ -4,13 +4,12 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -18,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Mail,
   Send,
@@ -57,7 +55,6 @@ type EmailListItem = {
 };
 
 export default function EmailsPage() {
-  const isMobile = useIsMobile();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
   const emails = useQuery(
     api.call.emails.listByAgency,
@@ -65,7 +62,7 @@ export default function EmailsPage() {
   ) as EmailListItem[] | undefined;
 
   const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const selectedEmail = useQuery(
     api.call.emails.getEmailById,
     selectedEmailId ? { emailId: selectedEmailId } : "skip"
@@ -100,9 +97,7 @@ export default function EmailsPage() {
 
   const handleEmailClick = (emailId: Id<"emails">) => {
     setSelectedEmailId(emailId);
-    if (isMobile) {
-      setSheetOpen(true);
-    }
+    setDialogOpen(true);
   };
 
   const handleCopy = async (text: string, type: "subject" | "html") => {
@@ -214,47 +209,51 @@ export default function EmailsPage() {
               <h2 className="text-lg font-semibold text-foreground">Search & Filter</h2>
             </div>
             <div className="flex flex-col md:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
+              <div className="relative w-full md:flex-1">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                <input
+                  type="text"
                   value={queryStr}
                   onChange={(e) => setQueryStr(e.target.value)}
                   placeholder="Search subject, recipient, prospect..."
-                  className="pl-10"
+                  className="input-field !pl-12"
+                  style={{ paddingLeft: '3rem' }}
                 />
               </div>
               
-              <Select value={typeFilter} onValueChange={(value: typeof typeFilter) => setTypeFilter(value)}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="prospect_confirmation">Prospect confirmation</SelectItem>
-                  <SelectItem value="agency_summary">Agency summary</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="w-full md:w-[200px] md:flex-shrink-0">
+                <Select value={typeFilter} onValueChange={(value: typeof typeFilter) => setTypeFilter(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    <SelectItem value="prospect_confirmation">Prospect confirmation</SelectItem>
+                    <SelectItem value="agency_summary">Agency summary</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <Select value={statusFilter} onValueChange={(value: typeof statusFilter) => setStatusFilter(value)}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="All status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All status</SelectItem>
-                  <SelectItem value="queued">Queued</SelectItem>
-                  <SelectItem value="sent">Sent</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="w-full md:w-[180px] md:flex-shrink-0">
+                <Select value={statusFilter} onValueChange={(value: typeof statusFilter) => setStatusFilter(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All status</SelectItem>
+                    <SelectItem value="queued">Queued</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          {/* Email List */}
-          <div className="lg:col-span-2">
-            <div className="card-warm-static">
+        {/* Email List - Full Width */}
+        <div className="w-full">
+          <div className="card-warm-static">
               <div className="p-4 md:p-6 border-b border-border/60">
                 <h2 className="text-2xl font-bold text-foreground">Recent Emails</h2>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -266,11 +265,14 @@ export default function EmailsPage() {
                   filtered.map((e) => (
                     <button
                       key={e._id}
-                      className={`w-full text-left p-4 md:p-5 transition-all ${
+                      className={`w-full text-left p-4 md:p-5 transition-all border-l-4 ${
                         selectedEmailId === e._id
-                          ? "bg-primary/10 border-l-4 border-l-primary"
-                          : "hover:bg-surface-overlay/50 border-l-4 border-l-transparent"
+                          ? "bg-primary/10"
+                          : "hover:bg-surface-overlay/50 border-l-transparent"
                       }`}
+                      style={{
+                        borderLeftColor: selectedEmailId === e._id ? 'hsl(var(--primary))' : undefined
+                      }}
                       onClick={() => handleEmailClick(e._id)}
                     >
                       <div className="flex flex-col gap-3">
@@ -310,38 +312,18 @@ export default function EmailsPage() {
             </div>
           </div>
 
-          {/* Email Preview - Desktop */}
-          {!isMobile && (
-            <div className="lg:col-span-1">
-              <div className="card-warm-static p-6 sticky top-6">
-                {selectedEmail ? (
-                  <EmailDetails email={selectedEmail} copied={copied} onCopy={handleCopy} />
-                ) : (
-                  <EmptyState
-                    icon={<span className="text-4xl">👈</span>}
-                    title="Select an email"
-                    description="Click on an email from the list to view its details"
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Email Details Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="call-details-modal max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Email Details</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {selectedEmail && <EmailDetails email={selectedEmail} copied={copied} onCopy={handleCopy} />}
+          </div>
+        </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Email Preview - Mobile Sheet */}
-      {isMobile && (
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Email Details</SheetTitle>
-            </SheetHeader>
-            <div className="mt-6">
-              {selectedEmail && <EmailDetails email={selectedEmail} copied={copied} onCopy={handleCopy} />}
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
     </main>
   );
 }
@@ -374,30 +356,20 @@ function EmailsPageSkeleton() {
         </div>
 
         {/* Content Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          <div className="lg:col-span-2">
-            <div className="card-warm-static">
-              <div className="p-4 md:p-6 border-b border-border/60">
-                <Skeleton className="h-8 w-48 mb-2" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-              <div className="divide-y divide-border/40">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="p-4 md:p-5">
-                    <Skeleton className="h-6 w-3/4 mb-3" />
-                    <Skeleton className="h-4 w-1/2 mb-2" />
-                    <Skeleton className="h-3 w-1/3" />
-                  </div>
-                ))}
-              </div>
+        <div className="w-full">
+          <div className="card-warm-static">
+            <div className="p-4 md:p-6 border-b border-border/60">
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-4 w-32" />
             </div>
-          </div>
-          <div className="lg:col-span-1 hidden lg:block">
-            <div className="card-warm-static p-6">
-              <Skeleton className="h-6 w-32 mb-6" />
-              <Skeleton className="h-4 w-full mb-3" />
-              <Skeleton className="h-4 w-full mb-3" />
-              <Skeleton className="h-4 w-3/4" />
+            <div className="divide-y divide-border/40">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="p-4 md:p-5">
+                  <Skeleton className="h-6 w-3/4 mb-3" />
+                  <Skeleton className="h-4 w-1/2 mb-2" />
+                  <Skeleton className="h-3 w-1/3" />
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -495,12 +467,10 @@ function EmailDetails({
         {email.icsUrl && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild variant="outline" className="w-full">
-                <a href={email.icsUrl} target="_blank" rel="noopener noreferrer">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Download Calendar Event
-                </a>
-              </Button>
+              <a href={email.icsUrl} target="_blank" rel="noopener noreferrer" className="btn-primary w-full">
+                <Calendar className="h-4 w-4" />
+                Download Calendar Event
+              </a>
             </TooltipTrigger>
             <TooltipContent>
               <p>Add this event to your calendar</p>
