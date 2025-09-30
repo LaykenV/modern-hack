@@ -2,7 +2,7 @@
 
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { InitialSetupForm } from "./components/Step1_InitialSetupForm";
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Rocket, Search, FileText, Settings, Loader2 } from "lucide-react";
+import { CheckCircle2, Rocket, Search, FileText, Settings, Loader2, ArrowRight } from "lucide-react";
 
 type OnboardingStep = 1 | 2 | 3 | 4;
 type Mode = "manual" | "automated";
@@ -23,6 +23,7 @@ interface OnboardingState {
   mode?: Mode;
   agencyProfileId?: Id<"agency_profile">;
   onboardingFlowId?: Id<"onboarding_flow">;
+  isWorkflowComplete?: boolean;
 }
 
 export default function OnboardingPage() {
@@ -54,6 +55,7 @@ function Content() {
   
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({
     currentStep: 1,
+    isWorkflowComplete: false,
   });
 
   // Determine current step based on agency profile data
@@ -98,7 +100,7 @@ function Content() {
     }
   }, [agencyProfile]);
 
-  const handleStarted = (params: { mode: Mode; agencyProfileId: string; onboardingFlowId?: string }) => {
+  const handleStarted = useCallback((params: { mode: Mode; agencyProfileId: string; onboardingFlowId?: string }) => {
     if (params.mode === "automated") {
       setOnboardingState(prev => ({
         ...prev,
@@ -116,26 +118,34 @@ function Content() {
         agencyProfileId: params.agencyProfileId as Id<"agency_profile">,
       }));
     }
-  };
+  }, []);
 
-  const handleWorkflowCompleted = () => {
+  const handleWorkflowCompleted = useCallback(() => {
     setOnboardingState(prev => ({
       ...prev,
       currentStep: 3,
+      isWorkflowComplete: false, // Reset when moving to next step
     }));
-  };
+  }, []);
 
-  const handleContentReviewed = () => {
+  const handleWorkflowComplete = useCallback((isComplete: boolean) => {
+    setOnboardingState(prev => ({
+      ...prev,
+      isWorkflowComplete: isComplete,
+    }));
+  }, []);
+
+  const handleContentReviewed = useCallback(() => {
     setOnboardingState(prev => ({
       ...prev,
       currentStep: 4,
     }));
-  };
+  }, []);
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = useCallback(() => {
     setIsRedirecting(true);
     router.replace("/dashboard");
-  };
+  }, [router]);
 
   // Step indicator component with enhanced UX
   const StepIndicator = () => {
@@ -159,28 +169,28 @@ function Content() {
     const progressPercentage = ((currentStepIndex + 1) / steps.length) * 100;
 
     return (
-      <div className="card-warm-static p-4 sm:p-6 md:p-8 mb-6 md:mb-8">
+      <div className="card-warm-static p-4 sm:p-5 md:p-6 mb-4 md:mb-6">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
               {steps[currentStepIndex]?.label || "Getting Started"}
             </h1>
             <Badge variant="secondary" className="text-xs sm:text-sm">
               Step {currentStepIndex + 1} of {steps.length}
             </Badge>
           </div>
-          <p className="text-sm sm:text-base text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {steps[currentStepIndex]?.description || "Complete your profile setup"}
           </p>
         </div>
 
         {/* Progress bar */}
-        <div className="mb-6">
-          <Progress value={progressPercentage} className="h-2" />
+        <div className="mb-4">
+          <Progress value={progressPercentage} className="h-1.5" />
         </div>
 
-        <Separator className="mb-6" />
+        <Separator className="mb-4" />
 
         {/* Desktop: Horizontal step indicators */}
         <div className="hidden md:flex items-center justify-between">
@@ -194,29 +204,29 @@ function Content() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex flex-col items-center gap-2 flex-1">
+                      <div className="flex flex-col items-center gap-1.5 flex-1">
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
                             isCompleted
-                              ? 'bg-success text-success-foreground shadow-sm'
+                              ? 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] shadow-sm'
                               : isCurrent
-                              ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-110'
+                              ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-105'
                               : 'bg-muted text-muted-foreground'
                           }`}
                         >
                           {isCompleted ? (
-                            <CheckCircle2 className="w-6 h-6" />
+                            <CheckCircle2 className="w-5 h-5" />
                           ) : (
-                            <Icon className="w-6 h-6" />
+                            <Icon className="w-5 h-5" />
                           )}
                         </div>
                         <div className="text-center">
                           <p className={`text-sm font-semibold ${
-                            isCurrent ? 'text-primary' : isCompleted ? 'text-success' : 'text-muted-foreground'
+                            isCurrent ? 'text-primary' : isCompleted ? 'text-[hsl(var(--success))]' : 'text-muted-foreground'
                           }`}>
                             {s.label}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground hidden lg:block">
                             {s.description}
                           </p>
                         </div>
@@ -228,11 +238,11 @@ function Content() {
                   </Tooltip>
                 </TooltipProvider>
                 {index < steps.length - 1 && (
-                  <div className="flex items-center justify-center px-4">
+                  <div className="flex items-center justify-center px-3">
                     <div
-                      className={`h-0.5 w-full min-w-[40px] transition-all duration-300 ${
+                      className={`h-0.5 w-full min-w-[32px] transition-all duration-300 ${
                         s.actual < onboardingState.currentStep 
-                          ? 'bg-success' 
+                          ? 'bg-[hsl(var(--success))]' 
                           : 'bg-border'
                       }`}
                     />
@@ -255,18 +265,18 @@ function Content() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
                         isCompleted
-                          ? 'bg-success text-success-foreground shadow-sm'
+                          ? 'bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] shadow-sm'
                           : isCurrent
-                          ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-110'
+                          ? 'bg-gradient-to-br from-[hsl(var(--primary)/0.85)] to-[hsl(var(--primary)/0.95)] text-primary-foreground shadow-[0_2px_12px_hsl(var(--primary)/0.4)] scale-105'
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5" />
+                        <CheckCircle2 className="w-4.5 h-4.5" />
                       ) : (
-                        <Icon className="w-5 h-5" />
+                        <Icon className="w-4.5 h-4.5" />
                       )}
                     </div>
                   </TooltipTrigger>
@@ -311,6 +321,7 @@ function Content() {
         {onboardingState.currentStep === 2 && onboardingState.mode === "automated" && (
           <WorkflowWithApproval
             onCompleted={handleWorkflowCompleted}
+            onWorkflowComplete={handleWorkflowComplete}
           />
         )}
 
@@ -337,6 +348,18 @@ function Content() {
           />
         )}
       </div>
+
+      {/* Floating button for Step 2 - Rendered at top level to escape container constraints */}
+      {onboardingState.currentStep === 2 && onboardingState.isWorkflowComplete && (
+        <button 
+          onClick={handleWorkflowCompleted}
+          className="!fixed bottom-6 right-6 btn-primary text-sm md:text-base font-medium shadow-lg hover:shadow-xl group z-50 animate-in slide-in-from-bottom-4 duration-500 backdrop-blur-sm bg-gradient-to-br from-[hsl(var(--primary)/0.95)] to-[hsl(var(--primary)/0.98)]"
+          aria-label="Continue to Review"
+        >
+          Continue to Review
+          <ArrowRight className="w-4 h-4 md:w-5 md:h-5 transition-transform duration-300 group-hover:translate-x-1" />
+        </button>
+      )}
     </div>
   );
 }

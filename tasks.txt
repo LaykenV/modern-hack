@@ -109,18 +109,21 @@ resend emails with ics and recap
 //ui / ux
 
 //edit agency
-go through each page for ui and ux
+//go through each page for ui and ux
 //call linking
 //add color in few places
 //update layout for tab stuff and twitter card
+
+add use demo button on onboarding, and crawl should show loading right away
+onboarding ui / ux
 
 paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
 percentage on resume
 ai call prompt - if we have email aware, hang up faster
 
 //create dummy agency site
-add use demo button on onboarding, and crawl should show loading right away
 add test call functionality with phone number and email override -- biggest change
+/ id pages ui / ux
 
 test all flows with new ui
 

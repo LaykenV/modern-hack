@@ -1,45 +1,21 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useThreadMessages, toUIMessages } from "@convex-dev/agent/react";
+import { useThreadMessages, toUIMessages, useSmoothText } from "@convex-dev/agent/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useEffect } from "react";
 
 interface StreamingSummaryProps {
   onboardingFlowId: Id<"onboarding_flow">;
   summaryThread?: string;
+  onContentStart?: () => void;
 }
 
-// Simple smooth text hook for streaming display
-function useSmoothText(text: string, speed: number = 50) {
-  const [displayText, setDisplayText] = useState("");
-  
-  useEffect(() => {
-    if (!text) {
-      setDisplayText("");
-      return;
-    }
-    
-    let currentIndex = 0;
-    setDisplayText("");
-    
-    const interval = setInterval(() => {
-      if (currentIndex < text.length) {
-        setDisplayText(text.substring(0, currentIndex + 1));
-        currentIndex++;
-      } else {
-        clearInterval(interval);
-      }
-    }, speed);
-    
-    return () => clearInterval(interval);
-  }, [text, speed]);
-  
-  return displayText;
-}
-
-export function StreamingSummary({ onboardingFlowId, summaryThread }: StreamingSummaryProps) {
+export function StreamingSummary({ onboardingFlowId, summaryThread, onContentStart }: StreamingSummaryProps) {
   const flow = useQuery(api.onboarding.queries.getOnboardingFlow, {
     onboardingFlowId
   });
@@ -71,27 +47,26 @@ export function StreamingSummary({ onboardingFlowId, summaryThread }: StreamingS
   const finalSummary = sellerBrain?.summary;
   const displayContent = finalSummary || streamingContent;
   
-  // Use smooth text for streaming effect when actively streaming
-  const smoothContent = useSmoothText(
-    isSummaryActive ? displayContent : "",
-    30
-  );
+  // Use the agent's built-in smooth text for better streaming performance
+  const [smoothContent] = useSmoothText(displayContent, {
+    startStreaming: isSummaryActive,
+  });
 
-  const contentToShow = isSummaryActive ? smoothContent : displayContent;
+  const contentToShow = smoothContent;
+
+  // Notify parent when content actually starts rendering
+  useEffect(() => {
+    if (contentToShow && contentToShow.length > 0 && onContentStart) {
+      onContentStart();
+    }
+  }, [contentToShow, onContentStart]);
 
   if (!summaryPhase || summaryPhase.status === "pending") {
     return (
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+        <h2 className="text-lg font-semibold text-foreground">
           AI Summary
         </h2>
-        {/*<div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm">Waiting for content analysis to begin...</span>
-          </div>
-        </div>
-        */}
       </div>
     );
   }
@@ -99,49 +74,52 @@ export function StreamingSummary({ onboardingFlowId, summaryThread }: StreamingS
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+        <h2 className="text-lg font-semibold text-foreground">
           AI Summary
         </h2>
         {isSummaryActive && (
-          <div className="flex items-center gap-2 text-blue-600">
-            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm font-medium">Generating...</span>
-          </div>
+          <Badge 
+            variant="outline" 
+            className="bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] text-[hsl(var(--primary-foreground))] border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,_var(--shadow-soft)]"
+          >
+            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+            Generating
+          </Badge>
         )}
         {isSummaryComplete && (
-          <div className="flex items-center gap-2 text-green-600">
-            <div className="w-3 h-3 rounded-full bg-green-600"></div>
-            <span className="text-sm font-medium">Complete</span>
-          </div>
+          <Badge variant="outline" className="bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30">
+            <CheckCircle2 className="w-3 h-3 mr-1.5" />
+            Complete
+          </Badge>
         )}
       </div>
 
-      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 min-h-[200px]">
+      <div className="border border-border/60 rounded-lg p-4 bg-surface-raised/50 min-h-[200px]">
         {contentToShow ? (
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            <div className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+            <div className="whitespace-pre-wrap text-sm text-foreground leading-relaxed">
               {contentToShow}
               {isSummaryActive && (
-                <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
+                <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse rounded-sm"></span>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-32 text-slate-500">
+          <div className="flex items-center justify-center h-32 text-muted-foreground">
             <div className="text-center">
-              <div className="w-8 h-8 mx-auto mb-2 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin"></div>
-              <p className="text-sm">Analyzing your website content...</p>
+              <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary animate-spin" />
+              <p className="text-sm font-medium">Analyzing your website content...</p>
             </div>
           </div>
         )}
       </div>
 
       {summaryPhase.errorMessage && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-700 text-sm">
+        <Alert variant="destructive">
+          <AlertDescription>
             <strong>Error:</strong> {summaryPhase.errorMessage}
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

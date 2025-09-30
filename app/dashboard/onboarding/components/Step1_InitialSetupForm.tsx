@@ -3,13 +3,10 @@
 import { useAction, useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, AlertCircle, ArrowRight, Sparkles, Info } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRight, Info, Sparkles } from "lucide-react";
 
 interface InitialSetupFormProps {
   onStarted: (params: { mode: "manual" | "automated"; agencyProfileId: string; onboardingFlowId?: string }) => void;
@@ -22,8 +19,23 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
   const [companyName, setCompanyName] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [mode, setMode] = useState<"manual" | "automated">("automated");
+  
+  const handleModeChange = (value: string) => {
+    const newMode = value as "manual" | "automated";
+    setMode(newMode);
+    // Clear URL when switching to manual mode
+    if (newMode === "manual") {
+      setSourceUrl("");
+    }
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDemoPath = () => {
+    setMode("automated");
+    setCompanyName("GrowthLocal");
+    setSourceUrl("https://fine-newt-884.convex.app");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,57 +94,38 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
         <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight mb-3">
           Welcome to Atlas Outbound
         </h1>
-        <p className="text-base md:text-lg text-muted-foreground">
+        <p className="text-base md:text-lg text-muted-foreground mb-6">
           Let&apos;s set up your AI assistant to start generating qualified leads
         </p>
-      </div>
-
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Company Name */}
-        <div className="card-warm-static p-4 sm:p-6">
-          <Label htmlFor="companyName" className="text-sm font-semibold">
-            Company Name *
-          </Label>
-          <Input
-            id="companyName"
-            type="text"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="Acme Corp"
-            disabled={loading}
-            required
-            className="mt-2"
-          />
-        </div>
-
+        
         {/* Mode Selection */}
-        <div className="card-warm-static p-4 sm:p-6">
-          <Label className="text-sm font-semibold mb-4 block">
+        <div className="mt-6">
+          <label className="input-label mb-4 block">
             Setup Mode *
-          </Label>
+          </label>
           
-          <RadioGroup value={mode} onValueChange={(value) => setMode(value as "manual" | "automated")} className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+          <RadioGroup value={mode} onValueChange={handleModeChange} className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {/* Automated Mode */}
             <label 
               htmlFor="automated"
-              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all border-2 ${
+              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all ${
                 mode === "automated" 
-                  ? "border-primary bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] shadow-md" 
-                  : "border-border bg-surface-raised hover:border-ring/40 hover:shadow-sm"
+                  ? "card-warm-accent" 
+                  : "card-warm-static hover:border-ring/40 hover:shadow-sm"
               }`}
             >
               <div className="flex items-start gap-3">
-                <RadioGroupItem value="automated" id="automated" className="mt-0.5" />
+                <RadioGroupItem 
+                  value="automated" 
+                  id="automated" 
+                  className="mt-0.5" 
+                  style={{
+                    backgroundColor: mode === "automated" ? "hsl(var(--primary))" : undefined,
+                    borderColor: mode === "automated" ? "hsl(var(--primary))" : undefined,
+                  }}
+                />
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
+                  <div className="mb-2">
                     <span className="text-base font-semibold text-foreground">Automated Analysis</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
@@ -145,17 +138,24 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
             {/* Manual Mode */}
             <label 
               htmlFor="manual"
-              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all border-2 ${
+              className={`rounded-lg p-4 sm:p-5 cursor-pointer transition-all ${
                 mode === "manual" 
-                  ? "border-primary bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] shadow-md" 
-                  : "border-border bg-surface-raised hover:border-ring/40 hover:shadow-sm"
+                  ? "card-warm-accent" 
+                  : "card-warm-static hover:border-ring/40 hover:shadow-sm"
               }`}
             >
               <div className="flex items-start gap-3">
-                <RadioGroupItem value="manual" id="manual" className="mt-0.5" />
+                <RadioGroupItem 
+                  value="manual" 
+                  id="manual" 
+                  className="mt-0.5"
+                  style={{
+                    backgroundColor: mode === "manual" ? "hsl(var(--primary))" : undefined,
+                    borderColor: mode === "manual" ? "hsl(var(--primary))" : undefined,
+                  }}
+                />
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl">✏️</span>
+                  <div className="mb-2">
                     <span className="text-base font-semibold text-foreground">Manual Setup</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
@@ -166,25 +166,67 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
             </label>
           </RadioGroup>
         </div>
+      </div>
 
-        {/* Website URL (only for automated mode) */}
-        {mode === "automated" && (
-          <div className="card-warm-static p-4 sm:p-6">
-            <Label htmlFor="sourceUrl" className="text-sm font-semibold">
-              Website URL *
-            </Label>
-            <Input
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Company Name & Website URL */}
+        <div className="card-warm-static p-4 sm:p-6 space-y-4">
+          {/* Card Header with Demo Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2">
+            <h2 className="text-lg font-semibold text-foreground">Company Information</h2>
+            <button
+              type="button"
+              onClick={handleDemoPath}
+              disabled={loading}
+              className="btn-primary shrink-0 px-3 py-2 text-sm font-medium flex items-center gap-2 w-full sm:w-auto justify-center"
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span className="hidden lg:inline">Demo Path - Use our dummy agency website</span>
+              <span className="lg:hidden">Demo Path</span>
+            </button>
+          </div>
+
+          <div>
+            <label htmlFor="companyName" className="input-label">
+              Company Name *
+            </label>
+            <input
+              id="companyName"
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="Acme Corp"
+              disabled={loading}
+              required
+              className="input-field"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="sourceUrl" className="input-label">
+              Website URL {mode === "automated" && "*"}
+            </label>
+            <input
               id="sourceUrl"
               type="url"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
               placeholder="https://example.com"
-              disabled={loading}
+              disabled={loading || mode === "manual"}
               required={mode === "automated"}
-              className="mt-2"
+              className="input-field"
             />
             <TooltipProvider>
-              <div className="flex items-start gap-2 mt-3">
+              <div className={`flex items-start gap-2 mt-2 transition-opacity ${
+                mode === "automated" ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0 cursor-help" />
@@ -199,14 +241,13 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
               </div>
             </TooltipProvider>
           </div>
-        )}
+        </div>
 
         <div className="pt-2">
-          <Button
+          <button
             type="submit"
             disabled={loading || !companyName.trim() || (mode === "automated" && !sourceUrl.trim())}
-            className="w-full py-6 text-base font-semibold"
-            size="lg"
+            className="btn-primary w-full py-6 text-base font-semibold"
           >
             {loading ? (
               <>
@@ -219,7 +260,7 @@ export function InitialSetupForm({ onStarted }: InitialSetupFormProps) {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </>
             )}
-          </Button>
+          </button>
         </div>
       </form>
     </div>

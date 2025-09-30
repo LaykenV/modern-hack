@@ -412,7 +412,7 @@ export default function AgencyPage() {
                         <p className="text-sm flex-1">{g}</p>
                         <AlertDialog open={deleteTarget?.type === 'guardrail' && deleteTarget?.value === g} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
                           <AlertDialogTrigger asChild>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: 'guardrail', value: g })} className="h-8 w-8 p-0 text-destructive" aria-label="Remove guardrail">
+                            <Button type="button" size="sm" onClick={() => setDeleteTarget({ type: 'guardrail', value: g })} style={{ backgroundColor: 'hsl(var(--destructive) / 0.25)' }} className="h-8 w-8 p-0 hover:bg-[hsl(var(--destructive)/0.4)] text-destructive border-0 rounded-lg transition-colors cursor-pointer" aria-label="Remove guardrail">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -454,7 +454,7 @@ export default function AgencyPage() {
               <div className="card-warm-static p-6 md:p-8">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <Briefcase className="h-5 w-5 text-primary" />
                     Business Claims
                     <Badge variant="secondary" className="ml-2">{agencyProfile.approvedClaims?.length || 0}</Badge>
                   </h3>
@@ -479,10 +479,13 @@ export default function AgencyPage() {
                     {editClaims.map((claim, i) => (
                       <div key={claim.id} className="border rounded-lg p-4 space-y-3">
                         <div className="flex items-start justify-between">
-                          <Badge variant="outline">Claim {i + 1}</Badge>
+                          <div className="time-slot-badge">
+                            <Briefcase className="h-3.5 w-3.5" />
+                            <span>Claim {i + 1}</span>
+                          </div>
                           <AlertDialog open={deleteTarget?.type === 'claim' && deleteTarget?.index === i} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
                             <AlertDialogTrigger asChild>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: 'claim', index: i })} className="h-8 w-8 p-0 text-destructive" aria-label="Delete claim">
+                              <Button type="button" size="sm" onClick={() => setDeleteTarget({ type: 'claim', index: i })} style={{ backgroundColor: 'hsl(var(--destructive) / 0.25)' }} className="h-8 w-8 p-0 hover:bg-[hsl(var(--destructive)/0.4)] text-destructive border-0 rounded-lg transition-colors cursor-pointer" aria-label="Delete claim">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -524,10 +527,13 @@ export default function AgencyPage() {
                 ) : (
                   <div className="space-y-3">
                     {agencyProfile.approvedClaims && agencyProfile.approvedClaims.length > 0 ? (
-                      agencyProfile.approvedClaims.map((claim) => (
+                      agencyProfile.approvedClaims.map((claim, index) => (
                         <div key={claim.id} className="p-4 border rounded-lg">
                           <div className="flex items-start gap-3">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
+                            <div className="time-slot-badge flex-shrink-0">
+                              <Briefcase className="h-3.5 w-3.5" />
+                              <span>Claim {index + 1}</span>
+                            </div>
                             <div className="flex-1">
                               <p className="text-sm mb-2">{claim.text}</p>
                               {claim.source_url && (
@@ -704,8 +710,8 @@ export default function AgencyPage() {
                         {editAvailability.map((slot, i) => (
                           <div key={i} className="time-slot-badge time-slot-badge-removable">
                             <span>{slot}</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveAvailabilitySlot(slot)} className="h-5 w-5 p-0 hover:bg-black/10 hover:text-white rounded-full" aria-label="Remove availability slot">
-                              <X className="h-3 w-3" />
+                            <Button type="button" size="sm" onClick={() => handleRemoveAvailabilitySlot(slot)} style={{ backgroundColor: 'hsl(var(--destructive) / 0.25)' }} className="h-5 w-5 p-0 hover:bg-[hsl(var(--destructive)/0.4)] text-destructive border-0 rounded-sm transition-colors cursor-pointer" aria-label="Remove availability slot">
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                         ))}

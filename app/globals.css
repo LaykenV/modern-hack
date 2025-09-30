@@ -272,6 +272,49 @@
     pointer-events: none;
   }
 
+  /* Destructive button - for delete/remove actions */
+  .btn-destructive {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.75rem;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--destructive) / 0.88) 0%,
+      hsl(var(--destructive) / 0.95) 100%
+    );
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(var(--destructive) / 0.7);
+    box-shadow: 0 0 0 1px hsl(var(--destructive) / 0.4) inset, var(--shadow-soft);
+    cursor: pointer;
+    transition: transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      opacity 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      background-image 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  .btn-destructive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px hsl(var(--destructive) / 0.5) inset, var(--shadow-strong);
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--destructive) / 0.92) 0%,
+      hsl(var(--destructive) / 1) 100%
+    );
+  }
+
+  .btn-destructive:active {
+    transform: translateY(0);
+  }
+
+  .btn-destructive:disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
   /* Active tab styling - matches btn-primary */
   [role="tablist"] [role="tab"][data-state="active"] {
     background-image: linear-gradient(
@@ -527,8 +570,10 @@
   }
 
   .input-field:focus {
+    border-color: hsl(var(--ring));
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08),
       0 0 0 2px hsl(var(--ring));
+    outline: none;
   }
 
   .input-field:disabled {
@@ -581,8 +626,10 @@
 
   .select-field:focus,
   .select-field[data-state="open"] {
+    border-color: hsl(var(--ring));
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08),
       0 0 0 2px hsl(var(--ring));
+    outline: none;
   }
 
   .select-field:disabled {

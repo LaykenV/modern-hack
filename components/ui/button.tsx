@@ -11,7 +11,7 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "cursor-pointer text-white border border-[hsl(var(--destructive)_/_0.7)] shadow-[0_0_0_1px_hsl(var(--destructive)_/_0.4)_inset,_var(--shadow-soft)] hover:shadow-[0_0_0_1px_hsl(var(--destructive)_/_0.5)_inset,_var(--shadow-strong)] hover:-translate-y-0.5 active:translate-y-0 [background-image:linear-gradient(180deg,hsl(var(--destructive)_/_0.88)_0%,hsl(var(--destructive)_/_0.95)_100%)] hover:[background-image:linear-gradient(180deg,hsl(var(--destructive)_/_0.92)_0%,hsl(var(--destructive)_/_1)_100%)]",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary:

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { OverallProgress } from "./OverallProgress";
 import { PhaseTimeline } from "./PhaseTimeline";
@@ -11,13 +11,18 @@ import { EventLog } from "./EventLog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
-interface WorkflowWithApprovalProps {
+interface WorkflowWithApprovalProps { 
   onCompleted: () => void;
+  onWorkflowComplete?: (isComplete: boolean) => void;
 }
 
-export function WorkflowWithApproval({ onCompleted }: WorkflowWithApprovalProps) {
+export function WorkflowWithApproval({ onWorkflowComplete }: WorkflowWithApprovalProps) {
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const [hasShownToast, setHasShownToast] = useState(false);
+  const [hasScrolledToSummary, setHasScrolledToSummary] = useState(false);
 
   // Get seller brain data to find onboarding flow ID
   const sellerBrain = useQuery(api.sellerBrain.getForCurrentUser);
@@ -31,13 +36,35 @@ export function WorkflowWithApproval({ onCompleted }: WorkflowWithApprovalProps)
 
   // Check if workflow is complete
   const isWorkflowComplete = flow?.status === "completed";
-  
-  // Auto-advance to step 3 when workflow is complete
+
+  // Notify parent of workflow completion status
   useEffect(() => {
-    if (isWorkflowComplete) {
-      onCompleted();
+    if (onWorkflowComplete) {
+      onWorkflowComplete(isWorkflowComplete);
     }
-  }, [isWorkflowComplete, onCompleted]);
+  }, [isWorkflowComplete, onWorkflowComplete]);
+
+  // Show success toast when workflow completes
+  useEffect(() => {
+    if (isWorkflowComplete && !hasShownToast) {
+      toast.success("Analysis Complete!", {
+        description: "Your website has been analyzed successfully. Review the generated content to continue.",
+        duration: 5000,
+      });
+      setHasShownToast(true);
+    }
+  }, [isWorkflowComplete, hasShownToast]);
+
+  // Callback to scroll when content actually starts rendering
+  const handleContentStart = () => {
+    if (!hasScrolledToSummary && summaryRef.current) {
+      summaryRef.current.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "start" 
+      });
+      setHasScrolledToSummary(true);
+    }
+  };
 
   if (!onboardingFlowId || !flow) {
     return (
@@ -86,87 +113,63 @@ export function WorkflowWithApproval({ onCompleted }: WorkflowWithApprovalProps)
   }
 
   return (
-    <div className="max-w-6xl mx-auto w-full space-y-6 md:space-y-8">
-      {/* Header */}
-      <div className="card-warm-static p-4 sm:p-6 md:p-8 text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <Loader2 className="h-6 w-6 md:h-8 md:w-8 text-primary animate-spin" />
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+    <div className="max-w-6xl mx-auto w-full space-y-6 md:space-y-8 pb-24">
+      {/* Header with Progress and Recent Activity */}
+      <div className="card-warm-static p-6 md:p-8">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
             Analyzing Your Website
           </h1>
         </div>
-        <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
+        <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto text-center mb-8">
           We&apos;re analyzing your website to understand your business and generate personalized content
         </p>
-      </div>
+        
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <OverallProgress onboardingFlowId={onboardingFlowId} />
+        </div>
 
-      {/* Overall Progress */}
-      <div className="card-warm-static p-4 sm:p-6">
-        <OverallProgress onboardingFlowId={onboardingFlowId} />
+        {/* Recent Activity */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Activity</h3>
+          <EventLog lastEvent={flow.lastEvent} />
+        </div>
       </div>
 
       <Separator />
 
-      {/* Main Content Grid */}
+      {/* Workflow and Pages Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Workflow Progress */}
-        <div className="space-y-4 sm:space-y-6">
-          {/* Phase Timeline */}
-          <div className="card-warm-static p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              Workflow Progress
-            </h2>
-            <PhaseTimeline phases={flow.phases} />
-          </div>
-
-          {/* Event Log */}
-          <div className="card-warm-static p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4">
-              Recent Activity
-            </h2>
-            <EventLog lastEvent={flow.lastEvent} />
-          </div>
+        <div className="card-warm-static p-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-primary animate-pulse flex-shrink-0" />
+            Workflow Progress
+          </h2>
+          <PhaseTimeline phases={flow.phases} />
         </div>
 
-        {/* Right Column - Content Views */}
-        <div className="space-y-4 sm:space-y-6">
-          {/* Streaming Summary */}
-          <div className="card-warm-static p-4 sm:p-6">
-            <StreamingSummary 
-              onboardingFlowId={onboardingFlowId}
-              summaryThread={flow.summaryThread}
-            />
-          </div>
-
-          {/* Page Discovery Grid */}
-          <div className="card-warm-static p-4 sm:p-6">
-            <PageDiscoveryGrid onboardingFlowId={onboardingFlowId} />
-          </div>
+        {/* Right Column - Page Discovery */}
+        <div className="card-warm-static p-6">
+          <PageDiscoveryGrid onboardingFlowId={onboardingFlowId} />
         </div>
       </div>
 
-      {/* Completion Status */}
-      {isWorkflowComplete && (
-        <Alert className="bg-gradient-to-br from-success/10 to-success/5 border-success/30">
-          <CheckCircle2 className="h-5 w-5 text-success" />
-          <AlertTitle className="text-lg font-semibold">Analysis Complete!</AlertTitle>
-          <AlertDescription className="text-sm mt-2">
-            Your website has been analyzed and content has been generated. You can now review and edit the generated content.
-          </AlertDescription>
-          <div className="flex items-center gap-2 mt-4 text-xs text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            Proceeding to content review...
-          </div>
-        </Alert>
-      )}
+      {/* AI Summary - Full Width at Bottom */}
+      <div ref={summaryRef} className="card-warm-static p-6">
+        <StreamingSummary 
+          onboardingFlowId={onboardingFlowId}
+          summaryThread={flow.summaryThread}
+          onContentStart={handleContentStart}
+        />
+      </div>
 
-      {/* Error States */}
       {flow.status === "error" && (
         <Alert variant="destructive">
           <AlertCircle className="h-5 w-5" />
-          <AlertTitle className="text-lg font-semibold">Analysis Error</AlertTitle>
-          <AlertDescription className="mt-2">
+          <AlertTitle className="text-lg font-semibold text-foreground">Analysis Error</AlertTitle>
+          <AlertDescription className="mt-2 text-muted-foreground">
             There was an issue analyzing your website. Please try refreshing the page or contact support if the problem persists.
           </AlertDescription>
         </Alert>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface GuardrailsInputProps {
   guardrails: string[];
@@ -37,41 +39,35 @@ export function GuardrailsInput({ guardrails, onGuardrailsChange }: GuardrailsIn
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-          Guardrails
-        </h3>
-        <span className="text-xs text-slate-500">
-          {guardrails.length} rule{guardrails.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-md p-3">
+      <div className="text-xs text-muted-foreground bg-surface-muted/50 rounded-lg p-3 border border-border/40">
         <p className="mb-1">
           <strong>Guardrails</strong> help ensure your AI assistant stays on-brand and follows your business rules.
         </p>
-        <p className="text-slate-500">
+        <p className="text-muted-foreground/80">
           Examples: &quot;Never discuss competitor pricing&quot;, &quot;Always mention our 30-day guarantee&quot;, &quot;Redirect technical questions to support&quot;
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyPress={handleKeyPress}
-          className="flex-1 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Add a business rule or guideline..."
-          maxLength={200}
-        />
-        <button
-          onClick={handleAddGuardrail}
-          disabled={!inputValue.trim()}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-sm font-medium rounded-md transition-colors duration-200 disabled:cursor-not-allowed"
-        >
-          Add
-        </button>
+      <div>
+        <Label className="input-label">Add Guardrail</Label>
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+            className="input-field flex-1"
+            placeholder="Add a business rule or guideline..."
+            maxLength={200}
+          />
+          <button
+            onClick={handleAddGuardrail}
+            disabled={!inputValue.trim()}
+            className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add
+          </button>
+        </div>
       </div>
 
       {guardrails.length > 0 && (
@@ -80,17 +76,17 @@ export function GuardrailsInput({ guardrails, onGuardrailsChange }: GuardrailsIn
             {guardrails.map((guardrail, index) => (
               <div
                 key={index}
-                className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5 text-sm"
+                className="inline-flex items-center gap-2 bg-surface-muted border border-border rounded-full px-3 py-1.5 text-sm"
               >
-                <span className="text-slate-700 dark:text-slate-300 max-w-xs truncate" title={guardrail}>
+                <span className="text-foreground max-w-xs truncate" title={guardrail}>
                   {guardrail}
                 </span>
                 <button
                   onClick={() => handleRemoveGuardrail(guardrail)}
-                  className="text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                  className="w-5 h-5 rounded-full flex items-center justify-center bg-destructive/10 hover:bg-destructive/20 transition-all cursor-pointer"
                   aria-label={`Remove guardrail: ${guardrail}`}
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" style={{ color: 'hsl(var(--destructive))' }}>
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
@@ -101,7 +97,7 @@ export function GuardrailsInput({ guardrails, onGuardrailsChange }: GuardrailsIn
       )}
 
       {guardrails.length === 0 && (
-        <div className="text-center py-4 text-slate-500 text-sm">
+        <div className="text-center py-4 text-muted-foreground text-sm">
           No guardrails added yet. Add some rules to guide your AI assistant&apos;s behavior.
         </div>
       )}

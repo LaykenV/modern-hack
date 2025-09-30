@@ -70,7 +70,7 @@ ${contextContent}`;
       ctx,
       { threadId: summaryThread },
       { prompt },
-      { saveStreamDeltas: true },
+      { saveStreamDeltas: { chunking: "word", throttleMs: 50 } },
     );
     return null;
   },

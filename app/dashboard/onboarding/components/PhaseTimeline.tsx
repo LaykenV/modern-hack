@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, CheckCircle2, XCircle, Circle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Phase {
   name: "crawl" | "filter" | "scrape" | "summary" | "claims" | "coreOffer" | "verify";
@@ -43,30 +47,26 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
     switch (phase.status) {
       case "pending":
         return (
-          <div className="w-6 h-6 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center">
-            <span className="text-xs font-medium text-slate-500">{index + 1}</span>
+          <div className="w-6 h-6 rounded-full border-2 border-border bg-surface-raised flex items-center justify-center">
+            <span className="text-xs font-medium text-muted-foreground">{index + 1}</span>
           </div>
         );
       case "running":
         return (
-          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
-            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+            <Loader2 className="w-3.5 h-3.5 text-primary-foreground animate-spin" />
           </div>
         );
       case "complete":
         return (
-          <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+          <div className="w-6 h-6 rounded-full bg-[hsl(var(--success))] flex items-center justify-center">
+            <CheckCircle2 className="w-3.5 h-3.5 text-success-foreground" />
           </div>
         );
       case "error":
         return (
-          <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+          <div className="w-6 h-6 rounded-full bg-destructive flex items-center justify-center">
+            <XCircle className="w-3.5 h-3.5 text-destructive-foreground" />
           </div>
         );
     }
@@ -74,10 +74,10 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
 
   const getStatusColor = () => {
     switch (phase.status) {
-      case "pending": return "text-slate-500";
-      case "running": return "text-blue-600";
-      case "complete": return "text-green-600";
-      case "error": return "text-red-600";
+      case "pending": return "text-muted-foreground";
+      case "running": return "text-primary";
+      case "complete": return "text-[hsl(var(--success))]";
+      case "error": return "text-destructive";
     }
   };
 
@@ -102,40 +102,49 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
               {PHASE_LABELS[phase.name]}
             </h3>
             {phase.status === "running" && (
-              <span className="text-xs text-slate-500">{percentage}%</span>
+              <Badge variant="outline" className="text-xs">
+                {percentage}%
+              </Badge>
             )}
             {phase.duration && (
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 {formatDuration(phase.duration)}
               </span>
             )}
           </div>
           
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {PHASE_DESCRIPTIONS[phase.name]}
           </p>
           
           {phase.status === "running" && phase.progress > 0 && (
-            <div className="mt-2 w-full bg-slate-200 rounded-full h-1">
+            <div className="mt-2 w-full rounded-full h-2 border border-border/40 overflow-hidden" style={{ backgroundColor: 'hsl(var(--surface-muted))' }}>
               <div 
-                className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                style={{ width: `${percentage}%` }}
+                className="h-full rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${percentage}%`,
+                  backgroundColor: 'hsl(var(--primary))'
+                }}
               ></div>
             </div>
           )}
           
           {phase.status === "error" && phase.errorMessage && (
             <div className="mt-2">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-xs text-red-600 hover:text-red-700 underline"
+                className="h-auto p-0 text-xs text-destructive hover:text-destructive/80 font-semibold"
               >
                 {isExpanded ? "Hide" : "Show"} Error Details
-              </button>
+              </Button>
               {isExpanded && (
-                <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                  {phase.errorMessage}
-                </div>
+                <Alert variant="destructive" className="mt-2 p-2">
+                  <AlertDescription className="text-xs">
+                    {phase.errorMessage}
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
           )}
@@ -148,9 +157,6 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
 export function PhaseTimeline({ phases }: PhaseTimelineProps) {
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-        Analysis Progress
-      </h2>
       <div className="space-y-4">
         {phases.map((phase, index) => (
           <PhaseCard key={phase.name} phase={phase} index={index} />

@@ -1,5 +1,7 @@
 "use client";
 
+import { Loader2, CheckCircle2, XCircle, Circle } from "lucide-react";
+
 interface EventLogProps {
   lastEvent?: {
     type: string;
@@ -28,46 +30,46 @@ export function EventLog({ lastEvent }: EventLogProps) {
   };
 
   const getEventIcon = (type: string) => {
-    if (type.includes("started") || type.includes("running")) {
+    if (type.includes("started") || type.includes("running") || type.toLowerCase().includes("onboarding started")) {
       return (
-        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <Loader2 className="w-4 h-4 text-primary animate-spin" />
       );
     }
     if (type.includes("completed") || type.includes("complete")) {
       return (
-        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+        <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
       );
     }
     if (type.includes("error") || type.includes("failed")) {
       return (
-        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+        <XCircle className="w-4 h-4 text-destructive" />
       );
     }
     return (
-      <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+      <Circle className="w-4 h-4 text-muted-foreground" />
     );
   };
 
   if (!lastEvent) {
     return (
-      <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-        <div className="flex items-center gap-2 text-slate-500 text-sm">
-          <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
-          <span>No recent activity</span>
+      <div className="bg-surface-muted/50 border border-border/40 rounded-lg p-3">
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Circle className="w-4 h-4" />
+          <span className="font-medium">No recent activity</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-      <div className="flex items-start gap-3">
+    <div className="bg-surface-muted/50 border border-border/40 rounded-lg p-3">
+      <div className="flex items-center gap-3">
         {getEventIcon(lastEvent.type)}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-slate-700 dark:text-slate-300">
+          <p className="text-sm text-foreground font-medium">
             {lastEvent.message}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {formatTimestamp(lastEvent.timestamp)}
           </p>
         </div>

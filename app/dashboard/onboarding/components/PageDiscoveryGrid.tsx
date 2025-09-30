@@ -4,6 +4,10 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, Loader2 } from "lucide-react";
 
 interface PageDiscoveryGridProps {
   onboardingFlowId: Id<"onboarding_flow">;
@@ -22,22 +26,24 @@ function StatusChip({ status }: { status: CrawlPage["status"] }) {
       case "queued":
         return { 
           label: "Queued", 
-          className: "bg-slate-100 text-slate-700 border-slate-200" 
+          variant: "outline" as const
         };
       case "fetching":
         return { 
           label: "Fetching", 
-          className: "bg-blue-100 text-blue-700 border-blue-200" 
+          variant: "outline" as const,
+          className: "bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] text-[hsl(var(--primary-foreground))] border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,_var(--shadow-soft)]"
         };
       case "scraped":
         return { 
           label: "Scraped", 
-          className: "bg-green-100 text-green-700 border-green-200" 
+          variant: "default" as const,
+          className: "bg-[hsl(var(--success))]/20 text-[hsl(var(--success))] border-[hsl(var(--success))]/30"
         };
       case "failed":
         return { 
           label: "Failed", 
-          className: "bg-red-100 text-red-700 border-red-200" 
+          variant: "destructive" as const
         };
     }
   };
@@ -45,55 +51,49 @@ function StatusChip({ status }: { status: CrawlPage["status"] }) {
   const config = getStatusConfig();
   
   return (
-    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${config.className}`}>
+    <Badge variant={config.variant} className={config.className}>
       {config.label}
-    </span>
+    </Badge>
   );
 }
 
 function PageCard({ page }: { page: CrawlPage }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  const truncateUrl = (url: string, maxLength: number = 60) => {
-    if (url.length <= maxLength) return url;
-    return url.substring(0, maxLength) + "...";
-  };
-
   return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-sm font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 text-left truncate w-full"
-            title={page.url}
-          >
-            {page.title || truncateUrl(page.url)}
-          </button>
-        </div>
+    <div className="border border-border/60 rounded-lg p-4 bg-surface-raised/50 hover:bg-surface-raised hover:border-border transition-all space-y-3">
+      {/* Status Badge - Positioned at top right */}
+      <div className="flex items-start justify-end -mt-1 -mr-1 mb-2">
         <StatusChip status={page.status} />
       </div>
       
-      {!isExpanded && page.title && (
-        <p className="text-xs text-slate-500 truncate" title={page.url}>
-          {truncateUrl(page.url)}
-        </p>
-      )}
+      {/* Title */}
+      <div>
+        <h4 className="text-sm font-semibold text-foreground line-clamp-2 min-h-[2.5rem]" title={page.title || page.url}>
+          {page.title || "Untitled Page"}
+        </h4>
+      </div>
       
-      {isExpanded && (
-        <div className="space-y-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-          <div>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">URL:</p>
-            <p className="text-xs text-slate-500 break-all">{page.url}</p>
-          </div>
-          {page.httpStatus && (
-            <div>
-              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">HTTP Status:</p>
-              <p className={`text-xs ${page.httpStatus >= 200 && page.httpStatus < 300 ? 'text-green-600' : 'text-red-600'}`}>
-                {page.httpStatus}
-              </p>
-            </div>
-          )}
+      {/* URL */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-muted-foreground">URL</p>
+        <a 
+          href={page.url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-xs text-primary hover:text-primary/80 break-all flex items-start gap-1 group"
+          title={page.url}
+        >
+          <span className="line-clamp-2">{page.url}</span>
+          <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" />
+        </a>
+      </div>
+      
+      {/* HTTP Status */}
+      {page.httpStatus && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground">HTTP Status</p>
+          <Badge variant={page.httpStatus >= 200 && page.httpStatus < 300 ? "outline" : "destructive"} className="text-xs">
+            {page.httpStatus}
+          </Badge>
         </div>
       )}
     </div>
@@ -114,18 +114,18 @@ export function PageDiscoveryGrid({ onboardingFlowId }: PageDiscoveryGridProps) 
 
   if (!pagesResult || !flow) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+          <h2 className="text-lg font-semibold text-foreground">
             Page Discovery
           </h2>
-          <div className="h-4 w-16 bg-slate-200 rounded animate-pulse"></div>
+          <Skeleton className="h-4 w-16" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="border border-slate-200 rounded-lg p-3 animate-pulse">
-              <div className="h-4 bg-slate-200 rounded mb-2"></div>
-              <div className="h-3 bg-slate-100 rounded w-3/4"></div>
+            <div key={i} className="border border-border rounded-lg p-3 space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-3 w-3/4" />
             </div>
           ))}
         </div>
@@ -141,36 +141,39 @@ export function PageDiscoveryGrid({ onboardingFlowId }: PageDiscoveryGridProps) 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-foreground">
           Page Discovery
         </h2>
-        <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Badge variant="outline" className="bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30">
+            <div className="w-2 h-2 rounded-full bg-[hsl(var(--success))] mr-1.5"></div>
             {counts.scrapedCount} scraped
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+          </Badge>
+          <Badge 
+            variant="outline" 
+            className="bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] text-[hsl(var(--primary-foreground))] border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,_var(--shadow-soft)]"
+          >
+            <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary-foreground))] mr-1.5"></div>
             {counts.fetchingCount} fetching
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+          </Badge>
+          <Badge variant="outline">
+            <div className="w-2 h-2 rounded-full bg-muted-foreground mr-1.5"></div>
             {counts.queuedCount} queued
-          </span>
+          </Badge>
           {counts.failedCount > 0 && (
-            <span className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+            <Badge variant="destructive">
+              <div className="w-2 h-2 rounded-full bg-destructive-foreground mr-1.5"></div>
               {counts.failedCount} failed
-            </span>
+            </Badge>
           )}
         </div>
       </div>
 
       {!hasPages ? (
-        <div className="text-center py-8 text-slate-500">
-          <div className="w-12 h-12 mx-auto mb-3 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin"></div>
-          <p>Discovering pages...</p>
+        <div className="text-center py-12">
+          <Loader2 className="h-8 w-8 mx-auto mb-3 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium">Discovering pages...</p>
         </div>
       ) : (
         <>
@@ -182,17 +185,17 @@ export function PageDiscoveryGrid({ onboardingFlowId }: PageDiscoveryGridProps) 
 
           {canLoadMore && (
             <div className="text-center pt-4">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setNumItems(prev => prev + 20)}
-                className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-md transition-colors"
               >
                 Load More Pages
-              </button>
+              </Button>
             </div>
           )}
 
           {isDone && pages.length >= 10 && (
-            <p className="text-xs text-slate-500 text-center pt-2">
+            <p className="text-xs text-muted-foreground text-center pt-2">
               Showing all {pages.length} discovered pages
             </p>
           )}
