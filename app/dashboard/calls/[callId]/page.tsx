@@ -485,7 +485,7 @@ export default function CallWorkspacePage({ params }: Props) {
 
           {/* Live Listen Modal */}
           <Dialog open={listenModalOpen} onOpenChange={setListenModalOpen}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-xl" variant="glass">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Headphones className="h-5 w-5 text-primary" />

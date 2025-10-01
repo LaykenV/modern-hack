@@ -219,7 +219,7 @@ export default function MarketingPage() {
             <button
               onClick={handleStartLeadGen}
               disabled={isStartingWorkflow || !agencyProfile?.agencyProfileId}
-              className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-semibold text-[hsl(var(--primary-foreground))] bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] border border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,var(--shadow-soft)] hover:from-[hsl(var(--primary)/0.30)] hover:to-[hsl(var(--primary)/0.50)] hover:shadow-[0_0_0_1px_hsl(var(--ring)/0.40)_inset,var(--shadow-strong)] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-[hsl(var(--primary)/0.24)] disabled:hover:to-[hsl(var(--primary)/0.42)]"
+              className="inline-flex cursor-pointer items-center justify-center px-6 py-2.5 rounded-lg font-semibold text-[hsl(var(--primary-foreground))] bg-gradient-to-b from-[hsl(var(--primary)/0.24)] to-[hsl(var(--primary)/0.42)] border border-[hsl(var(--ring)/0.5)] shadow-[0_0_0_1px_hsl(var(--ring)/0.35)_inset,var(--shadow-soft)] hover:from-[hsl(var(--primary)/0.30)] hover:to-[hsl(var(--primary)/0.50)] hover:shadow-[0_0_0_1px_hsl(var(--ring)/0.40)_inset,var(--shadow-strong)] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:from-[hsl(var(--primary)/0.24)] disabled:hover:to-[hsl(var(--primary)/0.42)]"
             >
               {isStartingWorkflow ? "Starting Campaign..." : "Start Lead Generation"}
             </button>

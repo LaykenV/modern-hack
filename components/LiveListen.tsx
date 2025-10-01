@@ -176,16 +176,16 @@ export default function LiveListen({ listenUrl }: LiveListenProps) {
   return (
     <div className="space-y-4">
       {/* Status Badge */}
-      <div className="rounded-lg border border-[hsl(var(--border)/0.6)] bg-gradient-to-br from-[hsl(var(--surface-raised))] to-[hsl(var(--surface-muted))] p-4">
+      <div className="rounded-lg border border-[hsl(var(--border)/0.4)] bg-gradient-to-br from-[hsl(var(--surface-raised)/0.9)] to-[hsl(var(--surface-muted)/0.8)] backdrop-blur-sm p-4 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-lg border ${
+          <div className={`p-2.5 rounded-lg border backdrop-blur-sm ${
             status === "connected"
-              ? "bg-gradient-to-br from-[hsl(var(--success)/0.15)] to-[hsl(var(--success)/0.08)] border-[hsl(var(--success)/0.25)]"
+              ? "bg-gradient-to-br from-[hsl(var(--success)/0.25)] to-[hsl(var(--success)/0.15)] border-[hsl(var(--success)/0.4)]"
               : status === "connecting"
-              ? "bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-[hsl(var(--primary)/0.08)] border-[hsl(var(--primary)/0.25)]"
+              ? "bg-gradient-to-br from-[hsl(var(--primary)/0.25)] to-[hsl(var(--primary)/0.15)] border-[hsl(var(--primary)/0.4)]"
               : status === "error"
-              ? "bg-gradient-to-br from-[hsl(var(--destructive)/0.15)] to-[hsl(var(--destructive)/0.08)] border-[hsl(var(--destructive)/0.25)]"
-              : "bg-gradient-to-br from-[hsl(var(--muted)/0.15)] to-[hsl(var(--muted)/0.08)] border-[hsl(var(--border)/0.4)]"
+              ? "bg-gradient-to-br from-[hsl(var(--destructive)/0.25)] to-[hsl(var(--destructive)/0.15)] border-[hsl(var(--destructive)/0.4)]"
+              : "bg-gradient-to-br from-[hsl(var(--muted)/0.25)] to-[hsl(var(--muted)/0.15)] border-[hsl(var(--border)/0.4)]"
           }`}>
             {status === "connected" ? (
               <Headphones className="h-5 w-5 text-[hsl(var(--success))]" />
@@ -252,8 +252,8 @@ export default function LiveListen({ listenUrl }: LiveListenProps) {
 
       {/* No URL Warning */}
       {!listenUrl && (
-        <div className="rounded-lg border border-[hsl(var(--primary)/0.25)] bg-gradient-to-br from-[hsl(var(--primary)/0.06)] to-[hsl(var(--primary)/0.03)] p-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">
+        <div className="rounded-lg border border-[hsl(var(--primary)/0.3)] bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] backdrop-blur-sm p-4 shadow-md">
+          <p className="text-sm text-foreground/90 leading-relaxed">
             No listen URL available. The audio stream will become available once the call is active.
           </p>
         </div>
@@ -261,7 +261,7 @@ export default function LiveListen({ listenUrl }: LiveListenProps) {
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+        <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.4)] bg-gradient-to-br from-[hsl(var(--destructive)/0.15)] to-[hsl(var(--destructive)/0.08)] backdrop-blur-sm shadow-md">
           <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
           <AlertDescription className="text-sm font-medium text-destructive">
             {error}

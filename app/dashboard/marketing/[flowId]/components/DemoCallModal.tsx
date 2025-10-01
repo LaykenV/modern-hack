@@ -12,8 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogOverlay,
-  DialogPortal,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -87,12 +85,10 @@ export default function DemoCallModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
-        <DialogOverlay className="bg-black/95 backdrop-blur-md" />
-        <DialogContent className="sm:max-w-[540px] bg-gradient-to-br from-[hsl(var(--surface-raised))] to-[hsl(var(--surface-muted))] border border-[hsl(var(--border)/0.6)] shadow-[var(--shadow-strong)]" showCloseButton={true}>
+      <DialogContent className="sm:max-w-[540px]" variant="glass" showCloseButton={true}>
         <DialogHeader className="space-y-3 pb-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-[hsl(var(--primary)/0.08)] border border-[hsl(var(--primary)/0.25)]">
+            <div className="p-2.5 rounded-lg bg-gradient-to-br from-[hsl(var(--primary)/0.25)] to-[hsl(var(--primary)/0.15)] border border-[hsl(var(--primary)/0.4)] backdrop-blur-sm">
               <PhoneCall className="h-5 w-5 text-primary" />
             </div>
             <DialogTitle className="text-2xl font-bold text-foreground">Start Demo Call</DialogTitle>
@@ -104,8 +100,8 @@ export default function DemoCallModal({
 
         <div className="space-y-5 py-3">
           {/* Info Alert */}
-          <div className="rounded-lg border border-[hsl(var(--primary)/0.25)] bg-gradient-to-br from-[hsl(var(--primary)/0.06)] to-[hsl(var(--primary)/0.03)] p-4">
-            <p className="text-sm text-muted-foreground leading-relaxed">
+          <div className="rounded-lg border border-[hsl(var(--primary)/0.3)] bg-gradient-to-br from-[hsl(var(--primary)/0.12)] to-[hsl(var(--primary)/0.06)] backdrop-blur-sm p-4 shadow-md">
+            <p className="text-sm text-foreground/90 leading-relaxed">
               This will start a real call to your number with the same AI assistant that would
               call prospects. <span className="font-semibold text-foreground">1 atlas_credit</span> will be charged
               per minute.
@@ -205,7 +201,7 @@ export default function DemoCallModal({
 
           {/* Credits Warning */}
           {!hasCredits && (
-            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.4)] bg-gradient-to-br from-[hsl(var(--destructive)/0.15)] to-[hsl(var(--destructive)/0.08)] backdrop-blur-sm shadow-md">
               <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
               <AlertDescription className="text-sm font-medium text-destructive">
                 You need at least 1 atlas_credit to start a demo call
@@ -215,7 +211,7 @@ export default function DemoCallModal({
 
           {/* Error Display */}
           {error && (
-            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.4)] bg-gradient-to-br from-[hsl(var(--destructive)/0.15)] to-[hsl(var(--destructive)/0.08)] backdrop-blur-sm shadow-md">
               <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
               <AlertDescription className="text-sm font-medium text-destructive">
                 {error}
@@ -251,8 +247,7 @@ export default function DemoCallModal({
             )}
           </Button>
         </DialogFooter>
-        </DialogContent>
-      </DialogPortal>
+      </DialogContent>
     </Dialog>
   );
 }
