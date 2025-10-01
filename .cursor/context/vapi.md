@@ -126,15 +126,10 @@ We generate the assistant payload dynamically per call:
 - transcriber: Deepgram (nova-3-general)
 - firstMessageMode: "assistant-speaks-first"
 - server: injected in `internal.vapi.startPhoneCall` from env in Node as `{ url, secret }`.
-  - url: `${CONVEX_SITE_URL}/api/vapi-webhook` (preferred). Do not point to a Next.js/Vercel URL; use Convex's URL so the Convex httpAction receives requests.
+  - url: `${CONVEX_SITE_URL}/api/vapi-webhook` (preferred). Do not point to a Next.js/Vercel URL; use Convex’s URL so the Convex httpAction receives requests.
 - serverMessages: must be an array of string enums supported by Vapi (not objects). We currently request live updates plus finals:
   - `["status-update", "speech-update", "transcript", "end-of-call-report"]`
   - Other allowed values include: "conversation-update", "function-call", "hang", "language-changed", "language-change-detected", "model-output", "phone-call-control", "speech-update", "tool-calls", "transfer-destination-request", "handoff-destination-request", "transfer-update", "user-interrupted", "voice-input", "chat.created", "chat.deleted", "session.created", "session.updated", "session.deleted".
-- **monitorPlan: REQUIRED for live listen URLs**:
-  - `{ listenEnabled: true, controlEnabled: false }` - Without this, Vapi will NOT return `monitor.listenUrl` in the response
-  - listenEnabled: true - Enables real-time audio streaming via WebSocket
-  - controlEnabled: false - Set to true only if you need programmatic call control
-  - listenAuthenticationEnabled/controlAuthenticationEnabled: Optional authentication flags (default false)
 - metadata: convexOpportunityId, convexAgencyId, leadGenFlowId, **NEW**: offeredSlotsISO, agencyAvailabilityWindows, futureMeetings
 
 ### Call Lifecycle
@@ -209,8 +204,6 @@ Common issues:
   - Confirm `SITE_URL` matches the externally reachable domain; Vapi must hit Convex webhook path.
 - Credit metering skipped
   - Ensure the call has `billingSeconds > 0` and metadata contains `billingCustomerId`. The metering action logs `[AI Call Billing]` messages for missing data or API errors.
-- No live listen URL (listenUrl is null/undefined)
-  - **CRITICAL**: You must include `monitorPlan: { listenEnabled: true }` in the assistant configuration when creating the call. Without this, Vapi will NOT return the `monitor.listenUrl` in the API response. The `monitorPlan` must be set at call creation time - it cannot be added later.
 
 ### Security Considerations
 - Secrets (API key, webhook secret) never leave Node.

@@ -42,12 +42,6 @@ type InlineAssistant = {
     | "session.updated"
     | "session.deleted"
   >;
-  monitorPlan?: {
-    listenEnabled?: boolean;
-    listenAuthenticationEnabled?: boolean;
-    controlEnabled?: boolean;
-    controlAuthenticationEnabled?: boolean;
-  };
   metadata?: Record<string, unknown>;
 };
 
@@ -130,12 +124,6 @@ export const startPhoneCall = internalAction({
           ),
         ),
       ),
-      monitorPlan: v.optional(v.object({
-        listenEnabled: v.optional(v.boolean()),
-        listenAuthenticationEnabled: v.optional(v.boolean()),
-        controlEnabled: v.optional(v.boolean()),
-        controlAuthenticationEnabled: v.optional(v.boolean()),
-      })),
       metadata: v.optional(v.record(v.string(), v.any())),
     }),
     // Meeting booking metadata (Phase 2)
@@ -164,10 +152,6 @@ export const startPhoneCall = internalAction({
         "transcript",
         "end-of-call-report",
       ],
-      monitorPlan: {
-        listenEnabled: true, // Enable live listening to get the listenUrl
-        controlEnabled: false, // Optional: enable if you want to control calls
-      },
       metadata: {
         ...(assistant.metadata ?? {}),
         ...(offeredSlotsISO && { offeredSlotsISO }),
@@ -177,11 +161,23 @@ export const startPhoneCall = internalAction({
     } as InlineAssistant;
 
     const response = await createPhoneCall(token, phoneNumberId, customerNumber, inlineAssistant);
+    
+    // Log the full Vapi API response to debug monitor URL
+    console.log("[Vapi API] Full response:", JSON.stringify({
+      id: response.id,
+      monitor: response.monitor,
+      hasListenUrl: !!response.monitor?.listenUrl,
+      listenUrl: response.monitor?.listenUrl,
+    }));
+    
+    const listenUrl = response.monitor?.listenUrl ?? null;
+    console.log(`[Vapi API] Extracted listenUrl for call ${callId}:`, listenUrl);
+    
     await ctx.runMutation((internal as typeof internal).call.calls._attachVapiDetails, {
       callId,
       vapiCallId: response.id,
       phoneNumberId,
-      monitorUrls: { listenUrl: response.monitor?.listenUrl ?? null },
+      monitorUrls: { listenUrl },
     });
     return null;
   },

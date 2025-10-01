@@ -522,11 +522,26 @@ export const _attachVapiDetails = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    console.log(`[Attach Vapi Details] Patching call ${args.callId}:`, JSON.stringify({
+      vapiCallId: args.vapiCallId,
+      phoneNumberId: args.phoneNumberId,
+      monitorUrls: args.monitorUrls,
+      hasListenUrl: !!args.monitorUrls.listenUrl,
+    }));
+    
     await ctx.db.patch(args.callId, {
       vapiCallId: args.vapiCallId,
       phoneNumberId: args.phoneNumberId,
       monitorUrls: { listenUrl: args.monitorUrls.listenUrl ?? undefined },
     });
+    
+    // Verify the patch worked
+    const updated = await ctx.db.get(args.callId);
+    console.log(`[Attach Vapi Details] Verification - call ${args.callId} now has:`, JSON.stringify({
+      hasMonitorUrls: !!updated?.monitorUrls,
+      listenUrl: updated?.monitorUrls?.listenUrl,
+    }));
+    
     return null;
   },
 });
@@ -614,7 +629,16 @@ export const getCallById = query({
   args: { callId: v.id("calls") },
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, { callId }) => {
-    return await ctx.db.get(callId);
+    const call = await ctx.db.get(callId);
+    // Log monitor URL info for debugging
+    if (call) {
+      console.log(`[Get Call] Call ${callId} monitor status:`, JSON.stringify({
+        hasMonitorUrls: !!call.monitorUrls,
+        hasListenUrl: !!call.monitorUrls?.listenUrl,
+        listenUrl: call.monitorUrls?.listenUrl ? 'present' : 'missing',
+      }));
+    }
+    return call;
   },
 });
 

@@ -139,6 +139,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
     switch (type) {
       case "status-update": {
         const status = p?.status ?? p?.data?.status ?? "unknown";
+        console.log(`[Vapi Webhook] Status update for ${vapiCallId}: ${status}`);
         await ctx.runMutation(internal.call.calls.updateStatusFromWebhook, { vapiCallId, status });
         break;
       }
@@ -217,6 +218,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         break;
       }
       case "end-of-call-report": {
+        console.log(`[Vapi Webhook] End-of-call-report for ${vapiCallId}`);
         const summary = (p?.summary as string | undefined) ?? p?.data?.summary;
         const recordingUrl = (p?.recordingUrl as string | undefined) ?? p?.data?.recordingUrl;
         const endedReason = (p?.endedReason as string | undefined) ?? p?.data?.endedReason;
@@ -284,7 +286,18 @@ const vapiWebhook = httpAction(async (ctx, req) => {
         }
         break;
       }
-      
+      default: {
+        // Log any unhandled event types that might contain monitor data
+        if (type && !["status-update", "speech-update", "transcript", "transcript-final", "end-of-call-report"].includes(type as string)) {
+          console.log(`[Vapi Webhook] Unhandled event type: ${type}`);
+          try {
+            console.log(`[Vapi Webhook] Unhandled payload:`, JSON.stringify(p));
+          } catch (logErr) {
+            console.warn(`[Vapi Webhook] Could not stringify unhandled payload for type: ${type}`);
+          }
+        }
+        break;
+      }
     }
   } catch (err) {
     console.error("[Vapi Webhook] Error:", err);
