@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import LiveListen from "@/components/LiveListen";
 import Link from "next/link";
@@ -391,20 +391,13 @@ export default function CallWorkspacePage({ params }: Props) {
                 </div>
                 <div className="flex items-center gap-3">
                   {call.monitorUrls?.listenUrl && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setListenModalOpen(true)}
-                          className="btn-primary gap-2"
-                        >
-                          <Headphones className="h-4 w-4" />
-                          <span className="hidden sm:inline">Listen Live</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Connect to live audio stream</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <button
+                      onClick={() => setListenModalOpen(true)}
+                      className="btn-primary gap-2"
+                    >
+                      <Headphones className="h-4 w-4" />
+                      <span className="hidden sm:inline">Listen Live</span>
+                    </button>
                   )}
                   <div className="text-right">
                     <p className="text-lg font-bold text-foreground flex items-center gap-2">
