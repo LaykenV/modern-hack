@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useCustomer } from "autumn-js/react";
-import PaywallDialog from "@/components/autumn/paywall-dialog";
 import Link from "next/link";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -46,7 +45,7 @@ const TARGET_VERTICALS = [
 export default function MarketingPage() {
   const router = useRouter();
   const agencyProfile = useQuery(api.sellerBrain.getForCurrentUser);
-  const { customer, refetch: refetchCustomer } = useCustomer();
+  const { customer } = useCustomer();
   const startLeadGenWorkflow = useAction(api.marketing.startLeadGenWorkflow);
 
   // State for lead generation form
@@ -54,9 +53,6 @@ export default function MarketingPage() {
   const [targetVertical, setTargetVertical] = useState("");
   const [targetGeography, setTargetGeography] = useState("");
   const [isStartingWorkflow, setIsStartingWorkflow] = useState(false);
-
-  // Paywall state
-  const [paywallOpen, setPaywallOpen] = useState(false);
 
   // Prefill form fields from agency profile when it loads
   useEffect(() => {
@@ -272,17 +268,6 @@ export default function MarketingPage() {
             </div>
           ) : null}
         </div>
-
-        {/* Paywall Dialog */}
-        <PaywallDialog
-          open={paywallOpen}
-          onOpenChange={setPaywallOpen}
-          billingBlock={null}
-          onResume={async () => ({ ok: false, message: "No workflow to resume" })}
-          onRefetchCustomer={async () => {
-            await refetchCustomer();
-          }}
-        />
       </div>
     </main>
   );

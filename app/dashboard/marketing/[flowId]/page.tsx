@@ -161,6 +161,10 @@ export default function MarketingFlowPage({ params }: Props) {
       const isRunning = leadGenJob.status === "running";
       setWorkflowExpanded(isRunning);
     }
+    // Auto-collapse when workflow completes
+    if (leadGenJob && leadGenJob.status === "completed" && workflowExpanded === true) {
+      setWorkflowExpanded(false);
+    }
   }, [leadGenJob, workflowExpanded]);
 
   // Show loading skeleton while data is loading
@@ -601,6 +605,7 @@ export default function MarketingFlowPage({ params }: Props) {
               const oppStatusUpper = typeof opp.status === "string" ? opp.status.toUpperCase() : "";
               const isReadyStatus = ["READY", "BOOKED", "COMPLETE"].includes(oppStatusUpper);
               const currentPhase = job ? getCurrentAuditPhase(job) : null;
+              const hasCredits = atlasCreditsBalance >= 1;
 
               return (
                 <div
@@ -618,18 +623,18 @@ export default function MarketingFlowPage({ params }: Props) {
                     aria-expanded={isExpanded}
                     aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for ${opp.name}`}
                   >
-                    <div className="flex justify-between items-start gap-3 sm:gap-4 flex-col sm:flex-row w-full">
-                      <div className="flex-1 w-full min-w-0">
+                    <div className="flex items-start gap-3 sm:gap-4 w-full">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
                           <h3 className="font-bold text-base sm:text-lg text-foreground break-words">{opp.name}</h3>
-                          <OpportunityStatusBadge status={opp.status} />
-                          {currentPhase && (
-                            <span className="time-slot-badge">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          {currentPhase ? (
+                            <Badge className="bg-gradient-to-r from-[hsl(var(--primary))]/30 to-[hsl(var(--primary))]/20 text-primary border-[hsl(var(--primary))]/40">
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                               {AUDIT_PHASE_LABELS[currentPhase]}
-                            </span>
+                            </Badge>
+                          ) : (
+                            <OpportunityStatusBadge status={opp.status} />
                           )}
-                          {isExpanded ? <ChevronUp className="h-5 w-5 ml-auto text-muted-foreground flex-shrink-0" /> : <ChevronDown className="h-5 w-5 ml-auto text-muted-foreground flex-shrink-0" />}
                         </div>
                         {opp.domain && (
                           <TooltipProvider>
@@ -677,6 +682,71 @@ export default function MarketingFlowPage({ params }: Props) {
                             </TooltipProvider>
                           </div>
                         )}
+                      </div>
+                      
+                      {/* Call buttons on large screens - collapsed view only */}
+                      {!isExpanded && oppStatusUpper === "READY" && agencyProfile && (
+                        <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setStartingCallOppId(opp._id);
+                              setCallErrorByOpp((prev) => {
+                                const next = { ...prev };
+                                delete next[oppKey];
+                                return next;
+                              });
+                              try {
+                                const result = await startVapiCall({
+                                  opportunityId: opp._id,
+                                  agencyId: agencyProfile.agencyProfileId,
+                                });
+                                router.push(`/dashboard/calls/${result.callId}`);
+                              } catch (err) {
+                                console.error("Start call failed", err);
+                                const message = err instanceof Error ? err.message : "Failed to start call";
+                                setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
+                              } finally {
+                                setStartingCallOppId(null);
+                              }
+                            }}
+                            disabled={startingCallOppId === opp._id || !hasCredits}
+                            className="btn-primary font-semibold"
+                            size="sm"
+                            aria-label="Start AI call"
+                          >
+                            {startingCallOppId === opp._id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Starting...
+                              </>
+                            ) : (
+                              <>
+                                <Phone className="mr-2 h-4 w-4" />
+                                Start Call
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDemoCallOpportunityId(opp._id);
+                              setDemoCallModalOpen(true);
+                            }}
+                            disabled={!hasCredits}
+                            className="btn-primary font-semibold"
+                            size="sm"
+                            aria-label="Start demo call"
+                          >
+                            <PlayCircle className="mr-2 h-4 w-4" />
+                            Demo Call
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {/* Chevron toggle */}
+                      <div className="flex items-center flex-shrink-0">
+                        {isExpanded ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
                       </div>
                     </div>
                   </Button>
@@ -830,7 +900,7 @@ export default function MarketingFlowPage({ params }: Props) {
                                   <AccordionItem value="summary" className="border-none">
                                     <AccordionTrigger className="text-sm font-semibold hover:no-underline p-4 rounded-lg bg-surface-raised border-2 border-border/40 hover:border-[hsl(var(--primary))]/40 transition-colors [&[data-state=open]]:border-[hsl(var(--primary))]/50 [&[data-state=open]]:bg-gradient-to-r [&[data-state=open]]:from-[hsl(var(--primary))]/8 [&[data-state=open]]:to-transparent">
                                       <div className="flex items-center gap-2">
-                                        <Sparkles className="h-4 w-4 text-primary" />
+                                        <FileText className="h-4 w-4 text-primary" />
                                         Summary
                                       </div>
                                     </AccordionTrigger>
@@ -858,11 +928,14 @@ export default function MarketingFlowPage({ params }: Props) {
                                         {dossier.identified_gaps.map((gap, idx) => (
                                           <div 
                                             key={`gap-${idx}`} 
-                                            className="p-3 md:p-4 rounded-lg bg-gradient-to-r from-accent/20 to-surface-raised border border-border/30 hover:border-accent hover:bg-accent/10 transition-all"
+                                            className="flex items-start gap-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-accent/15 to-accent/5 border border-border/30 hover:border-[hsl(var(--primary))]/30 hover:bg-gradient-to-r hover:from-[hsl(var(--primary))]/10 hover:to-transparent transition-all"
                                           >
-                                            <div className="flex flex-col gap-1.5">
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--primary))]/80 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                                              <Target className="h-3.5 w-3.5 text-white" />
+                                            </div>
+                                            <div className="flex flex-col gap-1.5 flex-1">
                                               <span className="font-semibold text-sm text-foreground">{gap.key}</span>
-                                              <span className="text-sm text-muted-foreground pl-0.5">{gap.value}</span>
+                                              <span className="text-sm text-foreground/80">{gap.value}</span>
                                             </div>
                                           </div>
                                         ))}

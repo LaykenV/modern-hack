@@ -122,12 +122,12 @@ resend emails with ics and recap
 //add test call functionality with phone number and email override -- biggest change
 // id pages ui / ux
 
-lead gen workflow ui / ux
+//lead gen workflow ui / ux
 live call ui / ux? listen live modal
 //test pause / resume
 
 //paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog, opacity
-percentage on resume
+//percentage on resume
 ai call prompt - if we have email aware, hang up faster
 
 
