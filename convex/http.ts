@@ -214,6 +214,16 @@ const vapiWebhook = httpAction(async (ctx, req) => {
             }
             await ctx.runMutation(internal.call.calls.appendTranscriptChunk, { vapiCallId, fragment });
           }
+        } else {
+          // Log any unhandled event types that might contain monitor data
+          if (type && !["status-update", "speech-update", "end-of-call-report"].includes(type as string)) {
+            console.log(`[Vapi Webhook] Unhandled event type: ${type}`);
+            try {
+              console.log(`[Vapi Webhook] Unhandled payload:`, JSON.stringify(p));
+            } catch (logErr) {
+              console.warn(`[Vapi Webhook] Could not stringify unhandled payload for type: ${type}`);
+            }
+          }
         }
         break;
       }
@@ -283,18 +293,6 @@ const vapiWebhook = httpAction(async (ctx, req) => {
           }
         } catch (analysisError) {
           console.error("[Vapi Webhook] Failed to schedule transcript analysis:", analysisError);
-        }
-        break;
-      }
-      default: {
-        // Log any unhandled event types that might contain monitor data
-        if (type && !["status-update", "speech-update", "transcript", "transcript-final", "end-of-call-report"].includes(type as string)) {
-          console.log(`[Vapi Webhook] Unhandled event type: ${type}`);
-          try {
-            console.log(`[Vapi Webhook] Unhandled payload:`, JSON.stringify(p));
-          } catch (logErr) {
-            console.warn(`[Vapi Webhook] Could not stringify unhandled payload for type: ${type}`);
-          }
         }
         break;
       }
