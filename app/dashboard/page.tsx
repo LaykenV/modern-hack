@@ -351,9 +351,11 @@ function StatusBadge({ status }: StatusBadgeProps) {
       case "in-progress":
         return "default";
       case "completed":
+      case "booked":
         return "secondary";
       case "failed":
       case "error":
+      case "rejected":
         return "destructive";
       default:
         return "outline";
@@ -367,10 +369,14 @@ function StatusBadge({ status }: StatusBadgeProps) {
         return "bg-accent/60 text-accent-foreground border-accent-foreground/20";
       case "completed":
         return "bg-[hsl(var(--success)/0.2)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]";
+      case "booked":
+        return "bg-[hsl(var(--success)/0.2)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.3)]";
       case "paused_for_upgrade":
         return "bg-muted text-muted-foreground border-border";
       case "failed":
       case "error":
+        return "bg-destructive/20 text-destructive border-destructive/30";
+      case "rejected":
         return "bg-destructive/20 text-destructive border-destructive/30";
       default:
         return "";

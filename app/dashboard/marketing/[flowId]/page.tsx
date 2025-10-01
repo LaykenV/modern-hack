@@ -627,7 +627,7 @@ export default function MarketingFlowPage({ params }: Props) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
                           <h3 className="font-bold text-base sm:text-lg text-foreground break-words">{opp.name}</h3>
-                          {currentPhase ? (
+                          {currentPhase && currentPhase !== "generate_dossier" ? (
                             <Badge className="bg-gradient-to-r from-[hsl(var(--primary))]/30 to-[hsl(var(--primary))]/20 text-primary border-[hsl(var(--primary))]/40">
                               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                               {AUDIT_PHASE_LABELS[currentPhase]}

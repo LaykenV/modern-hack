@@ -123,12 +123,12 @@ resend emails with ics and recap
 // id pages ui / ux
 
 //lead gen workflow ui / ux
-live call ui / ux? listen live modal
 //test pause / resume
 
 //paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog, opacity
 //percentage on resume
 ai call prompt - if we have email aware, hang up faster
+live call ui / ux? listen live modal
 
 
 test full flow for demo x3
