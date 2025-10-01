@@ -15,11 +15,10 @@ import {
   DialogOverlay,
   DialogPortal,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Info, Phone, Mail } from "lucide-react";
+import { Loader2, AlertCircle, Phone, Mail, PhoneCall } from "lucide-react";
 
 type DemoCallModalProps = {
   open: boolean;
@@ -89,38 +88,42 @@ export default function DemoCallModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
-        <DialogOverlay className="bg-black/90" />
-        <DialogContent className="sm:max-w-[500px] bg-background border-2 shadow-2xl" showCloseButton={true}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Start Demo Call</DialogTitle>
-          <DialogDescription className="text-base">
+        <DialogOverlay className="bg-black/95 backdrop-blur-md" />
+        <DialogContent className="sm:max-w-[540px] bg-gradient-to-br from-[hsl(var(--surface-raised))] to-[hsl(var(--surface-muted))] border border-[hsl(var(--border)/0.6)] shadow-[var(--shadow-strong)]" showCloseButton={true}>
+        <DialogHeader className="space-y-3 pb-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-[hsl(var(--primary)/0.08)] border border-[hsl(var(--primary)/0.25)]">
+              <PhoneCall className="h-5 w-5 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-foreground">Start Demo Call</DialogTitle>
+          </div>
+          <DialogDescription className="text-base text-muted-foreground">
             Test the AI calling system with your own contact information
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-5 py-3">
           {/* Info Alert */}
-          <Alert className="border-primary/40 bg-primary/5">
-            <Info className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-sm text-muted-foreground">
+          <div className="rounded-lg border border-[hsl(var(--primary)/0.25)] bg-gradient-to-br from-[hsl(var(--primary)/0.06)] to-[hsl(var(--primary)/0.03)] p-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               This will start a real call to your number with the same AI assistant that would
-              call prospects. <span className="font-semibold">1 atlas_credit</span> will be charged
+              call prospects. <span className="font-semibold text-foreground">1 atlas_credit</span> will be charged
               per minute.
               <br />
               <br />
               <span className="font-semibold text-foreground">Note:</span> The business owner will NOT be contacted or notified in any way. 
               This is a private demo for testing only.
-            </AlertDescription>
-          </Alert>
+            </p>
+          </div>
 
           {/* Phone Number Input */}
-          <div className="space-y-2">
-            <Label htmlFor="phone" className="text-sm font-semibold">
+          <div className="space-y-2.5">
+            <Label htmlFor="phone" className="input-label">
               Your Phone Number
             </Label>
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
                 id="phone"
                 type="tel"
                 placeholder="+1 (202) 555-1234"
@@ -152,53 +155,59 @@ export default function DemoCallModal({
                   
                   setPhoneNumber(cleaned);
                 }}
-                className="pl-10"
+                style={{ paddingLeft: '2.5rem' }}
+                className="input-field"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Auto-formatted for US/Canada. For other countries, start with country code.
             </p>
             {phoneNumber && !isPhoneValid && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                Invalid format. Example: +1 (202) 555-1234
-              </p>
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p className="text-xs font-medium">
+                  Invalid format. Example: +1 (202) 555-1234
+                </p>
+              </div>
             )}
           </div>
 
           {/* Email Input */}
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-semibold">
+          <div className="space-y-2.5">
+            <Label htmlFor="email" className="input-label">
               Your Email
             </Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
+                style={{ paddingLeft: '2.5rem' }}
+                className="input-field"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              If a meeting is booked, you&apos;ll receive <span className="font-semibold">both</span> the prospect confirmation 
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              If a meeting is booked, you&apos;ll receive <span className="font-semibold text-foreground">both</span> the prospect confirmation 
               and agency summary emails here (for testing purposes)
             </p>
             {email && !isEmailValid && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                Invalid email format
-              </p>
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p className="text-xs font-medium">
+                  Invalid email format
+                </p>
+              </div>
             )}
           </div>
 
           {/* Credits Warning */}
           {!hasCredits && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
+            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <AlertDescription className="text-sm font-medium text-destructive">
                 You need at least 1 atlas_credit to start a demo call
               </AlertDescription>
             </Alert>
@@ -206,25 +215,28 @@ export default function DemoCallModal({
 
           {/* Error Display */}
           {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">{error}</AlertDescription>
+            <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <AlertDescription className="text-sm font-medium text-destructive">
+                {error}
+              </AlertDescription>
             </Alert>
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-3 pt-3 border-t border-[hsl(var(--border)/0.4)]">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isStarting}
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-muted))] text-foreground hover:bg-[hsl(var(--surface-raised))] hover:border-[hsl(var(--border))] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </Button>
           <Button
             onClick={handleStartDemoCall}
             disabled={!canSubmit}
-            className="btn-primary"
+            className="btn-primary px-5 py-2.5"
           >
             {isStarting ? (
               <>

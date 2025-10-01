@@ -610,7 +610,7 @@ export default function MarketingFlowPage({ params }: Props) {
               return (
                 <div
                   key={opp._id}
-                  className={`rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                  className={`rounded-xl overflow-hidden border-2 transition-all duration-200 relative ${
                     isReadyStatus
                       ? "bg-gradient-to-br from-[hsl(var(--success))]/8 via-[hsl(var(--success))]/4 to-transparent border-[hsl(var(--success))]/50 hover:border-[hsl(var(--success))]/70 hover:shadow-xl hover:shadow-[hsl(var(--success))]/20"
                       : "opp-card-gradient border-border/60 hover:border-border/80 hover:shadow-md"
@@ -684,72 +684,72 @@ export default function MarketingFlowPage({ params }: Props) {
                         )}
                       </div>
                       
-                      {/* Call buttons on large screens - collapsed view only */}
-                      {!isExpanded && oppStatusUpper === "READY" && agencyProfile && (
-                        <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
-                          <Button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              setStartingCallOppId(opp._id);
-                              setCallErrorByOpp((prev) => {
-                                const next = { ...prev };
-                                delete next[oppKey];
-                                return next;
-                              });
-                              try {
-                                const result = await startVapiCall({
-                                  opportunityId: opp._id,
-                                  agencyId: agencyProfile.agencyProfileId,
-                                });
-                                router.push(`/dashboard/calls/${result.callId}`);
-                              } catch (err) {
-                                console.error("Start call failed", err);
-                                const message = err instanceof Error ? err.message : "Failed to start call";
-                                setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
-                              } finally {
-                                setStartingCallOppId(null);
-                              }
-                            }}
-                            disabled={startingCallOppId === opp._id || !hasCredits}
-                            className="btn-primary font-semibold"
-                            size="sm"
-                            aria-label="Start AI call"
-                          >
-                            {startingCallOppId === opp._id ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Starting...
-                              </>
-                            ) : (
-                              <>
-                                <Phone className="mr-2 h-4 w-4" />
-                                Start Call
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDemoCallOpportunityId(opp._id);
-                              setDemoCallModalOpen(true);
-                            }}
-                            disabled={!hasCredits}
-                            className="btn-primary font-semibold"
-                            size="sm"
-                            aria-label="Start demo call"
-                          >
-                            <PlayCircle className="mr-2 h-4 w-4" />
-                            Demo Call
-                          </Button>
-                        </div>
-                      )}
-                      
                       {/* Chevron toggle */}
                       <div className="flex items-center flex-shrink-0">
                         {isExpanded ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
                       </div>
                     </div>
                   </Button>
+
+                  {/* Call buttons on large screens - collapsed view only - outside the button to avoid nesting */}
+                  {!isExpanded && oppStatusUpper === "READY" && agencyProfile && (
+                    <div className="hidden lg:flex items-center gap-2 flex-shrink-0 absolute right-14 top-1/2 -translate-y-1/2">
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setStartingCallOppId(opp._id);
+                          setCallErrorByOpp((prev) => {
+                            const next = { ...prev };
+                            delete next[oppKey];
+                            return next;
+                          });
+                          try {
+                            const result = await startVapiCall({
+                              opportunityId: opp._id,
+                              agencyId: agencyProfile.agencyProfileId,
+                            });
+                            router.push(`/dashboard/calls/${result.callId}`);
+                          } catch (err) {
+                            console.error("Start call failed", err);
+                            const message = err instanceof Error ? err.message : "Failed to start call";
+                            setCallErrorByOpp((prev) => ({ ...prev, [oppKey]: message }));
+                          } finally {
+                            setStartingCallOppId(null);
+                          }
+                        }}
+                        disabled={startingCallOppId === opp._id || !hasCredits}
+                        className="btn-primary font-semibold"
+                        size="sm"
+                        aria-label="Start AI call"
+                      >
+                        {startingCallOppId === opp._id ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            <Phone className="mr-2 h-4 w-4" />
+                            Start Call
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDemoCallOpportunityId(opp._id);
+                          setDemoCallModalOpen(true);
+                        }}
+                        disabled={!hasCredits}
+                        className="btn-primary font-semibold"
+                        size="sm"
+                        aria-label="Start demo call"
+                      >
+                        <PlayCircle className="mr-2 h-4 w-4" />
+                        Demo Call
+                      </Button>
+                    </div>
+                  )}
 
                   {isExpanded && (
                     <div className="border-t-2 border-border/40 p-5 md:p-6 space-y-5">

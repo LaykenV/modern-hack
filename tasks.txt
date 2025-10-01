@@ -127,8 +127,8 @@ resend emails with ics and recap
 
 //paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog, opacity
 //percentage on resume
-ai call prompt - if we have email aware, hang up faster   scheduling vs have chat, eaarlier vs later, email or no
-live call ui / ux? listen live modal
+//ai call prompt - if we have email aware, hang up faster   scheduling vs have chat, eaarlier vs later, email or no
+//live call ui / ux? listen live modal
 
 
 test full flow for demo x3
