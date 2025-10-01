@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Headphones, WifiOff, AlertCircle, Loader2 } from "lucide-react";
 
 export type LiveListenProps = {
   listenUrl: string | null;
@@ -172,30 +174,99 @@ export default function LiveListen({ listenUrl }: LiveListenProps) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      {/* Status Badge */}
+      <div className="rounded-lg border border-[hsl(var(--border)/0.6)] bg-gradient-to-br from-[hsl(var(--surface-raised))] to-[hsl(var(--surface-muted))] p-4">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-lg border ${
+            status === "connected"
+              ? "bg-gradient-to-br from-[hsl(var(--success)/0.15)] to-[hsl(var(--success)/0.08)] border-[hsl(var(--success)/0.25)]"
+              : status === "connecting"
+              ? "bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-[hsl(var(--primary)/0.08)] border-[hsl(var(--primary)/0.25)]"
+              : status === "error"
+              ? "bg-gradient-to-br from-[hsl(var(--destructive)/0.15)] to-[hsl(var(--destructive)/0.08)] border-[hsl(var(--destructive)/0.25)]"
+              : "bg-gradient-to-br from-[hsl(var(--muted)/0.15)] to-[hsl(var(--muted)/0.08)] border-[hsl(var(--border)/0.4)]"
+          }`}>
+            {status === "connected" ? (
+              <Headphones className="h-5 w-5 text-[hsl(var(--success))]" />
+            ) : status === "connecting" ? (
+              <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            ) : status === "error" ? (
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            ) : (
+              <WifiOff className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              {status === "connected"
+                ? "Live Audio Connected"
+                : status === "connecting"
+                ? "Connecting to Audio Stream"
+                : status === "error"
+                ? "Connection Error"
+                : "Audio Stream Inactive"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {status === "connected"
+                ? "Receiving live audio feed"
+                : status === "connecting"
+                ? "Establishing WebSocket connection"
+                : status === "error"
+                ? "Failed to connect to audio stream"
+                : "Ready to connect"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center gap-3">
         <Button
           onClick={connect}
           disabled={status === "connecting" || status === "connected" || !listenUrl}
+          className="btn-primary px-5 py-2.5"
         >
-          {status === "connecting" ? "Connecting…" : "Connect"}
+          {status === "connecting" ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Connecting…
+            </>
+          ) : (
+            <>
+              <Headphones className="mr-2 h-4 w-4" />
+              Connect
+            </>
+          )}
         </Button>
         <Button
           variant="outline"
           onClick={() => disconnect()}
           disabled={status !== "connected" && status !== "connecting"}
+          className="rounded-lg px-5 py-2.5 text-sm font-semibold border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-muted))] text-foreground hover:bg-[hsl(var(--surface-raised))] hover:border-[hsl(var(--border))] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
+          <WifiOff className="mr-2 h-4 w-4" />
           Disconnect
         </Button>
-        <span className="text-sm text-slate-600 dark:text-slate-400">
-          Status: {status}
-        </span>
       </div>
+
+      {/* No URL Warning */}
       {!listenUrl && (
-        <p className="text-sm text-slate-500">No listen URL provided.</p>
+        <div className="rounded-lg border border-[hsl(var(--primary)/0.25)] bg-gradient-to-br from-[hsl(var(--primary)/0.06)] to-[hsl(var(--primary)/0.03)] p-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            No listen URL available. The audio stream will become available once the call is active.
+          </p>
+        </div>
       )}
+
+      {/* Error Alert */}
       {error && (
-        <p className="text-sm text-red-600">{error}</p>
+        <Alert variant="destructive" className="border-[hsl(var(--destructive)/0.3)] bg-gradient-to-br from-[hsl(var(--destructive)/0.08)] to-[hsl(var(--destructive)/0.04)]">
+          <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+          <AlertDescription className="text-sm font-medium text-destructive">
+            {error}
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
