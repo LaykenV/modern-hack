@@ -221,7 +221,7 @@ const vapiWebhook = httpAction(async (ctx, req) => {
             try {
               console.log(`[Vapi Webhook] Unhandled payload:`, JSON.stringify(p));
             } catch (logErr) {
-              console.warn(`[Vapi Webhook] Could not stringify unhandled payload for type: ${type}`);
+              console.warn(`[Vapi Webhook] Could not stringify unhandled payload for type: ${type}, error: ${logErr}`);
             }
           }
         }

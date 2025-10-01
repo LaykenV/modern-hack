@@ -133,11 +133,59 @@ export default function CallWorkspacePage({ params }: Props) {
   }
 
   const getStatusBadge = (status: string) => {
+    // Check if we should show a loading spinner
+    // Show spinner for in-progress, ended, and recently completed (within 5 seconds of ending)
+    const shouldShowSpinner = () => {
+      if (status === "in-progress" || status === "ended") return true;
+      if (status === "completed") {
+        // Calculate when the call ended
+        let callEndTime: number | undefined = undefined;
+        if (startedAt && durationMs !== undefined) {
+          callEndTime = startedAt + durationMs;
+        }
+        
+        if (callEndTime) {
+          const timeSinceEnded = Date.now() - callEndTime;
+          // Show spinner if call ended within last 5 seconds
+          return timeSinceEnded < 10 * 1000;
+        }
+      }
+      return false;
+    };
+
+    const spinner = shouldShowSpinner() ? (
+      <span className="w-2 h-2 border border-primary-foreground border-t-transparent rounded-full animate-spin" />
+    ) : null;
+
     if (status === "in-progress") {
       return (
         <Badge className="badge-in-progress gap-2">
-          <span className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
+          {spinner}
           In Progress
+        </Badge>
+      );
+    }
+    if (status === "ended") {
+      return (
+        <Badge className="badge-in-progress gap-2">
+          {spinner}
+          Processing
+        </Badge>
+      );
+    }
+    if (status === "completed") {
+      return (
+        <Badge className="badge-in-progress gap-2">
+          {spinner}
+          Completed
+        </Badge>
+      );
+    }
+    if (status === "booked") {
+      return (
+        <Badge className="badge-booked gap-2">
+          <span className="w-2 h-2 bg-primary-foreground rounded-full" />
+          Booked
         </Badge>
       );
     }
@@ -152,20 +200,6 @@ export default function CallWorkspacePage({ params }: Props) {
       return (
         <Badge variant="outline" className="text-muted-foreground">
           Queued
-        </Badge>
-      );
-    }
-    if (status === "completed") {
-      return (
-        <Badge className="bg-success/20 text-success border-success/30">
-          Completed
-        </Badge>
-      );
-    }
-    if (status === "booked") {
-      return (
-        <Badge className="badge-booked">
-          Booked
         </Badge>
       );
     }
@@ -359,15 +393,13 @@ export default function CallWorkspacePage({ params }: Props) {
                   {call.monitorUrls?.listenUrl && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button
+                        <button
                           onClick={() => setListenModalOpen(true)}
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
+                          className="btn-primary gap-2"
                         >
                           <Headphones className="h-4 w-4" />
                           <span className="hidden sm:inline">Listen Live</span>
-                        </Button>
+                        </button>
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Connect to live audio stream</p>
