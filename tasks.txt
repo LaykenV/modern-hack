@@ -117,19 +117,25 @@ resend emails with ics and recap
 //add use demo button on onboarding, and crawl should show loading right away
 //onboarding ui / ux
 
-paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog
-percentage on resume
-ai call prompt - if we have email aware, hang up faster
 
 //create dummy agency site
 //add test call functionality with phone number and email override -- biggest change
 // id pages ui / ux
 
-test all flows with new ui
+lead gen workflow ui / ux
+live call ui / ux? listen live modal
+//test pause / resume
 
-test everything
+//paywall dialog return url and remove lower tiers, manage sub, dialogpay from dialog, opacity
+percentage on resume
+ai call prompt - if we have email aware, hang up faster
 
-demo video - plan in geminia
+
+test full flow for demo x3
+
+finalize demo plan with gemini plan
+
+demo video
 
 SUBMIT
 

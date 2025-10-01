@@ -255,6 +255,7 @@ export const getOpportunityById = internalQuery({
 
 /**
  * Get audit jobs by lead gen flow ID
+ * Returns only queued audit jobs (for processing)
  */
 export const getAuditJobsByFlow = internalQuery({
   args: {
@@ -283,6 +284,56 @@ export const getAuditJobsByFlow = internalQuery({
       targetUrl: job.targetUrl,
       status: job.status,
     }));
+  },
+});
+
+/**
+ * Get ALL audit jobs by lead gen flow ID (queued, completed, error, etc.)
+ * Used for progress calculation on resume
+ */
+export const getAllAuditJobsByFlow = internalQuery({
+  args: {
+    leadGenFlowId: v.id("lead_gen_flow"),
+  },
+  returns: v.object({
+    total: v.number(),
+    completed: v.number(),
+    queued: v.array(v.object({
+      _id: v.id("audit_jobs"),
+      opportunityId: v.id("client_opportunities"),
+      agencyId: v.id("agency_profile"),
+      leadGenFlowId: v.optional(v.id("lead_gen_flow")),
+      targetUrl: v.string(),
+      status: v.string(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    // Get ALL audit jobs for this flow
+    const allAuditJobs = await ctx.db
+      .query("audit_jobs")
+      .withIndex("by_leadGenFlow", (q) => q.eq("leadGenFlowId", args.leadGenFlowId))
+      .collect();
+
+    // Count completed audits
+    const completedCount = allAuditJobs.filter(job => job.status === "completed").length;
+
+    // Get queued audits for processing
+    const queuedAudits = allAuditJobs
+      .filter(job => job.status === "queued")
+      .map(job => ({
+        _id: job._id,
+        opportunityId: job.opportunityId,
+        agencyId: job.agencyId,
+        leadGenFlowId: job.leadGenFlowId,
+        targetUrl: job.targetUrl,
+        status: job.status,
+      }));
+
+    return {
+      total: allAuditJobs.length,
+      completed: completedCount,
+      queued: queuedAudits,
+    };
   },
 });
 

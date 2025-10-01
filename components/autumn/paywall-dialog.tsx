@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
-  DialogContent,
+  DialogPortal,
+  DialogOverlay,
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { useCustomer, CheckoutDialog } from "autumn-js/react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { XIcon, Loader2 } from "lucide-react";
+import { useCustomer } from "autumn-js/react";
 import { cn } from "@/lib/utils";
 import { PLANS } from "@/lib/autumn/plans";
 
@@ -39,6 +41,7 @@ export interface PaywallDialogProps {
   } | null | undefined;
   onResume: () => Promise<{ ok: boolean; message?: string }>;
   onRefetchCustomer: () => Promise<void>;
+  successUrl: string;
 }
 
 export default function PaywallDialog({
@@ -47,12 +50,14 @@ export default function PaywallDialog({
   billingBlock,
   onResume,
   onRefetchCustomer,
+  successUrl,
 }: PaywallDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [successState, setSuccessState] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [resumeMessage, setResumeMessage] = useState<string>("");
-  const { checkout, openBillingPortal, isLoading: isCustomerLoading, customer, refetch } = useCustomer();
+  const [checkingOutPlanId, setCheckingOutPlanId] = useState<string | null>(null);
+  const { checkout, isLoading: isCustomerLoading, customer, refetch } = useCustomer();
 
   const currentPlanId = useMemo(() => {
     const name = customer?.products?.[0]?.name?.toLowerCase();
@@ -160,6 +165,13 @@ export default function PaywallDialog({
     }
   }, [successState, countdown, onOpenChange, onResume]);
 
+  // Reset checkout loading state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setCheckingOutPlanId(null);
+    }
+  }, [open]);
+
   if (!billingBlock && !successState) {
     return null; // Don't render unless showing success state
   }
@@ -206,8 +218,18 @@ export default function PaywallDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 pt-4 gap-0 text-foreground overflow-hidden text-sm max-w-2xl">
-        <DialogTitle className={cn("font-bold text-xl px-6")}>{title}</DialogTitle>
+      <DialogPortal>
+        <DialogOverlay className="!bg-black/95" />
+        <DialogPrimitive.Content
+          className={cn(
+            "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 rounded-lg border shadow-lg duration-200 p-0 pt-4 text-foreground overflow-hidden text-sm max-w-2xl"
+          )}
+        >
+          <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+          <DialogTitle className={cn("font-bold text-xl px-6")}>{title}</DialogTitle>
         <div className="px-6 my-2">{message}</div>
         
         {/* Show resume message if any */}
@@ -220,65 +242,41 @@ export default function PaywallDialog({
         {/* Custom Plan Buttons */}
         {!successState && (
           <div className="px-6 my-4 space-y-3">
-            {PLANS.map((plan) => {
-              const isCurrent = currentPlanId === plan.id;
-              const isFree = plan.id === "free";
-              const successUrl = new URL(
-                `/dashboard?upgraded=1&plan=${plan.id}`,
-                window.location.origin
-              ).toString();
-              const returnUrl = new URL(
-                "/dashboard?portal=1",
-                window.location.origin
-              ).toString();
+            {PLANS.filter(plan => plan.id !== "free").map((plan) => {
+              const shouldShow = currentPlanId === "free" || (currentPlanId === "pro" && plan.id === "business");
+              
+              if (!shouldShow) return null;
 
               return (
-                <div key={plan.id} className={`border rounded p-3 ${isCurrent ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-slate-200 dark:border-slate-800"}`}>
+                <div key={plan.id} className="border rounded p-3 border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{plan.name}</p>
                       <p className="text-xs text-slate-600 dark:text-slate-400">{plan.price} • {plan.includedCredits}</p>
                     </div>
-                    {isCurrent && (
-                      <span className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white">Current</span>
-                    )}
                   </div>
-                  {/* Buttons (none for Free plan) */}
-                  {!isFree && (
-                    <div className="mt-3 flex gap-2">
-                      {isCurrent ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isCustomerLoading}
-                          onClick={async () => {
-                            try {
-                              await openBillingPortal({ returnUrl });
-                            } catch (e) {
-                              console.error(e);
-                            }
-                          }}
-                        >
-                          Manage subscription
-                        </Button>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      className="btn-primary"
+                      disabled={isCustomerLoading || checkingOutPlanId !== null}
+                      onClick={() => {
+                        setCheckingOutPlanId(plan.id);
+                        checkout({
+                          productId: plan.productId!,
+                          successUrl,
+                        });
+                      }}
+                    >
+                      {checkingOutPlanId === plan.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
                       ) : (
-                        <Button
-                          size="sm"
-                          className="font-medium shadow transition"
-                          disabled={isCustomerLoading}
-                          onClick={() =>
-                            checkout({
-                              productId: plan.productId!,
-                              dialog: CheckoutDialog,
-                              successUrl,
-                            })
-                          }
-                        >
-                          {`Upgrade to ${plan.name}`}
-                        </Button>
+                        `Upgrade to ${plan.name}`
                       )}
-                    </div>
-                  )}
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -286,29 +284,27 @@ export default function PaywallDialog({
         )}
         
         <DialogFooter className="flex flex-row justify-end gap-x-2 py-3 mt-4 px-6 bg-secondary border-t">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <button 
+            className="btn-destructive" 
             onClick={() => onOpenChange(false)} 
             disabled={isLoading}
           >
             Cancel
-          </Button>
+          </button>
           
           {/* Manual resume button - only show when not in success state */}
           {!successState && (
-            <Button 
-              size="sm" 
-              className="font-medium shadow transition min-w-32" 
+            <button 
+              className="btn-success min-w-32" 
               onClick={handleManualResume} 
               disabled={isLoading}
-              variant="outline"
             >
               {isLoading ? "Processing..." : "I've Upgraded — Resume Now"}
-            </Button>
+            </button>
           )}
         </DialogFooter>
-      </DialogContent>
+        </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   );
 }

@@ -9,6 +9,47 @@ import { internal } from "../_generated/api";
 import { atlasAgentGroq } from "../agent";
 import type { GenericActionCtx } from "convex/server";
 import type { Id, DataModel } from "../_generated/dataModel";
+import { z } from "zod";
+
+/**
+ * Zod schema for audit dossier generation
+ * Used with generateObject to ensure structured, validated output
+ */
+const DossierSchema = z.object({
+  summary: z.string()
+    .min(20)
+    .describe("2-3 sentence business summary: what they do, who they serve, key value propositions"),
+  
+  primary_email: z.string()
+    .email()
+    .nullable()
+    .describe("Best contact email found on website (info@, contact@, hello@, sales@, or named contact). Return null if not found."),
+  
+  gaps: z.array(
+    z.object({
+      key: z.string().describe("Gap category (e.g., 'SEO Optimization', 'Mobile UX', 'Content Strategy')"),
+      value: z.string().describe("Specific gap description with actionable detail"),
+      source_url: z.string().url().optional().describe("Supporting URL from scraped pages"),
+    })
+  )
+    .min(2)
+    .max(5)
+    .describe("3-5 specific technical, marketing, operational, or strategic weaknesses we could address"),
+  
+  talking_points: z.array(
+    z.object({
+      text: z.string().describe("Specific conversation starter connecting our capabilities to their needs"),
+      source_url: z.string().url().optional().describe("Supporting URL from scraped pages"),
+    })
+  )
+    .min(2)
+    .max(4)
+    .describe("3-4 conversation starters for sales outreach"),
+  
+  fit_reason: z.string()
+    .max(150)
+    .describe("Concise 1-2 sentence explanation of why this prospect is a good fit, under 150 characters"),
+});
 
 /**
  * Initialize audit job phases
@@ -404,6 +445,8 @@ async function generateDossierAndFitReasonHelper(
     const contextLines: Array<string> = [];
     const pagesWithContent = scrapedPages.filter(page => page.contentRef);
     
+    let successfullyLoadedPages = 0;
+    
     for (const page of pagesWithContent.slice(0, 8)) { // Limit to prevent memory issues
       try {
         if (page.contentRef) {
@@ -413,6 +456,7 @@ async function generateDossierAndFitReasonHelper(
             // Truncate content for analysis (similar to onboarding pattern)
             const truncated = text.slice(0, 4000);
             contextLines.push(`URL: ${page.url}\nTitle: ${page.title || 'N/A'}\nContent:\n${truncated}\n\n---\n\n`);
+            successfullyLoadedPages++;
           }
         }
       } catch (error) {
@@ -422,9 +466,17 @@ async function generateDossierAndFitReasonHelper(
     }
     
     const contextContent = contextLines.join('');
+    
+    // Early validation: ensure we have meaningful content
+    if (contextContent.length < 100 || successfullyLoadedPages === 0) {
+      console.error(`[Audit Dossier] Insufficient content loaded. Content length: ${contextContent.length}, Successful pages: ${successfullyLoadedPages}`);
+      throw new Error("Insufficient content for analysis");
+    }
+    
+    console.log(`[Audit Dossier] Loaded ${successfullyLoadedPages}/${pagesWithContent.length} pages successfully (${contextContent.length} chars) for ${opportunity.name}`);
 
-    // Generate comprehensive dossier
-    const dossierPrompt = `Analyze this potential client's website and create a detailed sales dossier.
+    // Generate comprehensive dossier using generateText with Zod validation
+    const dossierPrompt = `You are a sales intelligence analyst. Analyze this potential client's website and create a detailed sales dossier.
 
 AGENCY CONTEXT:
 - Company: ${agency.companyName}
@@ -437,29 +489,44 @@ PROSPECT CONTEXT:
 - Industry: ${opportunity.targetVertical}
 - Location: ${opportunity.targetGeography}
 
-WEBSITE ANALYSIS:
+WEBSITE CONTENT (${successfullyLoadedPages} pages analyzed):
 ${contextContent}
 
-Create a comprehensive sales dossier with:
+INSTRUCTIONS:
+1. BUSINESS SUMMARY: Write 2-3 sentences explaining what they do, who they serve, and their key value propositions (minimum 20 characters)
+2. IDENTIFIED GAPS: Find 3-5 SPECIFIC technical, marketing, operational, or strategic weaknesses we could address
+   - Each gap must be actionable and verifiable from the content
+   - Include source_url when possible
+   - Example: {"key": "SEO Optimization", "value": "Homepage missing meta description and H1 tag", "source_url": "https://..."}
+3. TALKING POINTS: Create 3-4 conversation starters that connect our capabilities to their needs
+   - Be specific, reference actual content from their site
+   - Include source_url when possible
+4. PRIMARY EMAIL: Extract the best contact email found (info@, contact@, hello@, sales@, support@, or named contacts)
+   - Return null if no email found
+   - Must be a valid email format
+5. FIT REASON: Write a concise 1-2 sentence explanation (under 150 characters) of why this prospect is a good fit
+   - Reference their qualification signals: ${opportunity.signals.join(', ')}
+   - Connect to our core offering
 
-1. BUSINESS SUMMARY (2-3 sentences): What they do, who they serve, key value propositions
-2. IDENTIFIED GAPS (3-5 specific gaps): Technical, marketing, operational, or strategic weaknesses we could address
-3. TALKING POINTS (3-4 points): Specific conversation starters that connect our capabilities to their needs
-4. PRIMARY EMAIL: Best contact email found on the website (look for info@, contact@, hello@, sales@, or named contacts)
-
-Format as JSON:
+CRITICAL FORMATTING REQUIREMENTS:
+- Return ONLY valid JSON, no additional text or explanation
+- Do not wrap in markdown code blocks
+- Use exactly this structure:
 {
-  "summary": "Business summary here",
-  "primary_email": "best-contact@company.com or null if not found",
+  "summary": "2-3 sentence business summary...",
+  "primary_email": "contact@example.com or null",
   "gaps": [
-    {"key": "Gap category", "value": "Specific gap description", "source_url": "supporting URL"},
+    {"key": "Gap Category", "value": "Specific gap description", "source_url": "https://..."},
     ...
   ],
   "talking_points": [
-    {"text": "Talking point connecting to our capabilities", "source_url": "supporting URL"},
+    {"text": "Talking point text", "source_url": "https://..."},
     ...
-  ]
-}`;
+  ],
+  "fit_reason": "One sentence under 150 chars"
+}
+
+Generate the JSON now:`;
 
     try {
       // Use thread context with userId fallback (upgrade plan requirement)
@@ -469,66 +536,121 @@ Format as JSON:
         ? { userId: leadGenFlow.userId }
         : {};
       
-      const dossierRes = await atlasAgentGroq.generateText(ctx, threadContext, { prompt: dossierPrompt });
-      const dossierData = JSON.parse(dossierRes.text ?? "{}");
+      console.log(`[Audit Dossier] Starting generateText for ${opportunity.name}`, {
+        threadContext,
+        contentLength: contextContent.length,
+        pagesLoaded: successfullyLoadedPages,
+        promptLength: dossierPrompt.length,
+      });
       
-      // Extract email from AI response
-      const extractedEmail = dossierData.primary_email && 
-                            dossierData.primary_email !== "null" && 
-                            dossierData.primary_email.includes('@') 
-                            ? dossierData.primary_email : null;
+      // Use generateText with Zod validation for structured output
+      const result = await atlasAgentGroq.generateText(
+        ctx,
+        threadContext,
+        {
+          prompt: dossierPrompt,
+        }
+      );
+
+      console.log(`[Audit Dossier] generateText completed for ${opportunity.name}`, {
+        hasResult: !!result,
+        hasText: !!result?.text,
+        textLength: result?.text?.length || 0,
+        textPreview: result?.text?.slice(0, 200),
+      });
+
+      // Parse and validate with Zod schema
+      let parsedData;
+      try {
+        // Clean up common LLM formatting issues
+        let cleanedText = (result.text ?? "").trim();
+        
+        // Remove markdown code blocks if present
+        if (cleanedText.startsWith("```json")) {
+          cleanedText = cleanedText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        } else if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
+        
+        console.log(`[Audit Dossier] Cleaned text for parsing:`, {
+          originalLength: result.text?.length || 0,
+          cleanedLength: cleanedText.length,
+          cleanedPreview: cleanedText.slice(0, 200),
+        });
+        
+        parsedData = JSON.parse(cleanedText);
+        console.log(`[Audit Dossier] JSON parsed successfully:`, {
+          keys: Object.keys(parsedData),
+        });
+        
+      } catch (parseError) {
+        console.error(`[Audit Dossier] JSON parse failed for ${opportunity.name}:`, {
+          parseError: parseError instanceof Error ? parseError.message : String(parseError),
+          rawText: result.text,
+        });
+        throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+
+      // Validate with Zod schema
+      const validatedData = DossierSchema.parse(parsedData);
       
-      // Generate fit reason separately for brevity
-      const fitPrompt: string = `Based on this analysis, write a concise 1-2 sentence "fit reason" explaining why ${opportunity.name} is a good prospect for ${agency.companyName}.
+      console.log(`[Audit Dossier] Zod validation successful for ${opportunity.name}:`, {
+        gapsCount: validatedData.gaps.length,
+        talkingPointsCount: validatedData.talking_points.length,
+        hasEmail: !!validatedData.primary_email,
+        summaryLength: validatedData.summary.length,
+        fitReasonLength: validatedData.fit_reason.length,
+      });
 
-Focus on:
-- Their qualification signals: ${opportunity.signals.join(', ')}
-- Key gaps we identified
-- How our core offering aligns
-
-Keep it under 150 characters for UI display.
-
-Context: ${dossierData.summary || 'Business analysis not available'}
-
-Fit Reason:`;
-
-      const fitRes = await atlasAgentGroq.generateText(ctx, threadContext, { prompt: fitPrompt });
-      const fitReason: string = (fitRes.text || '').trim().slice(0, 150);
+      // Extract email from AI response (validated by Zod schema)
+      const extractedEmail = validatedData.primary_email ?? undefined;
 
       // Create dossier in database (upgrade plan: compact with optional sources)
       const dossierId = await ctx.runMutation(internal.leadGen.audit.createAuditDossier, {
         opportunityId,
         auditJobId: args.auditJobId,
-        summary: dossierData.summary || 'Analysis completed',
-        identifiedGaps: dossierData.gaps || [],
-        talkingPoints: (dossierData.talking_points || []).map((tp: { text?: string; source_url?: string } | string, index: number) => ({
-          text: typeof tp === 'string' ? tp : (tp.text || ''),
-          approved_claim_id: `generated_${index}`, // Link to agency claims if available
-          source_url: typeof tp === 'string' ? undefined : tp.source_url,
+        summary: validatedData.summary,
+        identifiedGaps: validatedData.gaps.map(gap => ({
+          key: gap.key,
+          value: gap.value,
+          source_url: gap.source_url,
+        })),
+        talkingPoints: validatedData.talking_points.map((tp, index) => ({
+          text: tp.text,
+          approved_claim_id: `generated_${index}`,
+          source_url: tp.source_url,
         })),
         // Optional sources list for display (no embedded content)
-        sources: pagesWithContent.map(page => ({
+        sources: pagesWithContent.slice(0, successfullyLoadedPages).map(page => ({
           url: page.url,
           title: page.title,
         })),
-        email: extractedEmail, // Pass extracted email to dossier creation
+        email: extractedEmail,
       });
 
       // Save fit reason to opportunity
       await ctx.runMutation(internal.leadGen.audit.saveFitReason, {
         opportunityId,
-        fitReason,
+        fitReason: validatedData.fit_reason,
       });
 
-      console.log(`[Audit Dossier] Generated dossier ${dossierId} for ${opportunity.name}`);
+      console.log(`[Audit Dossier] Created dossier ${dossierId} for ${opportunity.name}`);
       
       return {
         dossierId,
-        fitReason,
+        fitReason: validatedData.fit_reason,
       };
       
     } catch (error) {
-      console.error("[Audit Dossier] AI generation failed:", error);
+      // This ONLY catches AI generation failures now, not content loading issues
+      console.error(`[Audit Dossier] AI generation failed for ${opportunity.name}:`, {
+        errorType: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        contentLength: contextContent.length,
+        pagesLoaded: successfullyLoadedPages,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      });
       
       // Fallback: create minimal dossier
       const fallbackSummary: string = `${opportunity.name} is a ${opportunity.targetVertical} business in ${opportunity.targetGeography}. Qualification signals: ${opportunity.signals.join(', ')}.`;

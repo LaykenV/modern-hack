@@ -323,29 +323,36 @@ export const leadGenWorkflow = workflow.define({
     } else {
       console.log("[Lead Gen Workflow] Starting Phase 5: Generate Dossiers");
       
+      // Get ALL audit jobs (completed + queued) to calculate correct progress on resume
+      const auditJobsData = await step.runQuery(internal.leadGen.queries.getAllAuditJobsByFlow, {
+        leadGenFlowId: args.leadGenFlowId,
+      });
+
+      const totalAudits = auditJobsData.total;
+      let completedAudits = auditJobsData.completed;
+      const queuedAudits = auditJobsData.queued;
+
+      console.log(`[Lead Gen Workflow] Found ${totalAudits} total audits: ${completedAudits} completed, ${queuedAudits.length} queued`);
+
+      // Calculate initial progress based on already-completed audits (handles resume correctly)
+      const initialProgress = totalAudits > 0 ? 0.1 + 0.9 * (completedAudits / totalAudits) : 0.1;
+      
       await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
         leadGenFlowId: args.leadGenFlowId,
         phaseName: "generate_dossier",
         status: "running",
-        progress: 0.1,
-        eventMessage: "Starting audit workflows for opportunities with websites",
+        progress: initialProgress,
+        eventMessage: completedAudits > 0 
+          ? `Resuming: ${completedAudits}/${totalAudits} audits already completed`
+          : "Starting audit workflows for opportunities with websites",
       });
 
-      // Get all queued audit jobs for this lead gen flow
-      const auditJobs = await step.runQuery(internal.leadGen.queries.getAuditJobsByFlow, {
-        leadGenFlowId: args.leadGenFlowId,
-      });
-
-      console.log(`[Lead Gen Workflow] Found ${auditJobs.length} audit jobs to process`);
-
-      // Process audit jobs sequentially (each runAuditAction already batches URL scraping internally)
+      // Process only the queued audit jobs sequentially (each runAuditAction already batches URL scraping internally)
       try {
-        const totalAudits = auditJobs.length;
-        let completedAudits = 0;
-        for (let i = 0; i < auditJobs.length; i++) {
-          const auditJob = auditJobs[i];
+        for (let i = 0; i < queuedAudits.length; i++) {
+          const auditJob = queuedAudits[i];
           
-          console.log(`[Lead Gen Workflow] Processing audit ${i + 1}/${auditJobs.length} for opportunity ${auditJob.opportunityId}`);
+          console.log(`[Lead Gen Workflow] Processing audit ${i + 1}/${queuedAudits.length} (${completedAudits + i + 1}/${totalAudits} overall) for opportunity ${auditJob.opportunityId}`);
           
           // Check billing before each audit (costs 1 unit, Autumn multiplies by 2 credits per unit)
           try {
@@ -414,7 +421,7 @@ export const leadGenWorkflow = workflow.define({
             eventMessage: `Completed audit ${completedAudits}/${totalAudits}`,
           });
 
-          console.log(`[Lead Gen Workflow] Completed audit ${i + 1}/${auditJobs.length}`);
+          console.log(`[Lead Gen Workflow] Completed audit ${i + 1}/${queuedAudits.length} (${completedAudits}/${totalAudits} overall)`);
         }
         
         await step.runMutation(internal.leadGen.statusUtils.updatePhaseStatus, {
@@ -422,10 +429,10 @@ export const leadGenWorkflow = workflow.define({
           phaseName: "generate_dossier",
           status: "complete",
           progress: 1.0,
-          eventMessage: `Completed ${auditJobs.length} audit workflows`,
+          eventMessage: `Completed ${totalAudits} audit workflows`,
         });
 
-        console.log(`[Lead Gen Workflow] Phase 5 completed: ${auditJobs.length} audits processed`);
+        console.log(`[Lead Gen Workflow] Phase 5 completed: ${totalAudits} total audits (${queuedAudits.length} processed in this run)`);
         
       } catch (error) {
         // Check if this is a billing pause error - if so, exit cleanly without marking phase complete
