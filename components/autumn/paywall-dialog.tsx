@@ -3,13 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
+  DialogContent,
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { XIcon, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCustomer } from "autumn-js/react";
 import { cn } from "@/lib/utils";
 import { PLANS } from "@/lib/autumn/plans";
@@ -218,24 +216,17 @@ export default function PaywallDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
-        <DialogOverlay className="!bg-black/95" />
-        <DialogPrimitive.Content
-          className={cn(
-            "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 rounded-lg border shadow-lg duration-200 p-0 pt-4 text-foreground overflow-hidden text-sm max-w-2xl"
-          )}
-        >
-          <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-          <DialogTitle className={cn("font-bold text-xl px-6")}>{title}</DialogTitle>
+      <DialogContent 
+        className="sm:max-w-2xl p-0 pt-4 gap-0 overflow-hidden" 
+        variant="glass"
+      >
+        <DialogTitle className={cn("font-bold text-xl px-6")}>{title}</DialogTitle>
         <div className="px-6 my-2">{message}</div>
         
         {/* Show resume message if any */}
         {resumeMessage && (
-          <div className="px-6 my-2 p-2 bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded">
-            <p className="text-sm text-orange-800 dark:text-orange-200">{resumeMessage}</p>
+          <div className="px-6 my-2 p-2 bg-gradient-to-br from-orange-500/15 to-orange-500/8 border border-orange-500/30 backdrop-blur-sm rounded shadow-md">
+            <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">{resumeMessage}</p>
           </div>
         )}
         
@@ -248,11 +239,11 @@ export default function PaywallDialog({
               if (!shouldShow) return null;
 
               return (
-                <div key={plan.id} className="border rounded p-3 border-slate-200 dark:border-slate-800">
+                <div key={plan.id} className="border rounded-lg p-3 border-border/40 bg-gradient-to-br from-[hsl(var(--surface-raised)/0.9)] to-[hsl(var(--surface-muted)/0.8)] backdrop-blur-sm shadow-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">{plan.name}</p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">{plan.price} • {plan.includedCredits}</p>
+                      <p className="font-medium text-foreground">{plan.name}</p>
+                      <p className="text-xs text-muted-foreground">{plan.price} • {plan.includedCredits}</p>
                     </div>
                   </div>
                   <div className="mt-3 flex gap-2">
@@ -283,7 +274,7 @@ export default function PaywallDialog({
           </div>
         )}
         
-        <DialogFooter className="flex flex-row justify-end gap-x-2 py-3 mt-4 px-6 bg-secondary border-t">
+        <DialogFooter className="flex flex-row justify-end gap-x-2 py-3 mt-4 px-6 bg-gradient-to-br from-[hsl(var(--surface-raised)/0.9)] to-[hsl(var(--surface-muted)/0.8)] backdrop-blur-sm border-t border-border/40">
           <button 
             className="btn-destructive" 
             onClick={() => onOpenChange(false)} 
@@ -303,8 +294,7 @@ export default function PaywallDialog({
             </button>
           )}
         </DialogFooter>
-        </DialogPrimitive.Content>
-      </DialogPortal>
+      </DialogContent>
     </Dialog>
   );
 }
